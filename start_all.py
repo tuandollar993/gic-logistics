@@ -14,8 +14,9 @@ else:
     print('⚠️ [STARTUP] Chưa có TELEGRAM_BOT_TOKEN trong biến môi trường.')
 
 # Tự động đồng bộ Webhook cho Cashflow Bot (@gidotien_bot)
-cashflow_token = os.getenv('CASHFLOW_BOT_TOKEN')
-secret_token = os.getenv('TELEGRAM_SECRET_TOKEN')
+from app.config import Config
+cashflow_token = Config.CASHFLOW_BOT_TOKEN
+secret_token = Config.TELEGRAM_SECRET_TOKEN
 render_url = os.getenv('RENDER_EXTERNAL_URL') or 'https://gic-logistics.onrender.com'
 
 if cashflow_token:

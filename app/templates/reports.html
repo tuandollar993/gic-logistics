@@ -482,11 +482,28 @@ async function generateReport() {
     document.getElementById('btnGenerate').disabled = true;
 
     try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const response = await fetch('{{ url_for("reports.generate") }}', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ month, year, report_type: 'kqkd' })
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ month, year, report_type: 'kqkd', csrf_token: csrfToken })
         });
+
+        if (!response.ok) {
+            let errorMsg = `Máy chủ phản hồi trạng thái ${response.status}`;
+            try {
+                const errData = await response.json();
+                if (errData && errData.error) errorMsg = errData.error;
+            } catch (_) {
+                if (response.status === 502 || response.status === 503 || response.status === 504) {
+                    errorMsg = 'Máy chủ đang khởi động hoặc kết nối gián đoạn. Vui lòng bấm "Tạo Báo Cáo AI" thử lại sau giây lát.';
+                }
+            }
+            throw new Error(errorMsg);
+        }
 
         const res = await response.json();
         if (res.success) {
@@ -496,7 +513,7 @@ async function generateReport() {
             alert('Lỗi: ' + (res.error || 'Không thể tạo báo cáo'));
         }
     } catch (err) {
-        alert('Lỗi kết nối máy chủ: ' + err.message);
+        alert('Thông báo: ' + err.message);
     } finally {
         document.getElementById('loadingOverlay').classList.add('d-none');
         document.getElementById('wordCanvas').style.opacity = '1.0';
@@ -727,14 +744,19 @@ async function downloadWord() {
     };
 
     try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const response = await fetch('{{ url_for("reports.download") }}', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
             body: JSON.stringify({
                 month,
                 year,
                 report_type: 'kqkd',
-                sections: editedSections
+                sections: editedSections,
+                csrf_token: csrfToken
             })
         });
 
@@ -749,11 +771,15 @@ async function downloadWord() {
             a.remove();
             window.URL.revokeObjectURL(url);
         } else {
-            const err = await response.json();
-            alert('Lỗi xuất file: ' + (err.error || 'Unknown'));
+            let errMsg = `Lỗi máy chủ (${response.status})`;
+            try {
+                const err = await response.json();
+                if (err && err.error) errMsg = err.error;
+            } catch (_) {}
+            alert('Lỗi xuất file: ' + errMsg);
         }
     } catch (e) {
-        alert('Lỗi kết nối: ' + e.message);
+        alert('Thông báo: ' + e.message);
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> <span>Tải File Word</span>';

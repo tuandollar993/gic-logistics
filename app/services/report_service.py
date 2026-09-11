@@ -113,6 +113,7 @@ class ChartGenerator:
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight')
         plt.close(fig)
+        plt.close('all')
         buf.seek(0)
         return buf
 
@@ -151,6 +152,7 @@ class ChartGenerator:
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight')
         plt.close(fig)
+        plt.close('all')
         buf.seek(0)
         return buf
 
@@ -182,6 +184,7 @@ class ChartGenerator:
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight')
         plt.close(fig)
+        plt.close('all')
         buf.seek(0)
         return buf
 
@@ -520,7 +523,10 @@ Lưu ý:
                 'status': 'success'
             }
         except Exception as e:
-            print(f"[ReportService] Gemini API error: {e}")
+            try:
+                print(f"[ReportService] Gemini API fallback: {e}")
+            except Exception:
+                pass
             return cls._fallback_report(data, report_type)
 
     @classmethod
@@ -551,7 +557,7 @@ Lưu ý:
         if not api_key:
             raise Exception("GEMINI_API_KEY chưa được cấu hình")
 
-        url = f"{cls.GEMINI_URL}?key={api_key}"
+        models_to_try = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.0-flash']
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
@@ -562,13 +568,21 @@ Lưu ý:
             }
         }
 
-        resp = requests.post(url, json=payload, timeout=30)
-        if resp.status_code != 200:
-            raise Exception(f"Gemini API lỗi {resp.status_code}: {resp.text}")
+        last_error = None
+        for model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            try:
+                resp = requests.post(url, json=payload, timeout=4)
+                if resp.status_code == 200:
+                    raw_text = resp.json()['candidates'][0]['content']['parts'][0]['text']
+                    cleaned = raw_text.replace('```json', '').replace('```', '').strip()
+                    return json.loads(cleaned)
+                else:
+                    last_error = f"{resp.status_code}: {resp.text[:100]}"
+            except Exception as ex:
+                last_error = str(ex)
 
-        raw_text = resp.json()['candidates'][0]['content']['parts'][0]['text']
-        cleaned = raw_text.replace('```json', '').replace('```', '').strip()
-        return json.loads(cleaned)
+        raise Exception(f"Gemini API unavailable: {last_error}")
 
     @classmethod
     def _fallback_report(cls, data, report_type):
@@ -776,7 +790,9 @@ class WordExporter:
         # ── I.2. Tiêu chí khách hàng ──
         cls._add_heading(doc, 'I.2. Tiêu chí khách hàng', level=2)
 
-        cust_count = len(data.get('customer_monthly_tables', [{}])[0].get('van_hanh', [])) or len(data.get('kpi', {}).get('existing_customers', []))
+        cust_tables = data.get('customer_monthly_tables') or []
+        first_vh = cust_tables[0].get('van_hanh', []) if cust_tables else []
+        cust_count = len(first_vh) or len(data.get('kpi', {}).get('existing_customers', []))
         p_ex = doc.add_paragraph()
         r_ex = p_ex.add_run(f'a) Khách hàng hiện hữu ({cust_count} khách hàng)')
         r_ex.bold = True

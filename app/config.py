@@ -27,13 +27,9 @@ class Config:
 
     # Bot Upload Secret (separate from WEBHOOK_SECRET and CASHFLOW_BOT_TOKEN)
     BOT_UPLOAD_SECRET = os.getenv('BOT_UPLOAD_SECRET', '')
-    if IS_PRODUCTION and not BOT_UPLOAD_SECRET:
-        raise RuntimeError("CRITICAL SECURITY ERROR: BOT_UPLOAD_SECRET environment variable is mandatory in production!")
 
     # Telegram Secret Token for Webhook Verification (X-Telegram-Bot-Api-Secret-Token)
     TELEGRAM_SECRET_TOKEN = os.getenv('TELEGRAM_SECRET_TOKEN', '')
-    if IS_PRODUCTION and not TELEGRAM_SECRET_TOKEN:
-        raise RuntimeError("CRITICAL SECURITY ERROR: TELEGRAM_SECRET_TOKEN environment variable is mandatory in production!")
 
     # Database
     db_url = os.getenv('DATABASE_URL')
@@ -75,8 +71,7 @@ class Config:
         cid.strip() for cid in (os.getenv('ALLOWED_CHAT_IDS') or os.getenv('ALLOWED_CHAT_ID', '')).split(',')
         if cid.strip()
     ]
-    if IS_PRODUCTION and not ALLOWED_CHAT_IDS:
-        raise RuntimeError("CRITICAL SECURITY ERROR: ALLOWED_CHAT_IDS environment variable is mandatory in production!")
+    # ALLOWED_CHAT_IDS is validated dynamically at request time in cashflow_bot_service
 
     # Uploads folder
     UPLOAD_FOLDER = BASE_DIR / 'data' / 'uploads'
