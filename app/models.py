@@ -228,6 +228,55 @@ class Lot(db.Model):
             'revenue_item_count': len(self.active_revenue_items)
         }
 
+def classify_service_category(raw_desc, fallback_hint=None):
+    """Phân loại nghiệp vụ chuẩn hóa 6 nhóm: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
+    raw = (raw_desc or '').strip()
+    hint = (fallback_hint or '').strip()
+    combined = f"{raw} {hint}".lower()
+    
+    desc_nfc = unicodedata.normalize('NFC', combined)
+    desc_ascii = ''.join(c for c in unicodedata.normalize('NFD', combined) if unicodedata.category(c) != 'Mn')
+    
+    # 1. Kiểm định / Giám định / Quatest / Kiểm dịch
+    if any(k in desc_nfc for k in ['quatest', 'lấy mẫu', 'kiểm định', 'giám định', 'giám đinh', 'kiểm dịch', 'kiểm tra chất lượng']) or \
+       any(k in desc_ascii for k in ['quatest', 'lay mau', 'kiem dinh', 'giam dinh', 'kiem dich', 'kiem tra chat luong']):
+        return 'Kiểm định'
+        
+    # 2. Bốc xếp / Sang tải / Nâng hạ / Bốc dỡ
+    if any(k in desc_nfc for k in ['bốc xếp', 'bốp xếp', 'boc xep', 'sang tải', 'sang hàng', 'hạ hàng', 'nâng hạ', 'sang xe', 'cởi bạt', 'pallet', 'cơ giới sang', 'công nhân hạ']) or \
+       any(k in desc_ascii for k in ['boc xep', 'bop xep', 'sang tai', 'sang hang', 'ha hang', 'nang ha', 'sang xe', 'coi bat', 'pallet', 'co gioi sang', 'cong nhan ha']):
+        return 'Bốc xếp'
+        
+    # 3. Tờ khai / Hải quan / Thủ tục thông quan / Giám sát / Hồ sơ
+    if any(k in desc_nfc for k in ['tờ khai', 'dvtk', 'dvtkhq', 'hải quan', 'thông quan', 'hồ sơ', 'tiếp nhận', 'giám sát', 'cơ động', 'trả giấy']) or \
+       any(k in desc_ascii for k in ['to khai', 'dvtk', 'dvtkhq', 'hai quan', 'thong quan', 'ho so', 'tiep nhan', 'giam sat', 'co dong', 'tra giay']) or \
+       re.search(r'\b(hq|dvtk|hs)\b', desc_ascii):
+        return 'Tờ khai'
+        
+    # 4. Cửa khẩu / Bến bãi / CSHT / Biên phòng / Phương tiện
+    if any(k in desc_nfc for k in ['cửa khẩu', 'cơ sở hạ tầng', 'csht', 'bến bãi', 'vé xe', 'vé cổng', 'cổng b1', 'biên phòng', 'tem xe', 'dấu đầu xe', 'mái che', 'mua phí xe', 'xe trung quốc']) or \
+       any(k in desc_ascii for k in ['cua khau', 'co so ha tang', 'csht', 'ben bai', 've xe', 've cong', 'cong b1', 'bien phong', 'tem xe', 'dau dau xe', 'mai che', 'mua phi xe', 'xe trung quoc']):
+        return 'Cửa khẩu'
+        
+    # 5. Phụ phí / Chi phí khác
+    if any(k in desc_nfc for k in ['lưu ca', 'lưu kho', 'hủy xe', 'phạt', 'xử phạt', 'ngủ đêm', 'bảo hiểm', 'ổ khóa', 'thuê lái xe']) or \
+       any(k in desc_ascii for k in ['luu ca', 'luu kho', 'huy xe', 'phat', 'xu phat', 'ngu dem', 'bao hiem', 'o khoa', 'thue lai xe']):
+        return 'Phụ phí'
+        
+    # 6. Fallback based on hint
+    if hint:
+        hint_ascii = ''.join(c for c in unicodedata.normalize('NFD', hint.lower()) if unicodedata.category(c) != 'Mn')
+        if any(k in hint_ascii for k in ['cua khau', 'ben bai', 'csht', 'bien phong']):
+            return 'Cửa khẩu'
+        if any(k in hint_ascii for k in ['to khai', 'thong quan', 'hai quan']):
+            return 'Tờ khai'
+        if any(k in hint_ascii for k in ['boc xep', 'bop xep', 'sang tai', 'nang ha']):
+            return 'Bốc xếp'
+        if any(k in hint_ascii for k in ['kiem dinh', 'kiem dich', 'quatest']):
+            return 'Kiểm định'
+            
+    return 'Vận chuyển'
+
 class RevenueItem(db.Model):
     __tablename__ = 'revenue_items'
     
@@ -307,20 +356,7 @@ class RevenueItem(db.Model):
     @property
     def category(self):
         """Phân loại nghiệp vụ chuẩn hóa: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
-        raw = self.service_description or ''
-        desc = unicodedata.normalize('NFC', raw.lower())
-        desc_ascii = ''.join(c for c in unicodedata.normalize('NFD', raw.lower()) if unicodedata.category(c) != 'Mn')
-        if 'cửa khẩu' in desc or 'cua khau' in desc_ascii:
-            return 'Cửa khẩu'
-        if any(k in desc for k in ['dvtk', 'tờ khai', 'hải quan']) or any(k in desc_ascii for k in ['to khai', 'hai quan']):
-            return 'Tờ khai'
-        if any(k in desc for k in ['bốc xếp', 'sang hàng', 'nâng hạ']) or any(k in desc_ascii for k in ['boc xep', 'sang hang', 'nang ha']):
-            return 'Bốc xếp'
-        if any(k in desc for k in ['quatest', 'kiểm định', 'kiểm dịch']) or any(k in desc_ascii for k in ['kiem dinh', 'kiem dich']):
-            return 'Kiểm định'
-        if any(k in desc for k in ['lưu ca', 'lưu kho', 'hủy xe', 'xử phạt']) or any(k in desc_ascii for k in ['luu ca', 'luu kho', 'huy xe', 'xu phat']):
-            return 'Phụ phí'
-        return 'Vận chuyển'
+        return classify_service_category(self.service_description, self.weight_class)
 
     @property
     def display_description(self):
@@ -400,30 +436,39 @@ class OperatingCost(db.Model):
     filler = db.relationship('User', foreign_keys=[filled_by])
 
     @property
+    def category(self):
+        """Phân loại nghiệp vụ chuẩn hóa 6 nhóm: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
+        return classify_service_category(self.description, self.cost_type)
+
+    @property
     def display_cost_type(self):
-        """Tên phân loại chi phí chuẩn hóa, sửa lỗi chính tả Excel cũ"""
-        ct = (self.cost_type or '').strip()
-        if ct.lower() == 'bốp xếp':
-            return 'Bốc xếp'
-        if not ct:
-            desc = (self.description or '').lower()
-            if 'cửa khẩu' in desc or 'cua khau' in desc:
-                return 'Phí cửa khẩu'
-            if any(k in desc for k in ['hải quan', 'hai quan', 'tờ khai', 'to khai', 'thông quan']):
-                return 'Phí thông quan'
-            if any(k in desc for k in ['bốc xếp', 'boc xep', 'sang hàng', 'nâng hạ']):
-                return 'Bốc xếp'
-            if any(k in desc for k in ['bến bãi', 'ben bai', 'vé xe', 've xe']):
-                return 'Phí bến bãi'
+        """Tên phân loại chi phí chuẩn hóa"""
+        return self.category
+
+    @property
+    def display_description(self):
+        """Tên chi phí viết rõ ràng, mở rộng viết tắt (VD: DVTK TQ -> Dịch vụ tờ khai Trung Quốc)"""
+        desc = self.description or ''
+        if not desc:
             return 'Chi phí vận hành'
-        return ct
+        if re.search(r'\bDVTK\s*TQ\b', desc, re.IGNORECASE):
+            return re.sub(r'\bDVTK\s*TQ\b', 'Dịch vụ tờ khai Trung Quốc', desc, flags=re.IGNORECASE)
+        if re.search(r'\bDVTK\s*HQ\b', desc, re.IGNORECASE):
+            return re.sub(r'\bDVTK\s*HQ\b', 'Dịch vụ tờ khai Hải quan', desc, flags=re.IGNORECASE)
+        if re.search(r'\bDVTKHQ\b', desc, re.IGNORECASE):
+            return re.sub(r'\bDVTKHQ\b', 'Dịch vụ tờ khai Hải quan', desc, flags=re.IGNORECASE)
+        if desc.strip().upper() == 'DVTK':
+            return 'Dịch vụ tờ khai'
+        return desc
 
     def to_dict(self):
         return {
             'id': self.id,
             'lot_id': self.lot_id,
             'cost_type': self.cost_type or '',
+            'category': self.category,
             'description': self.description or '',
+            'display_description': self.display_description,
             'vehicle_plate': self.vehicle_plate or '',
             'vehicle_count': self.vehicle_count or 1,
             'unit_price': self.unit_price or 0,

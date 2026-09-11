@@ -72,6 +72,22 @@ try:
                     print(f'✅ [STARTUP] Đã dọn dẹp {len(old_lots)} lô trùng lặp batch cũ!')
         except Exception as dup_err:
             print(f'⚠️ [STARTUP] Cảnh báo kiểm tra lô trùng: {dup_err}')
+
+        # Tự động chuẩn hóa phân loại chi phí cho OperatingCost
+        try:
+            from app.models import OperatingCost, classify_service_category
+            all_costs = OperatingCost.query.all()
+            updated_costs = 0
+            for c in all_costs:
+                cat = classify_service_category(c.description, c.cost_type)
+                if c.cost_type != cat:
+                    c.cost_type = cat
+                    updated_costs += 1
+            if updated_costs > 0:
+                db.session.commit()
+                print(f'✅ [STARTUP] Đã chuẩn hóa phân loại cho {updated_costs} khoản chi phí vận hành!')
+        except Exception as cat_sync_err:
+            print(f'⚠️ [STARTUP] Cảnh báo chuẩn hóa phân loại: {cat_sync_err}')
     print('✅ [STARTUP] Cơ sở dữ liệu đã sẵn sàng!')
 except Exception as e:
     print(f'⚠️ [STARTUP] Cảnh báo tạo DB: {e}')

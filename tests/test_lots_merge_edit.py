@@ -311,9 +311,27 @@ def test_category_classification_and_descriptions(app):
         it_vc = RevenueItem(service_description='Hữu Nghị - Phú Thọ', weight_class='25T')
         assert it_vc.category == 'Vận chuyển'
 
-        # Test OperatingCost typo correction
+        # Test OperatingCost typo correction and classification
         op_bx = OperatingCost(cost_type='Bốp xếp', description='Bốc xếp hàng')
+        assert op_bx.category == 'Bốc xếp'
         assert op_bx.display_cost_type == 'Bốc xếp'
+
+        # Test OperatingCost items from user screenshot (Lô CP 5.0)
+        op_qt = OperatingCost(cost_type='Phí thông quan', description='Quatest lấy mẫu sớm VN26040+VN26045')
+        assert op_qt.category == 'Kiểm định'
+        assert op_qt.display_cost_type == 'Kiểm định'
+
+        op_bx2 = OperatingCost(cost_type='Phí thông quan', description='Bốc xếp keep VN26040+VN26045')
+        assert op_bx2.category == 'Bốc xếp'
+
+        op_kd = OperatingCost(cost_type='Phí bến bãi', description='Kiểm dịch y tế')
+        assert op_kd.category == 'Kiểm định'
+
+        op_csht = OperatingCost(cost_type='Phí bến bãi', description='Phí Cơ sở hạ tầng')
+        assert op_csht.category == 'Cửa khẩu'
+
+        op_hs = OperatingCost(cost_type='Phí thông quan', description='Xem trước hồ sơ + tiếp nhận')
+        assert op_hs.category == 'Tờ khai'
 
 
 def test_profit_margin_rounded(app):
