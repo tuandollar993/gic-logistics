@@ -256,40 +256,22 @@ def detect_columns(token, sheet_name):
 
     return cols
 
-def append_transaction_to_sheet(data, public_img_url):
-    """Chèn dòng mới vào Google Sheet và cập nhật giá trị"""
-    token = get_google_access_token()
-    if not token:
-        raise Exception("Không thể kết nối Google Sheets (Thiếu token)")
-
-    sheet_name, month, year = get_monthly_sheet_name(data.get('ngay_giao_dich'))
-
-    # 1. Lấy sheet metadata để tìm sheetId
-    meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}?fields=sheets.properties"
+def _insert_row_before_total(token, spreadsheet_id, sheet_name):
+    """Tìm dòng TỔNG và chèn 1 dòng trống ngay trước dòng TỔNG trên Google Sheet, trả về row_a1 (1-indexed)."""
+    meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties"
     m_resp = requests.get(meta_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
     sheets_list = m_resp.json().get('sheets', [])
-    target_sheet = next((s['properties'] for s in sheets_list if s['properties']['title'] == sheet_name), None)
-    if not target_sheet:
+    target = next((s['properties'] for s in sheets_list if s['properties']['title'] == sheet_name), None)
+    if not target:
         raise Exception(f"Không tìm thấy sheet '{sheet_name}' trong Google Sheet.")
-    sheet_id = target_sheet['sheetId']
 
-    # 2. Tìm dòng TỔNG
-    val_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{sheet_name}!A:B"
-    v_resp = requests.get(val_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+    v_resp = requests.get(f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{sheet_name}!A:B",
+                          headers={'Authorization': f'Bearer {token}'}, timeout=10)
     rows = v_resp.json().get('values', [])
-    
-    tong_index = -1
-    for i, r in enumerate(rows):
-        cA = normalize_string(r[0] if len(r) > 0 else '')
-        cB = normalize_string(r[1] if len(r) > 1 else '')
-        if is_total_label(cA) or is_total_label(cB):
-            tong_index = i
-            break
-            
+    tong_index = next((i for i, r in enumerate(rows) if is_total_label(r[0] if r else '') or (len(r) > 1 and is_total_label(r[1]))), -1)
     if tong_index == -1:
-        raise Exception(f"Không tìm thấy dòng TỔNG trong sheet {sheet_name} để chèn dữ liệu.")
+        tong_index = len(rows)
 
-    # Tìm dòng có dữ liệu cuối cùng trước dòng TỔNG
     last_filled = tong_index - 1
     while last_filled >= 0:
         cA = (rows[last_filled][0] if len(rows[last_filled]) > 0 else '').strip()
@@ -299,13 +281,12 @@ def append_transaction_to_sheet(data, public_img_url):
         last_filled -= 1
     insert_index = last_filled + 1
 
-    # 3. Chèn dòng trống trước dòng TỔNG
-    batch_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}:batchUpdate"
-    insert_body = {
+    batch_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate"
+    body = {
         "requests": [{
             "insertDimension": {
                 "range": {
-                    "sheetId": sheet_id,
+                    "sheetId": target['sheetId'],
                     "dimension": "ROWS",
                     "startIndex": insert_index,
                     "endIndex": insert_index + 1
@@ -314,10 +295,19 @@ def append_transaction_to_sheet(data, public_img_url):
             }
         }]
     }
-    requests.post(batch_url, json=insert_body, headers={'Authorization': f'Bearer {token}'}, timeout=10)
-    row_a1 = insert_index + 1
+    requests.post(batch_url, json=body, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+    return insert_index + 1
 
-    # 4. Xác định các cột và chuẩn bị dữ liệu
+def append_transaction_to_sheet(data, public_img_url):
+    """Chèn dòng mới vào Google Sheet và cập nhật giá trị"""
+    token = get_google_access_token()
+    if not token:
+        raise Exception("Không thể kết nối Google Sheets (Thiếu token)")
+
+    sheet_name, month, year = get_monthly_sheet_name(data.get('ngay_giao_dich'))
+    row_a1 = _insert_row_before_total(token, GIDO_SPREADSHEET_ID, sheet_name)
+
+    # Xác định các cột và chuẩn bị dữ liệu
     cols = detect_columns(token, sheet_name) or {}
     max_c = max(cols.get('max_col', 18), 18)
     row_data = [""] * max_c
@@ -373,12 +363,12 @@ def append_transaction_to_sheet(data, public_img_url):
     if len(row_data) > 17:
         row_data[17] = short_id
 
-    # 5. Ghi dòng dữ liệu
+    # Ghi dòng dữ liệu
     col_letter = 'R' if len(row_data) >= 18 else chr(64 + len(row_data))
     update_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{sheet_name}!A{row_a1}:{col_letter}{row_a1}?valueInputOption=USER_ENTERED"
     requests.put(update_url, json={'values': [row_data]}, headers={'Authorization': f'Bearer {token}'}, timeout=10)
 
-    # 6. Ghi Audit Log vào sheet Nhật ký
+    # Ghi Audit Log vào sheet Nhật ký
     try:
         log_time = datetime.now().strftime('%H:%M:%S %d/%m/%Y')
         log_row = [log_time, 'Thêm Giao Dịch', loai, str(int(so_tien)), data.get('nguoi_giao_dich', ''), public_img_url]
@@ -402,54 +392,10 @@ def append_transaction_to_sheet(data, public_img_url):
 
 def append_transaction_to_luong_sheet(token, data, public_img_url, date_str):
     spreadsheet_id = '1u4mYe_3vWDXlNPABZpy9doLmWX06r1dHNSnXXbKbwNA'
-    meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties"
-    m_resp = requests.get(meta_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
-    sheets_list = m_resp.json().get('sheets', [])
-    target_sheet = next((s['properties'] for s in sheets_list if s['properties']['title'] == 'Lương'), None)
-    if not target_sheet:
+    try:
+        row_a1 = _insert_row_before_total(token, spreadsheet_id, 'Lương')
+    except Exception:
         return
-    sheet_id = target_sheet['sheetId']
-
-    val_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/Lương!A:B"
-    v_resp = requests.get(val_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
-    rows = v_resp.json().get('values', [])
-    
-    tong_index = -1
-    for i, r in enumerate(rows):
-        cA = normalize_string(r[0] if len(r) > 0 else '')
-        cB = normalize_string(r[1] if len(r) > 1 else '')
-        if is_total_label(cA) or is_total_label(cB):
-            tong_index = i
-            break
-            
-    if tong_index == -1:
-        tong_index = len(rows)
-
-    last_filled = tong_index - 1
-    while last_filled >= 0:
-        cA = (rows[last_filled][0] if len(rows[last_filled]) > 0 else '').strip()
-        cB = (rows[last_filled][1] if len(rows[last_filled]) > 1 else '').strip()
-        if cA != '' or cB != '':
-            break
-        last_filled -= 1
-    insert_index = last_filled + 1
-
-    batch_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate"
-    insert_body = {
-        "requests": [{
-            "insertDimension": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "dimension": "ROWS",
-                    "startIndex": insert_index,
-                    "endIndex": insert_index + 1
-                },
-                "inheritFromBefore": True
-            }
-        }]
-    }
-    requests.post(batch_url, json=insert_body, headers={'Authorization': f'Bearer {token}'}, timeout=10)
-    row_a1 = insert_index + 1
 
     row_data = [""] * 11
     row_data[0] = date_str

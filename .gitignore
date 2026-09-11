@@ -20,3 +20,8 @@ data/uploads/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Scratch & Temporary Test Artifacts
+scratch/
+data/test_*
+Mẫu *.docx

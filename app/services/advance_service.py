@@ -887,42 +887,16 @@ def update_transaction(trans_id, data):
     trans = db.session.get(CashAdvanceTransaction, trans_id)
     if not trans:
         return None
-    
-    if 'trans_date' in data:
-        trans.trans_date = data['trans_date']
-    if 'content' in data:
-        trans.content = data['content'].strip()
-    if 'tuan_thu_cty' in data:
-        trans.tuan_thu_cty = clean_amount(data['tuan_thu_cty'])
-    if 'tuan_thu_haiban' in data:
-        trans.tuan_thu_haiban = clean_amount(data['tuan_thu_haiban'])
-    if 'tuan_thu_khac' in data:
-        trans.tuan_thu_khac = clean_amount(data['tuan_thu_khac'])
-    if 'tuan_chi_haiban_cty' in data:
-        trans.tuan_chi_haiban_cty = clean_amount(data['tuan_chi_haiban_cty'])
-    if 'tuan_chi' in data:
-        trans.tuan_chi = clean_amount(data['tuan_chi'])
-    if 'xuyen_amount' in data:
-        trans.xuyen_amount = clean_amount(data['xuyen_amount'])
-    if 'luong_thu' in data:
-        trans.luong_thu = clean_amount(data['luong_thu'])
-    if 'luong_chi' in data:
-        trans.luong_chi = clean_amount(data['luong_chi'])
-    if 'truong_amount' in data:
-        trans.truong_amount = clean_amount(data['truong_amount'])
-    if 'partner_amount' in data:
-        trans.partner_amount = clean_amount(data['partner_amount'])
-    if 'partner_invoice' in data:
-        trans.partner_invoice = data['partner_invoice'].strip()
-    if 'bill_link' in data:
-        trans.bill_link = data['bill_link'].strip()
-    if 'advance_refund' in data:
-        trans.advance_refund = data['advance_refund'].strip()
-    if 'accounting_status' in data:
-        trans.accounting_status = data['accounting_status'].strip()
+
+    amt_fields = {'tuan_thu_cty', 'tuan_thu_haiban', 'tuan_thu_khac', 'tuan_chi_haiban_cty',
+                  'tuan_chi', 'xuyen_amount', 'luong_thu', 'luong_chi', 'truong_amount', 'partner_amount'}
+    str_fields = {'trans_date', 'content', 'partner_invoice', 'bill_link', 'advance_refund', 'accounting_status'}
+    for k in amt_fields.intersection(data):
+        setattr(trans, k, clean_amount(data[k]))
+    for k in str_fields.intersection(data):
+        setattr(trans, k, str(data[k] or '').strip())
 
     trans.updated_at = datetime.now(timezone.utc)
-    
     monthly = CashAdvanceMonthly.query.filter_by(month=trans.month, year=trans.year).first()
     if monthly:
         _recalculate_monthly_totals(monthly)
