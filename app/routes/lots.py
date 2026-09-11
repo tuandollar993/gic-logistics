@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Lot, Customer, User, CostEntryTask, RevenueItem, Supplier
+from app.models import Lot, Customer, User, CostEntryTask, RevenueItem, Supplier, OperatingCost
 from app.routes.auth import manager_required
 from app.services.calculator import CalculatorService
 from app.services.reminder_service import ReminderService
@@ -212,10 +212,13 @@ def add_revenue_item(lot_id):
         flash('Bạn không có quyền chỉnh sửa lô hàng này.', 'danger')
         return redirect(url_for('lots.detail', lot_id=lot.id))
         
+    item_type = request.form.get('item_type', 'revenue_item').strip()
     supplier = request.form.get('supplier', '').strip()
     vehicle_plate = request.form.get('vehicle_plate', '').strip()
+    service_description = request.form.get('service_description', '').strip() or 'Chi phí lô hàng'
     weight_class = request.form.get('weight_class', '').strip()
-    service_description = request.form.get('service_description', '').strip()
+    invoice_number = request.form.get('invoice_number', '').strip()
+    invoice_type = request.form.get('invoice_type', '').strip()
     
     try:
         buy_price = float(request.form.get('buy_price', 0) or 0)
@@ -231,22 +234,40 @@ def add_revenue_item(lot_id):
         surcharges = float(request.form.get('surcharges', 0) or 0)
     except ValueError:
         surcharges = 0.0
+
+    if item_type == 'operating_cost':
+        cost = OperatingCost(
+            lot_id=lot.id,
+            cost_type=weight_class or 'Chi phí vận hành',
+            description=service_description,
+            vehicle_plate=vehicle_plate,
+            vehicle_count=1.0,
+            unit_price=buy_price,
+            total_amount=buy_price,
+            invoice_type=invoice_type or 'Hóa đơn / Phiếu chi',
+            invoice_number=invoice_number,
+            supplier_name=supplier,
+            filled_by=current_user.id
+        )
+        db.session.add(cost)
+        flash(f'Đã thêm khoản chi phí vận hành cho {lot.lot_label}!', 'success')
+    else:
+        item = RevenueItem(
+            lot_id=lot.id,
+            supplier=supplier,
+            vehicle_plate_vn=vehicle_plate,
+            weight_class=weight_class,
+            service_description=service_description,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            other_surcharge=surcharges,
+            total_buy_price_excel=buy_price,
+            total_sell_price_excel=sell_price + surcharges
+        )
+        db.session.add(item)
+        flash(f'Đã thêm mục doanh thu & giá mua cho {lot.lot_label}!', 'success')
         
-    item = RevenueItem(
-        lot_id=lot.id,
-        supplier=supplier,
-        vehicle_plate_vn=vehicle_plate,
-        weight_class=weight_class,
-        service_description=service_description,
-        buy_price=buy_price,
-        sell_price=sell_price,
-        other_surcharge=surcharges,
-        total_buy_price_excel=buy_price,
-        total_sell_price_excel=sell_price + surcharges
-    )
-    db.session.add(item)
     db.session.commit()
-    flash(f'Đã thêm chuyến xe / giá mua thành công cho {lot.lot_label}!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
 @lots_bp.route('/<int:lot_id>/items/<int:item_id>/edit', methods=['POST'])
@@ -284,7 +305,7 @@ def edit_revenue_item(lot_id, item_id):
     item.total_sell_price_excel = item.sell_price + surcharges
     
     db.session.commit()
-    flash('Đã cập nhật thông tin chuyến xe và giá mua thành công!', 'success')
+    flash('Đã cập nhật mục doanh thu và chi phí thành công!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
 @lots_bp.route('/<int:lot_id>/items/<int:item_id>/delete', methods=['POST'])
@@ -298,6 +319,47 @@ def delete_revenue_item(lot_id, item_id):
     item = RevenueItem.query.filter_by(id=item_id, lot_id=lot.id).first_or_404()
     db.session.delete(item)
     db.session.commit()
-    flash('Đã xóa chuyến xe thành công!', 'success')
+    flash('Đã xóa mục thành công!', 'success')
+    return redirect(url_for('lots.detail', lot_id=lot.id))
+
+@lots_bp.route('/<int:lot_id>/costs/<int:cost_id>/edit', methods=['POST'])
+@login_required
+def edit_cost_item(lot_id, cost_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if not current_user.is_manager and lot.assigned_to != current_user.id:
+        flash('Bạn không có quyền chỉnh sửa chi phí này.', 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+        
+    cost = OperatingCost.query.filter_by(id=cost_id, lot_id=lot.id).first_or_404()
+    cost.description = request.form.get('service_description', cost.description).strip()
+    cost.supplier_name = request.form.get('supplier', cost.supplier_name or '').strip()
+    cost.vehicle_plate = request.form.get('vehicle_plate', cost.vehicle_plate or '').strip()
+    cost.cost_type = request.form.get('weight_class', cost.cost_type or '').strip()
+    cost.invoice_number = request.form.get('invoice_number', cost.invoice_number or '').strip()
+    cost.invoice_type = request.form.get('invoice_type', cost.invoice_type or '').strip()
+    
+    try:
+        buy_p = float(request.form.get('buy_price', cost.total_amount) or 0)
+        cost.total_amount = buy_p
+        cost.unit_price = buy_p
+    except ValueError:
+        pass
+        
+    db.session.commit()
+    flash('Đã cập nhật chi phí vận hành thành công!', 'success')
+    return redirect(url_for('lots.detail', lot_id=lot.id))
+
+@lots_bp.route('/<int:lot_id>/costs/<int:cost_id>/delete', methods=['POST'])
+@login_required
+def delete_cost_item(lot_id, cost_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if not current_user.is_manager and lot.assigned_to != current_user.id:
+        flash('Bạn không có quyền chỉnh sửa chi phí này.', 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+        
+    cost = OperatingCost.query.filter_by(id=cost_id, lot_id=lot.id).first_or_404()
+    db.session.delete(cost)
+    db.session.commit()
+    flash('Đã xóa khoản chi phí thành công!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
