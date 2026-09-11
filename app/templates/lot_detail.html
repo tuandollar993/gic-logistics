@@ -265,11 +265,12 @@
                     <td class="text-end font-mono fw-bold text-danger tabular-nums">
                         {{ cost.total_amount | format_money }}
                     </td>
-                    <td class="text-end font-mono text-muted tabular-nums">
-                        -
+                    <td class="text-end font-mono fw-bold {% if cost.sell_price and cost.sell_price > 0 %}text-success{% else %}text-muted{% endif %} tabular-nums">
+                        {{ (cost.sell_price or 0) | format_money }}
                     </td>
-                    <td class="text-end font-mono fw-semibold text-danger tabular-nums">
-                        -{{ cost.total_amount | format_money }}
+                    {% set cost_diff = (cost.sell_price or 0) - (cost.total_amount or 0) %}
+                    <td class="text-end font-mono fw-semibold tabular-nums {% if cost_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {% if cost_diff > 0 %}+{% endif %}{{ cost_diff | format_money }}
                     </td>
                     <td>
                         {% if cost.invoice_number or cost.invoice_type %}
@@ -291,7 +292,7 @@
                                 data-weight="{{ cost.cost_type or '' }}"
                                 data-desc="{{ cost.description or '' }}"
                                 data-buy="{{ cost.total_amount or cost.unit_price or 0 }}"
-                                data-sell="0"
+                                data-sell="{{ cost.sell_price or 0 }}"
                                 data-surcharge="0"
                                 data-invoice-type="{{ cost.invoice_type or '' }}"
                                 data-invoice-number="{{ cost.invoice_number or '' }}"
@@ -454,8 +455,8 @@
                         <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe</small>
                     </div>
                     
-                    <!-- Giá Bán Ra & Phụ Phí (Hiển thị khi là Cước / Doanh thu) -->
-                    <div class="col-md-4 field-revenue-only">
+                    <!-- Giá Bán Ra & Phụ Phí -->
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
                             <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu)
                         </label>
@@ -463,7 +464,7 @@
                             <input type="number" step="any" name="sell_price" class="form-control font-mono fw-bold text-success" placeholder="0">
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
-                        <small class="text-muted" style="font-size: 0.72rem;">Doanh thu bán ra khách hàng</small>
+                        <small class="text-muted" style="font-size: 0.72rem;">Doanh thu thu từ khách hàng</small>
                     </div>
                     
                     <div class="col-md-4 field-revenue-only">
@@ -476,11 +477,11 @@
                     </div>
 
                     <!-- Hóa Đơn & Chứng Từ (Hiển thị khi là CP Vận hành) -->
-                    <div class="col-md-4 field-cost-only d-none">
+                    <div class="col-md-6 field-cost-only d-none">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / HĐ</label>
                         <input type="text" name="invoice_type" class="form-control" placeholder="VD: HĐ GTGT, Phiếu chi...">
                     </div>
-                    <div class="col-md-4 field-cost-only d-none">
+                    <div class="col-md-6 field-cost-only d-none">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn / Ký Hiệu</label>
                         <input type="text" name="invoice_number" class="form-control font-mono" placeholder="VD: 0012345...">
                     </div>
@@ -533,6 +534,7 @@
                     
                     <div class="col-12"><hr class="my-2"></div>
                     
+                    <!-- Giá Mua Vào -->
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
                             <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Có VAT) <span class="text-danger">*</span>
@@ -541,34 +543,40 @@
                             <input type="number" step="any" name="buy_price" id="editBuyPrice" class="form-control font-mono fw-bold text-danger" required>
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe</small>
                     </div>
                     
-                    <div class="col-md-4 edit-revenue-group">
+                    <!-- Giá Bán Ra: Luôn hiển thị cho cả 2 loại -->
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
                             <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu)
                         </label>
                         <div class="input-group">
-                            <input type="number" step="any" name="sell_price" id="editSellPrice" class="form-control font-mono fw-bold text-success">
+                            <input type="number" step="any" name="sell_price" id="editSellPrice" class="form-control font-mono fw-bold text-success" placeholder="0">
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Doanh thu thu khách hàng</small>
                     </div>
                     
+                    <!-- Phụ Phí Bán Ra -->
                     <div class="col-md-4 edit-revenue-group">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phụ Phí Bán Ra</label>
                         <div class="input-group">
                             <input type="number" step="any" name="surcharges" id="editSurcharges" class="form-control font-mono">
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Lưu ca, nâng hạ, phụ phí khác</small>
                     </div>
 
-                    <div class="col-md-4 edit-cost-group d-none">
+                    <!-- Chứng Từ & Hóa Đơn -->
+                    <div class="col-md-6 edit-cost-group d-none">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / HĐ</label>
-                        <input type="text" name="invoice_type" id="editInvoiceType" class="form-control">
+                        <input type="text" name="invoice_type" id="editInvoiceType" class="form-control" placeholder="VD: HĐ GTGT, Phiếu chi...">
                     </div>
                     
-                    <div class="col-md-4 edit-cost-group d-none">
+                    <div class="col-md-6 edit-cost-group d-none">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn</label>
-                        <input type="text" name="invoice_number" id="editInvoiceNumber" class="form-control font-mono">
+                        <input type="text" name="invoice_number" id="editInvoiceNumber" class="form-control font-mono" placeholder="VD: 0012345...">
                     </div>
                 </div>
             </div>
@@ -668,15 +676,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (rowType === 'cost') {
                     editForm.action = `/lots/{{ lot.id }}/costs/${itemId}/edit`;
-                    editTitle.innerText = 'Chỉnh Sửa Chi Phí Vận Hành / Giá Mua Đầu Vào';
-                    editBadge.innerHTML = 'Phân loại: <strong>Chi phí vận hành</strong> (Chỉnh sửa số tiền chi phí mua vào & hóa đơn)';
+                    editTitle.innerText = 'Chỉnh Sửa Khoản Mục (Chi Phí Mua & Doanh Thu Bán)';
+                    editBadge.innerHTML = 'Phân loại: <strong>Chi phí vận hành</strong> (Bạn có thể sửa cả Giá Mua Vào trả NCC và Giá Bán Ra thu khách)';
                     if (editLblWeight) editLblWeight.innerText = 'Phân Loại Chi Phí';
                     editRevGroup.forEach(el => el.classList.add('d-none'));
                     editCostGroup.forEach(el => el.classList.remove('d-none'));
                 } else {
                     editForm.action = `/lots/{{ lot.id }}/items/${itemId}/edit`;
-                    editTitle.innerText = 'Chỉnh Sửa Cước Vận Tải / Giá Mua - Bán';
-                    editBadge.innerHTML = 'Phân loại: <strong>Cước vận chuyển / Dịch vụ bán ra</strong> (Chỉnh sửa đồng thời Giá Mua & Giá Bán)';
+                    editTitle.innerText = 'Chỉnh Sửa Cước Vận Tải (Giá Mua & Bán)';
+                    editBadge.innerHTML = 'Phân loại: <strong>Cước vận chuyển / Dịch vụ bán ra</strong> (Chỉnh sửa Giá Mua Vào & Giá Bán Ra)';
                     if (editLblWeight) editLblWeight.innerText = 'Loại Xe / Trọng Tải';
                     editRevGroup.forEach(el => el.classList.remove('d-none'));
                     editCostGroup.forEach(el => el.classList.add('d-none'));

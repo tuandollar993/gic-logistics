@@ -115,7 +115,9 @@ class Lot(db.Model):
     @property
     def total_sell_revenue(self):
         """Tổng doanh thu bán (chưa VAT) của lô"""
-        return sum(item.total_sell_price for item in self.revenue_items)
+        revenue_items_total = sum(item.total_sell_price for item in self.revenue_items)
+        operating_costs_sell = sum(cost.sell_price or 0 for cost in self.operating_costs)
+        return revenue_items_total + operating_costs_sell
     
     @property
     def total_buy_cost(self):
@@ -306,7 +308,8 @@ class OperatingCost(db.Model):
     vehicle_plate = db.Column(db.String(50), nullable=True) # BKS
     vehicle_count = db.Column(db.Float, default=1.0)
     unit_price = db.Column(db.Float, default=0.0)
-    total_amount = db.Column(db.Float, default=0.0)        # Đơn giá * SL xe
+    total_amount = db.Column(db.Float, default=0.0)        # Đơn giá * SL xe (Giá Mua Vào)
+    sell_price = db.Column(db.Float, default=0.0)          # Giá Bán Ra thu khách (nếu có)
     
     # Chứng từ (bắt buộc khi hoàn thành)
     invoice_type = db.Column(db.String(100), nullable=True)  # Hóa đơn GTGT, Phiếu thu, Vé xe...

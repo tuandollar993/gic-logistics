@@ -244,6 +244,7 @@ def add_revenue_item(lot_id):
             vehicle_count=1.0,
             unit_price=buy_price,
             total_amount=buy_price,
+            sell_price=sell_price,
             invoice_type=invoice_type or 'Hóa đơn / Phiếu chi',
             invoice_number=invoice_number,
             supplier_name=supplier,
@@ -342,6 +343,12 @@ def edit_cost_item(lot_id, cost_id):
         buy_p = float(request.form.get('buy_price', cost.total_amount) or 0)
         cost.total_amount = buy_p
         cost.unit_price = buy_p
+    except ValueError:
+        pass
+
+    try:
+        sell_p = float(request.form.get('sell_price', cost.sell_price or 0) or 0)
+        cost.sell_price = sell_p
     except ValueError:
         pass
         
