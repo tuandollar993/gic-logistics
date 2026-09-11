@@ -16,6 +16,17 @@ else:
 print('⏰ [STARTUP] Kích hoạt Clock Scheduler background...')
 clock_proc = subprocess.Popen([sys.executable, 'clock.py'])
 
+print('📦 [STARTUP] Kiểm tra và khởi tạo cơ sở dữ liệu (db.create_all)...')
+try:
+    from app import create_app
+    from app.extensions import db
+    _app = create_app()
+    with _app.app_context():
+        db.create_all()
+    print('✅ [STARTUP] Cơ sở dữ liệu đã sẵn sàng!')
+except Exception as e:
+    print(f'⚠️ [STARTUP] Cảnh báo tạo DB: {e}')
+
 print(f'🌐 [STARTUP] Khởi động Gunicorn Web Server tại 0.0.0.0:{port}...')
 cmd = [
     sys.executable, '-m', 'gunicorn',

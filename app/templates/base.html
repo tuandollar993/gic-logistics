@@ -54,6 +54,10 @@
                     <i class="fa-solid fa-chart-simple"></i>
                     <span>Dashboard Doanh Thu</span>
                 </a>
+                <a class="nav-link {% if request.endpoint and 'advances' in request.endpoint %}active{% endif %}" href="{{ url_for('advances.index') }}">
+                    <i class="fa-solid fa-hand-holding-dollar"></i>
+                    <span>Dòng Tiền Tạm Ứng</span>
+                </a>
                 <a class="nav-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
                     <i class="fa-solid fa-layer-group"></i>
                     <span>Quản Lý Lô Hàng</span>
@@ -76,6 +80,10 @@
                 <a class="nav-link {% if request.endpoint == 'tasks.my_tasks' %}active{% endif %}" href="{{ url_for('tasks.my_tasks') }}">
                     <i class="fa-solid fa-list-check"></i>
                     <span>Nhiệm Vụ Của Tôi</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'advances' in request.endpoint %}active{% endif %}" href="{{ url_for('advances.index') }}">
+                    <i class="fa-solid fa-hand-holding-dollar"></i>
+                    <span>Dòng Tiền Tạm Ứng</span>
                 </a>
                 <a class="nav-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
                     <i class="fa-solid fa-boxes-stacked"></i>

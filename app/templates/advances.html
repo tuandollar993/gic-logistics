@@ -1,0 +1,651 @@
+{% extends "base.html" %}
+
+{% block title %}Dòng Tiền Tạm Ứng - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Action Bar -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Theo Dõi Dòng Tiền Tạm Ứng</h2>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1" style="font-size: 0.75rem;">
+                <i class="fa-brands fa-google text-danger me-1"></i> Google Sheets Live Sync
+            </span>
+        </div>
+        <p class="text-muted small m-0 mt-1">
+            Bảng kê quỹ tiền mặt & tạm ứng vận hành GIDO theo tháng (Sheet: <strong>Tháng {{ "%02d"|format(selected_month) }}-{{ selected_year }}</strong>)
+        </p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="POST" action="{{ url_for('advances.sync_data') }}" id="syncForm" class="d-inline">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <input type="hidden" name="year" value="{{ selected_year }}">
+            <button type="submit" class="btn-secondary-gic d-inline-flex align-items-center gap-2 shadow-sm" id="btnSync">
+                <i class="fa-solid fa-rotate text-primary" id="syncIcon"></i>
+                <span id="syncText">Đồng bộ từ Google Sheet</span>
+            </button>
+        </form>
+
+        <a href="{{ url_for('advances.export_excel', month=selected_month, year=selected_year) }}" 
+           class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
+           title="Xuất bảng kê Excel Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">
+            <i class="fa-solid fa-file-excel text-success" style="font-size: 1.05rem;"></i>
+            <span>Xuất Excel</span>
+        </a>
+
+        {% if current_user.is_manager %}
+        <button class="btn-primary-gic" data-bs-toggle="modal" data-bs-target="#addAdvanceModal">
+            <i class="fa-solid fa-plus"></i>
+            <span>Thêm Bút Toán Mới</span>
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card border-0 shadow-sm rounded-3 p-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+    <form method="GET" action="{{ url_for('advances.index') }}" class="row g-2 align-items-center" id="filterForm">
+        <!-- Month Selector -->
+        <div class="col-md-3 col-sm-6">
+            <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Chọn Kỳ Báo Cáo:</label>
+            <select name="month_year" class="form-select form-select-sm fw-semibold" onchange="changeMonth(this.value)">
+                {% for y, m in months %}
+                    <option value="{{ m }}-{{ y }}" {% if m == selected_month and y == selected_year %}selected{% endif %}>
+                        Tháng {{ "%02d"|format(m) }} / {{ y }}
+                    </option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="month" id="filterMonth" value="{{ selected_month }}">
+            <input type="hidden" name="year" id="filterYear" value="{{ selected_year }}">
+        </div>
+
+        <!-- Search Box -->
+        <div class="col-md-5 col-sm-6">
+            <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Tìm kiếm nhanh:</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" name="q" class="form-control border-start-0" placeholder="Nội dung, ngày, đối tác, số hóa đơn..." value="{{ query }}">
+                <button class="btn btn-secondary-gic py-1" type="submit">Tìm</button>
+                {% if query %}
+                <a href="{{ url_for('advances.index', month=selected_month, year=selected_year) }}" class="btn btn-outline-secondary py-1" title="Xóa lọc">
+                    <i class="fa-solid fa-xmark"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Sync Info Badge -->
+        <div class="col-md-4 col-sm-12 text-md-end text-muted small mt-md-3">
+            <span class="d-inline-flex align-items-center gap-2 bg-light px-3 py-1 rounded-pill border">
+                <i class="fa-solid fa-clock-rotate-left text-muted"></i>
+                <span>Cập nhật: <strong>{{ metrics.last_synced_at }}</strong></span>
+            </span>
+        </div>
+    </form>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <!-- Card 1: Tồn Quỹ Hiện Tại -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100 position-relative overflow-hidden" style="background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); color: white;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="text-uppercase fw-bold" style="font-size: 0.68rem; letter-spacing: 0.08em; opacity: 0.85;">TỒN QUỸ HIỆN TẠI (CUỐI KỲ)</span>
+                    <h3 class="fw-bold my-1 font-mono text-white" style="letter-spacing: -0.02em;">
+                        {{ metrics.closing_balance|format_money }}
+                    </h3>
+                    <div class="small mt-1" style="opacity: 0.9; font-size: 0.78rem;">
+                        <i class="fa-solid fa-wallet text-warning me-1"></i> Tồn đầu kỳ: <strong>{{ metrics.opening_balance|format_money }}</strong>
+                    </div>
+                </div>
+                <div class="p-2 bg-white bg-opacity-10 rounded-2">
+                    <i class="fa-solid fa-vault fs-4 text-warning"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Tổng Thu / Nhận Ứng -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white" style="border: 1px solid var(--gic-border) !important;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="text-uppercase fw-bold text-muted" style="font-size: 0.68rem; letter-spacing: 0.08em;">TỔNG TIỀN CẤP / THU VÀO</span>
+                    <h3 class="fw-bold my-1 font-mono text-success" style="letter-spacing: -0.02em;">
+                        +{{ metrics.total_in|format_money }}
+                    </h3>
+                    <div class="text-muted small mt-1" style="font-size: 0.75rem;">
+                        <span>Cty cấp: <strong>{{ metrics.total_company_receipts|format_money }}</strong></span> | 
+                        <span>Thu khác: <strong>{{ metrics.total_other_receipts|format_money }}</strong></span>
+                    </div>
+                </div>
+                <div class="p-2 bg-success bg-opacity-10 rounded-2">
+                    <i class="fa-solid fa-arrow-down-long fs-4 text-success"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Tổng Chi Tạm Ứng -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white" style="border: 1px solid var(--gic-border) !important;">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <span class="text-uppercase fw-bold text-muted" style="font-size: 0.68rem; letter-spacing: 0.08em;">TỔNG CHI TẠM ỨNG (TUẤN CHI)</span>
+                    <h3 class="fw-bold my-1 font-mono text-danger" style="letter-spacing: -0.02em;">
+                        -{{ metrics.total_out|format_money }}
+                    </h3>
+                    <div class="text-muted small mt-1" style="font-size: 0.75rem;">
+                        <span class="badge bg-secondary bg-opacity-10 text-dark font-mono">{{ metrics.trans_count }} bút toán phát sinh</span>
+                    </div>
+                </div>
+                <div class="p-2 bg-danger bg-opacity-10 rounded-2">
+                    <i class="fa-solid fa-arrow-up-long fs-4 text-danger"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Dư Nợ & Tạm Ứng Các Bộ Phận -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white" style="border: 1px solid var(--gic-border) !important;">
+            <span class="text-uppercase fw-bold text-muted mb-2" style="font-size: 0.68rem; letter-spacing: 0.08em;">TẠM ỨNG THEO NHÂN SỰ</span>
+            <div class="d-flex flex-column gap-1" style="font-size: 0.75rem;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted"><i class="fa-solid fa-user-tie text-primary me-1"></i>Trường:</span>
+                    <strong class="font-mono">{{ metrics.personnel_summary.truong|format_money }}</strong>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted"><i class="fa-solid fa-user text-info me-1"></i>Lương:</span>
+                    <strong class="font-mono">{{ metrics.personnel_summary.luong|format_money }}</strong>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted"><i class="fa-solid fa-handshake text-secondary me-1"></i>Đối tác:</span>
+                    <strong class="font-mono">{{ metrics.personnel_summary.partner|format_money }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Data Table Card -->
+<div class="data-table-card mb-4">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-hand-holding-dollar text-primary fs-5"></i>
+            <span class="fw-bold text-dark fs-6">Bảng Kê Chi Tiết Tạm Ứng Tiền Mặt GIDO - Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}</span>
+            <span class="badge bg-light text-dark border font-mono ms-1">{{ transactions|length }} dòng</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2 small text-muted">
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                    <i class="fa-solid fa-receipt me-1"></i> {{ metrics.has_bill_count }} bill đã tải
+                </span>
+            </div>
+            <div class="input-group input-group-sm" style="width: 220px;">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-filter"></i></span>
+                <input type="text" id="tableFilter" class="form-control border-start-0" placeholder="Lọc nhanh bảng...">
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive" style="max-height: 700px;">
+        <table class="table table-hover table-bordered align-middle m-0" id="advancesTable" style="font-size: 0.82rem;">
+            <!-- Multi-level Headers matching Google Sheet -->
+            <thead class="sticky-top bg-dark text-white text-center" style="z-index: 10;">
+                <tr style="background: #1e3a8a; color: white;">
+                    <th rowspan="2" style="width: 90px; vertical-align: middle;">Ngày</th>
+                    <th rowspan="2" style="min-width: 240px; vertical-align: middle;">Nội Dung Giao Dịch</th>
+                    <th colspan="6" class="border-start border-end" style="background: #0284c7;">DÒNG TIỀN TUẤN</th>
+                    <th rowspan="2" style="min-width: 85px; vertical-align: middle;">Xuyên</th>
+                    <th colspan="2" class="border-start border-end" style="background: #0f766e;">LƯƠNG</th>
+                    <th rowspan="2" style="min-width: 95px; vertical-align: middle;">Trường</th>
+                    <th rowspan="2" style="min-width: 100px; vertical-align: middle;">Đối Tác</th>
+                    <th rowspan="2" style="min-width: 140px; vertical-align: middle;">Hóa Đơn Đối Tác</th>
+                    <th rowspan="2" style="min-width: 110px; vertical-align: middle;">Bill CK</th>
+                    <th rowspan="2" style="min-width: 90px; vertical-align: middle;">Hoàn Ứng</th>
+                    <th rowspan="2" style="min-width: 100px; vertical-align: middle;">Kế Toán</th>
+                    <th rowspan="2" style="width: 70px; vertical-align: middle;">Thao tác</th>
+                </tr>
+                <tr style="background: #334155; color: #f8fafc; font-size: 0.75rem;">
+                    <!-- Sub-columns Tuấn -->
+                    <th style="min-width: 85px;">Tồn</th>
+                    <th style="min-width: 90px;">Thu Cty</th>
+                    <th style="min-width: 85px;">Thu H.Bân</th>
+                    <th style="min-width: 90px;">Thu Khác</th>
+                    <th style="min-width: 85px;">Chi HB Cty</th>
+                    <th style="min-width: 100px;">Chi</th>
+                    <!-- Sub-columns Lương -->
+                    <th style="min-width: 85px;">Thu</th>
+                    <th style="min-width: 85px;">Chi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if transactions %}
+                    {% for t in transactions %}
+                    <tr id="row-{{ t.id }}">
+                        <!-- Ngày -->
+                        <td class="text-center font-mono text-muted fw-semibold" style="white-space: nowrap;">
+                            {{ t.trans_date or '-' }}
+                        </td>
+
+                        <!-- Nội dung -->
+                        <td class="fw-semibold text-dark" style="line-height: 1.35;">
+                            {{ t.content }}
+                            {% if t.is_manual %}
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 ms-1" style="font-size: 0.65rem;">Thủ công</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Tuấn: Tồn -->
+                        <td class="text-end font-mono text-muted">
+                            {% if t.tuan_ton %}{{ t.tuan_ton|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Tuấn: Thu từ Cty -->
+                        <td class="text-end font-mono fw-bold text-success">
+                            {% if t.tuan_thu_cty and t.tuan_thu_cty > 0 %}+{{ t.tuan_thu_cty|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Tuấn: Thu từ Hải Bân -->
+                        <td class="text-end font-mono text-primary">
+                            {% if t.tuan_thu_haiban and t.tuan_thu_haiban > 0 %}+{{ t.tuan_thu_haiban|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Tuấn: Thu khác -->
+                        <td class="text-end font-mono text-success">
+                            {% if t.tuan_thu_khac and t.tuan_thu_khac > 0 %}+{{ t.tuan_thu_khac|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Tuấn: Chi HB về cty -->
+                        <td class="text-end font-mono text-secondary">
+                            {% if t.tuan_chi_haiban_cty %}{{ t.tuan_chi_haiban_cty|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Tuấn: Chi -->
+                        <td class="text-end font-mono fw-bold text-danger">
+                            {% if t.tuan_chi %}{{ t.tuan_chi|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Xuyên -->
+                        <td class="text-end font-mono">
+                            {% if t.xuyen_amount %}{{ t.xuyen_amount|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Lương: Thu -->
+                        <td class="text-end font-mono text-success">
+                            {% if t.luong_thu %}+{{ t.luong_thu|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Lương: Chi -->
+                        <td class="text-end font-mono text-danger">
+                            {% if t.luong_chi %}{{ t.luong_chi|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Trường -->
+                        <td class="text-end font-mono fw-bold text-primary">
+                            {% if t.truong_amount %}{{ t.truong_amount|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Đối tác -->
+                        <td class="text-end font-mono fw-bold {% if t.partner_amount < 0 %}text-danger{% else %}text-dark{% endif %}">
+                            {% if t.partner_amount %}{{ t.partner_amount|format_money }}{% else %}-{% endif %}
+                        </td>
+
+                        <!-- Hóa đơn đối tác -->
+                        <td class="text-center">
+                            {% if t.partner_invoice %}
+                                {% if 'http' in t.partner_invoice %}
+                                    <a href="{{ t.partner_invoice }}" target="_blank" class="btn btn-xs btn-outline-primary py-0 px-1 d-inline-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                                        <i class="fa-solid fa-file-pdf"></i> Xem HĐ
+                                    </a>
+                                {% elif 'không có' in t.partner_invoice.lower() or 'không hđ' in t.partner_invoice.lower() %}
+                                    <span class="badge bg-warning bg-opacity-25 text-dark border border-warning" style="font-size: 0.7rem;">
+                                        Không HĐ
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark border" style="font-size: 0.72rem;">
+                                        {{ t.partner_invoice }}
+                                    </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Link Bill ck -->
+                        <td class="text-center">
+                            {% if t.bill_link %}
+                                <a href="{{ t.bill_link }}" target="_blank" class="btn btn-sm btn-outline-info py-0 px-2 d-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 0.72rem;">
+                                    {% if 't.me' in t.bill_link %}
+                                        <i class="fa-brands fa-telegram text-info"></i> Bill Bot
+                                    {% else %}
+                                        <i class="fa-solid fa-receipt"></i> Xem Bill
+                                    {% endif %}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Hoàn ứng -->
+                        <td class="text-center">
+                            {% if t.advance_refund %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size: 0.72rem;">
+                                    {{ t.advance_refund }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Kế toán thanh toán -->
+                        <td class="text-center">
+                            {% if t.accounting_status and 'đã' in t.accounting_status.lower() %}
+                                <span class="badge bg-success text-white" style="font-size: 0.72rem;">
+                                    <i class="fa-solid fa-check"></i> Đã TT
+                                </span>
+                            {% elif t.accounting_status %}
+                                <span class="badge bg-secondary" style="font-size: 0.72rem;">
+                                    {{ t.accounting_status }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-light text-muted border" style="font-size: 0.72rem;">
+                                    Chờ TT
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Thao tác -->
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-light border py-0 px-1 text-muted hover-primary" 
+                                    onclick="openEditModal({{ t.to_dict()|tojson }})" 
+                                    title="Cập nhật chứng từ / ghi chú">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="18" class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-folder-open fs-2 mb-2 d-block text-secondary"></i>
+                            Chưa có dữ liệu tạm ứng cho Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}.<br>
+                            Hãy bấm nút <strong>"Đồng bộ từ Google Sheet"</strong> ở góc trên để nạp dữ liệu!
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+
+            <!-- Table Footer: TỔNG CỘNG MATCHING GOOGLE SHEET -->
+            {% if transactions %}
+            <tfoot class="sticky-bottom" style="background: #fef08a; border-top: 2px solid #ca8a04; z-index: 9;">
+                <tr class="fw-bold text-dark font-mono" style="font-size: 0.85rem;">
+                    <td class="text-center">TỔNG</td>
+                    <td class="fw-bold">TỔNG CỘNG THÁNG {{ "%02d"|format(selected_month) }}/{{ selected_year }}</td>
+                    <!-- Tồn cuối kỳ -->
+                    <td class="text-end text-primary fw-bold">{{ metrics.closing_balance|format_money }}</td>
+                    <!-- Thu cty -->
+                    <td class="text-end text-success fw-bold">+{{ metrics.total_company_receipts|format_money }}</td>
+                    <!-- Thu Hải Bân -->
+                    <td class="text-end text-primary">{{ metrics.total_haiban_receipts|format_money }}</td>
+                    <!-- Thu khác -->
+                    <td class="text-end text-success">+{{ metrics.total_other_receipts|format_money }}</td>
+                    <!-- Chi HB cty -->
+                    <td class="text-end text-secondary">{{ (monthly.total_haiban_to_company if monthly else 0)|format_money }}</td>
+                    <!-- Chi Tuấn -->
+                    <td class="text-end text-danger fw-bold">-{{ metrics.total_out|format_money }}</td>
+                    <!-- Xuyên -->
+                    <td class="text-end">{{ metrics.personnel_summary.xuyen|format_money }}</td>
+                    <!-- Lương Thu -->
+                    <td class="text-end text-success">+{{ (monthly.total_luong_thu if monthly else 0)|format_money }}</td>
+                    <!-- Lương Chi -->
+                    <td class="text-end text-danger">{{ (monthly.total_luong_chi if monthly else 0)|format_money }}</td>
+                    <!-- Trường -->
+                    <td class="text-end text-primary fw-bold">{{ metrics.personnel_summary.truong|format_money }}</td>
+                    <!-- Đối tác -->
+                    <td class="text-end fw-bold">{{ metrics.personnel_summary.partner|format_money }}</td>
+                    <td colspan="5" class="text-center text-muted fw-normal" style="font-size: 0.75rem;">
+                        Người lập: <strong>{{ metrics.creator_name }}</strong>
+                    </td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<!-- Modal: Thêm Bút Toán Tạm Ứng Mới -->
+<div class="modal fade" id="addAdvanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-plus-circle me-2"></i>Thêm Bút Toán Tạm Ứng Mới
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('advances.add') }}">
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <input type="hidden" name="year" value="{{ selected_year }}">
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Ngày giao dịch:</label>
+                            <input type="text" name="trans_date" class="form-control form-control-sm" placeholder="VD: 03/08/2026" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Nội dung diễn giải:</label>
+                            <input type="text" name="content" class="form-control form-control-sm" placeholder="VD: Tuấn ck tạm ứng làm hàng Hải Phòng..." required>
+                        </div>
+
+                        <div class="col-12"><hr class="my-1 text-muted"></div>
+                        <div class="col-12"><span class="small fw-bold text-primary">DÒNG TIỀN TUẤN</span></div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small">Thu từ Công ty (₫):</label>
+                            <input type="number" step="any" name="tuan_thu_cty" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Thu từ Hải Bân (₫):</label>
+                            <input type="number" step="any" name="tuan_thu_haiban" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Thu khác / Hoàn ứng (₫):</label>
+                            <input type="number" step="any" name="tuan_thu_khac" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Chi nộp tiền HB về cty (₫):</label>
+                            <input type="number" step="any" name="tuan_chi_haiban_cty" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-danger fw-semibold">Chi tạm ứng (₫):</label>
+                            <input type="number" step="any" name="tuan_chi" class="form-control form-control-sm" placeholder="Nhập số âm hoặc dương">
+                        </div>
+
+                        <div class="col-12"><hr class="my-1 text-muted"></div>
+                        <div class="col-12"><span class="small fw-bold text-success">CÁC BỘ PHẬN & ĐỐI TÁC</span></div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small">Trường nhận ứng (₫):</label>
+                            <input type="number" step="any" name="truong_amount" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Lương (Thu/Nhận) (₫):</label>
+                            <input type="number" step="any" name="luong_thu" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Lương (Chi hoàn) (₫):</label>
+                            <input type="number" step="any" name="luong_chi" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Đối tác chi trả (₫):</label>
+                            <input type="number" step="any" name="partner_amount" class="form-control form-control-sm" placeholder="0">
+                        </div>
+
+                        <div class="col-12"><hr class="my-1 text-muted"></div>
+                        <div class="col-12"><span class="small fw-bold text-secondary">CHỨNG TỪ & ĐỐI SOÁT</span></div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small">Hóa đơn đối tác (hoặc link file PDF/ảnh):</label>
+                            <input type="text" name="partner_invoice" class="form-control form-control-sm" placeholder="VD: HĐ 482409 hoặc link catbox">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Link Bill ck (Telegram / UNC):</label>
+                            <input type="text" name="bill_link" class="form-control form-control-sm" placeholder="VD: https://t.me/gidotien_bot?start=...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Trạng thái hoàn ứng:</label>
+                            <input type="text" name="advance_refund" class="form-control form-control-sm" placeholder="VD: Đã hoàn ứng, Chưa...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Kế toán thanh toán:</label>
+                            <select name="accounting_status" class="form-select form-select-sm">
+                                <option value="Chờ thanh toán">Chờ thanh toán</option>
+                                <option value="Đã thanh toán">Đã thanh toán</option>
+                                <option value="Đang đối soát">Đang đối soát</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary-gic" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-primary-gic">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Lưu Bút Toán
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Chỉnh Sửa Bút Toán Tạm Ứng -->
+<div class="modal fade" id="editAdvanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-pen-to-square me-2"></i>Cập Nhật Thông Tin Bút Toán #<span id="editTransIdDisplay"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="editTransForm">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Ngày:</label>
+                            <input type="text" name="trans_date" id="edit_trans_date" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Nội dung:</label>
+                            <input type="text" name="content" id="edit_content" class="form-control form-control-sm" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Hóa đơn đối tác / Link file:</label>
+                            <input type="text" name="partner_invoice" id="edit_partner_invoice" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Link Bill ck (Telegram / UNC):</label>
+                            <input type="text" name="bill_link" id="edit_bill_link" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Trạng thái hoàn ứng:</label>
+                            <input type="text" name="advance_refund" id="edit_advance_refund" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Kế toán thanh toán:</label>
+                            <select name="accounting_status" id="edit_accounting_status" class="form-select form-select-sm">
+                                <option value="Chờ thanh toán">Chờ thanh toán</option>
+                                <option value="Đã thanh toán">Đã thanh toán</option>
+                                <option value="Đang đối soát">Đang đối soát</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light p-3 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="btnDeleteTrans">
+                        <i class="fa-solid fa-trash me-1"></i> Xóa
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary-gic" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary-gic">
+                            <i class="fa-solid fa-check me-1"></i> Cập Nhật
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function changeMonth(val) {
+    if (!val) return;
+    const parts = val.split('-');
+    document.getElementById('filterMonth').value = parts[0];
+    document.getElementById('filterYear').value = parts[1];
+    document.getElementById('filterForm').submit();
+}
+
+// Client-side quick filter
+document.getElementById('tableFilter').addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#advancesTable tbody tr');
+    rows.forEach(r => {
+        const text = r.innerText.toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+    });
+});
+
+// Loading state for Sync button
+document.getElementById('syncForm').addEventListener('submit', function() {
+    const btn = document.getElementById('btnSync');
+    const icon = document.getElementById('syncIcon');
+    const text = document.getElementById('syncText');
+    btn.disabled = true;
+    icon.classList.add('fa-spin');
+    text.innerText = 'Đang đồng bộ Google Sheets...';
+});
+
+// Edit modal population
+let currentEditingId = null;
+function openEditModal(trans) {
+    currentEditingId = trans.id;
+    document.getElementById('editTransIdDisplay').innerText = trans.id;
+    document.getElementById('editTransForm').action = "{{ url_for('advances.update', trans_id=0) }}".replace('0', trans.id);
+    
+    document.getElementById('edit_trans_date').value = trans.trans_date || '';
+    document.getElementById('edit_content').value = trans.content || '';
+    document.getElementById('edit_partner_invoice').value = trans.partner_invoice || '';
+    document.getElementById('edit_bill_link').value = trans.bill_link || '';
+    document.getElementById('edit_advance_refund').value = trans.advance_refund || '';
+    
+    const accSelect = document.getElementById('edit_accounting_status');
+    accSelect.value = trans.accounting_status || 'Chờ thanh toán';
+
+    // Set delete button action
+    document.getElementById('btnDeleteTrans').onclick = function() {
+        if (confirm('Bạn có chắc chắn muốn xóa bút toán này không?')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{{ url_for('advances.delete', trans_id=0) }}".replace('0', trans.id) + "?month={{ selected_month }}&year={{ selected_year }}";
+            document.body.appendChild(form);
+            form.submit();
+        }
+    };
+
+    const modal = new bootstrap.Modal(document.getElementById('editAdvanceModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

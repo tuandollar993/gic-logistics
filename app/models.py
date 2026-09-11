@@ -405,3 +405,122 @@ class ReminderLog(db.Model):
     channel = db.Column(db.String(20), default='telegram')
     message = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='sent')
+
+
+class CashAdvanceMonthly(db.Model):
+    __tablename__ = 'cash_advance_monthly'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.Integer, nullable=False, index=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
+    sheet_name = db.Column(db.String(100), nullable=True)
+    sheet_gid = db.Column(db.String(50), nullable=True)
+    
+    opening_balance = db.Column(db.Float, default=0.0)         # Tồn đầu kỳ
+    total_company_receipts = db.Column(db.Float, default=0.0)  # Thu từ Công ty
+    total_haiban_receipts = db.Column(db.Float, default=0.0)   # Thu từ Hải Bân
+    total_other_receipts = db.Column(db.Float, default=0.0)    # Thu khác
+    total_haiban_to_company = db.Column(db.Float, default=0.0) # Chi trả Hải Bân về cty
+    total_advances_spent = db.Column(db.Float, default=0.0)    # Chi tạm ứng
+    total_xuyen = db.Column(db.Float, default=0.0)             # Xuyên
+    total_luong_thu = db.Column(db.Float, default=0.0)         # Lương Thu
+    total_luong_chi = db.Column(db.Float, default=0.0)         # Lương Chi
+    total_truong = db.Column(db.Float, default=0.0)            # Trường
+    total_partner = db.Column(db.Float, default=0.0)           # Đối tác
+    closing_balance = db.Column(db.Float, default=0.0)         # Tồn cuối kỳ
+    
+    creator_name = db.Column(db.String(100), default='Trần Xuân Trường')
+    last_synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    transactions = db.relationship('CashAdvanceTransaction', backref='monthly_sheet', cascade='all, delete-orphan', lazy='dynamic', order_by='CashAdvanceTransaction.row_index')
+
+    __table_args__ = (db.UniqueConstraint('year', 'month', name='uq_cash_advance_month_year'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'month': self.month,
+            'year': self.year,
+            'sheet_name': self.sheet_name,
+            'sheet_gid': self.sheet_gid,
+            'opening_balance': self.opening_balance,
+            'total_company_receipts': self.total_company_receipts,
+            'total_haiban_receipts': self.total_haiban_receipts,
+            'total_other_receipts': self.total_other_receipts,
+            'total_haiban_to_company': self.total_haiban_to_company,
+            'total_advances_spent': self.total_advances_spent,
+            'total_xuyen': self.total_xuyen,
+            'total_luong_thu': self.total_luong_thu,
+            'total_luong_chi': self.total_luong_chi,
+            'total_truong': self.total_truong,
+            'total_partner': self.total_partner,
+            'closing_balance': self.closing_balance,
+            'creator_name': self.creator_name,
+            'last_synced_at': self.last_synced_at.strftime('%d/%m/%Y %H:%M') if self.last_synced_at else ''
+        }
+
+
+class CashAdvanceTransaction(db.Model):
+    __tablename__ = 'cash_advance_transactions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    monthly_id = db.Column(db.Integer, db.ForeignKey('cash_advance_monthly.id'), nullable=True, index=True)
+    month = db.Column(db.Integer, nullable=False, index=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
+    row_index = db.Column(db.Integer, default=0)
+    
+    trans_date = db.Column(db.String(50), nullable=True)
+    content = db.Column(db.Text, nullable=False)
+    
+    # Nhóm Tuấn
+    tuan_ton = db.Column(db.Float, default=0.0)
+    tuan_thu_cty = db.Column(db.Float, default=0.0)
+    tuan_thu_haiban = db.Column(db.Float, default=0.0)
+    tuan_thu_khac = db.Column(db.Float, default=0.0)
+    tuan_chi_haiban_cty = db.Column(db.Float, default=0.0)
+    tuan_chi = db.Column(db.Float, default=0.0)
+    
+    # Nhóm nhân sự khác
+    xuyen_amount = db.Column(db.Float, default=0.0)
+    luong_thu = db.Column(db.Float, default=0.0)
+    luong_chi = db.Column(db.Float, default=0.0)
+    truong_amount = db.Column(db.Float, default=0.0)
+    
+    # Đối tác & Chứng từ
+    partner_amount = db.Column(db.Float, default=0.0)
+    partner_invoice = db.Column(db.String(500), nullable=True)
+    bill_link = db.Column(db.String(500), nullable=True)
+    advance_refund = db.Column(db.String(100), nullable=True)
+    accounting_status = db.Column(db.String(100), nullable=True)
+    
+    is_manual = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'monthly_id': self.monthly_id,
+            'month': self.month,
+            'year': self.year,
+            'row_index': self.row_index,
+            'trans_date': self.trans_date or '',
+            'content': self.content or '',
+            'tuan_ton': self.tuan_ton or 0.0,
+            'tuan_thu_cty': self.tuan_thu_cty or 0.0,
+            'tuan_thu_haiban': self.tuan_thu_haiban or 0.0,
+            'tuan_thu_khac': self.tuan_thu_khac or 0.0,
+            'tuan_chi_haiban_cty': self.tuan_chi_haiban_cty or 0.0,
+            'tuan_chi': self.tuan_chi or 0.0,
+            'xuyen_amount': self.xuyen_amount or 0.0,
+            'luong_thu': self.luong_thu or 0.0,
+            'luong_chi': self.luong_chi or 0.0,
+            'truong_amount': self.truong_amount or 0.0,
+            'partner_amount': self.partner_amount or 0.0,
+            'partner_invoice': self.partner_invoice or '',
+            'bill_link': self.bill_link or '',
+            'advance_refund': self.advance_refund or '',
+            'accounting_status': self.accounting_status or '',
+            'is_manual': self.is_manual
+        }
