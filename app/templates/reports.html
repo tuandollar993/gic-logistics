@@ -1,0 +1,797 @@
+{% extends "base.html" %}
+
+{% block title %}AI Báo Cáo Hoạt Động Hàng Tháng - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Header & Controls -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">
+            <i class="fa-solid fa-robot text-primary me-2"></i>AI Báo Cáo Hoạt Động
+        </h2>
+        <p class="text-muted small m-0 mt-1">Tự động tạo báo cáo hàng tháng theo mẫu GIDO bằng trí tuệ nhân tạo Gemini</p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Month Selector -->
+        <div class="filter-bar-container">
+            <i class="fa-regular fa-calendar-check text-primary"></i>
+            <span class="small fw-bold text-secondary text-uppercase" style="letter-spacing: 0.05em; font-size: 0.72rem;">Kỳ Báo Cáo:</span>
+            <select id="monthSelector" class="form-select form-select-sm fw-bold border-0 bg-transparent text-primary p-0 ps-1" style="width: 145px; cursor: pointer; box-shadow: none;">
+                {% for y, m in months %}
+                    <option value="{{ m }}-{{ y }}" {% if m == selected_month and y == selected_year %}selected{% endif %}>
+                        Tháng {{ "%02d"|format(m) }} / {{ y }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Report Type Selector -->
+        <div class="filter-bar-container">
+            <i class="fa-solid fa-file-lines text-primary"></i>
+            <span class="small fw-bold text-secondary text-uppercase" style="letter-spacing: 0.05em; font-size: 0.72rem;">Loại:</span>
+            <select id="reportType" class="form-select form-select-sm fw-bold border-0 bg-transparent text-primary p-0 ps-1" style="width: 150px; cursor: pointer; box-shadow: none;">
+                <option value="kqkd" selected>Báo cáo KQKD</option>
+                <option value="cross_border">Cross Border</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Button Bar -->
+<div class="d-flex justify-content-between align-items-center p-3 bg-white rounded-3 border shadow-sm mb-4">
+    <div>
+        <strong class="text-dark">Tạo báo cáo tự động bằng AI</strong>
+        <p class="text-muted small m-0">Hệ thống sẽ thu thập dữ liệu từ CSDL và sử dụng Google Gemini AI để viết nội dung báo cáo</p>
+    </div>
+    <button id="btnGenerate" class="btn-primary-gic d-flex align-items-center gap-2" onclick="generateReport()">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <span>Tạo Báo Cáo AI</span>
+    </button>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="d-none">
+    <div class="card border-0 shadow-sm rounded-3 p-5 text-center mb-4" style="border: 1px solid var(--gic-border) !important;">
+        <div class="mb-3">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        <h5 class="fw-bold text-dark">Đang tạo báo cáo...</h5>
+        <p class="text-muted small m-0">
+            <i class="fa-solid fa-robot me-1"></i>
+            AI đang phân tích dữ liệu và viết nội dung. Vui lòng chờ 10-15 giây.
+        </p>
+    </div>
+</div>
+
+<!-- Report Preview Container (Hidden initially) -->
+<div id="reportPreview" class="d-none">
+
+    <!-- Status Badge -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <span id="statusBadge" class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Đã tạo thành công</span>
+            <small id="generatedAt" class="text-muted font-mono"></small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn-secondary-gic d-flex align-items-center gap-2" onclick="copyReport()" title="Sao chép nội dung báo cáo">
+                <i class="fa-regular fa-copy"></i>
+                <span>Copy</span>
+            </button>
+            <button class="btn-secondary-gic d-flex align-items-center gap-2" onclick="downloadWord()" title="Tải báo cáo dạng Word">
+                <i class="fa-solid fa-file-word text-primary"></i>
+                <span>Tải Word</span>
+            </button>
+            <button class="btn-primary-gic d-flex align-items-center gap-2" onclick="generateReport()" title="Tạo lại báo cáo mới">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>Tạo Lại</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════ -->
+    <!-- KQKD Report Preview -->
+    <!-- ═══════════════════════════════════ -->
+    <div id="reportKQKD" class="d-none">
+        <!-- Title -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4 text-center">
+                <h4 class="fw-bold text-dark mb-1">BÁO CÁO KẾT QUẢ HOẠT ĐỘNG KINH DOANH</h4>
+                <p class="text-muted m-0" id="kqkd-subtitle"></p>
+            </div>
+        </div>
+
+        <!-- I. KẾT QUẢ HOẠT ĐỘNG -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-dark mb-3" style="color: #1e40af !important;">
+                    <i class="fa-solid fa-chart-bar me-2 text-primary"></i>I. KẾT QUẢ HOẠT ĐỘNG
+                </h5>
+
+                <!-- I.1. Kết quả kinh doanh -->
+                <div class="ms-3 mb-4">
+                    <h6 class="fw-bold text-dark mb-3">I.1. Kết quả kinh doanh</h6>
+
+                    <!-- KPI Cards Mini -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #eff6ff, #dbeafe);">
+                                <div class="small text-muted fw-bold mb-1">Topline (Doanh thu)</div>
+                                <div id="kpi-revenue" class="fw-bold text-primary font-mono" style="font-size: 1.1rem;">—</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #f0fdf4, #dcfce7);">
+                                <div class="small text-muted fw-bold mb-1">Lợi Nhuận Ròng</div>
+                                <div id="kpi-profit" class="fw-bold text-success font-mono" style="font-size: 1.1rem;">—</div>
+                                <div id="kpi-margin" class="small text-muted font-mono">—</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #fefce8, #fef9c3);">
+                                <div class="small text-muted fw-bold mb-1">Tờ Khai HQ</div>
+                                <div id="kpi-declarations" class="fw-bold text-dark font-mono" style="font-size: 1.1rem;">—</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #faf5ff, #f3e8ff);">
+                                <div class="small text-muted fw-bold mb-1">Container</div>
+                                <div id="kpi-containers" class="fw-bold text-dark font-mono" style="font-size: 1.1rem;">—</div>
+                                <div id="kpi-luuca" class="small text-muted font-mono">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Location breakdown -->
+                    <div id="locationBreakdown" class="mb-3"></div>
+
+                    <!-- Hoạt động trong tháng (AI - editable) -->
+                    <div class="report-section-ai mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-robot me-1"></i>AI
+                            </span>
+                            <strong class="small text-dark">Hoạt động trong tháng:</strong>
+                            <small class="text-muted">(click để chỉnh sửa)</small>
+                        </div>
+                        <div id="section-hoat_dong_trong_thang" class="editable-section" contenteditable="true"></div>
+                    </div>
+                </div>
+
+                <!-- I.2. Tiêu chí khách hàng -->
+                <div class="ms-3">
+                    <h6 class="fw-bold text-dark mb-3">I.2. Tiêu chí khách hàng</h6>
+
+                    <p class="fw-semibold text-dark mb-2">a) Khách hàng hiện hữu</p>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm table-bordered align-middle" style="font-size: 0.85rem;">
+                            <thead style="background: #1e3a5f; color: white;">
+                                <tr>
+                                    <th style="width: 40px;">STT</th>
+                                    <th>Tên khách hàng</th>
+                                    <th>Doanh thu</th>
+                                    <th style="width: 60px;">Số lô</th>
+                                    <th style="width: 80px;">Tỷ trọng</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerTable"></tbody>
+                        </table>
+                    </div>
+
+                    <p class="fw-semibold text-dark mb-2">b) Khách hàng tiềm năng</p>
+                    <div class="editable-section bg-light" contenteditable="true" id="section-khach_hang_tiem_nang">
+                        <em class="text-muted">(Bổ sung thông tin khách hàng tiềm năng tại đây)</em>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- II. NHỮNG KHÓ KHĂN, VƯỚNG MẮC -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-dark mb-3" style="color: #dc2626 !important;">
+                    <i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i>II. NHỮNG KHÓ KHĂN, VƯỚNG MẮC
+                    <small class="text-muted fw-normal ms-2">(cần có sự hỗ trợ)</small>
+                </h5>
+
+                <div class="ms-3">
+                    <div class="report-section-ai mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-robot me-1"></i>AI
+                            </span>
+                            <strong class="small text-dark">II.1. Về mặt nhân sự</strong>
+                        </div>
+                        <div id="section-kho_khan_nhan_su" class="editable-section" contenteditable="true"></div>
+                    </div>
+
+                    <div class="report-section-ai">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-robot me-1"></i>AI
+                            </span>
+                            <strong class="small text-dark">II.2. Về mặt công cụ dụng cụ, tài chính và khó khăn khác</strong>
+                        </div>
+                        <div id="section-kho_khan_tai_chinh" class="editable-section" contenteditable="true"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- III. KẾ HOẠCH SẮP TỚI -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-dark mb-3" style="color: #059669 !important;">
+                    <i class="fa-solid fa-bullseye me-2 text-success"></i>III. KẾ HOẠCH SẮP TỚI
+                </h5>
+
+                <div class="ms-3">
+                    <!-- Staff assignment table -->
+                    <h6 class="fw-bold text-dark mb-2">III.1. Kế hoạch kinh doanh</h6>
+                    <div id="staffTable" class="mb-3"></div>
+
+                    <div class="report-section-ai mb-4">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-robot me-1"></i>AI
+                            </span>
+                            <strong class="small text-dark">Chi tiết kế hoạch:</strong>
+                        </div>
+                        <div id="section-ke_hoach_kinh_doanh" class="editable-section" contenteditable="true"></div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark mb-2">III.2. Kế hoạch hỗ trợ</h6>
+                    <p class="fw-semibold text-dark small mb-2">a) Đề xuất/Phát sinh</p>
+                    <div class="report-section-ai">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-robot me-1"></i>AI
+                            </span>
+                            <strong class="small text-dark">Nội dung đề xuất:</strong>
+                        </div>
+                        <div id="section-de_xuat" class="editable-section" contenteditable="true"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════ -->
+    <!-- Cross Border Report Preview -->
+    <!-- ═══════════════════════════════════ -->
+    <div id="reportCrossBorder" class="d-none">
+        <!-- Title -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4 text-center">
+                <h4 class="fw-bold text-dark mb-1" id="cb-title">BÁO CÁO HOẠT ĐỘNG CROSS BORDER</h4>
+            </div>
+        </div>
+
+        <!-- Tổng quan -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="fa-solid fa-globe me-2 text-primary"></i>Tổng Quan Hoạt Động
+                </h5>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #eff6ff, #dbeafe);">
+                            <div class="small text-muted fw-bold mb-1">Tờ Khai HQ</div>
+                            <div id="cb-declarations" class="fw-bold text-primary font-mono" style="font-size: 1.1rem;">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #f0fdf4, #dcfce7);">
+                            <div class="small text-muted fw-bold mb-1">Container</div>
+                            <div id="cb-containers" class="fw-bold text-success font-mono" style="font-size: 1.1rem;">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #fefce8, #fef9c3);">
+                            <div class="small text-muted fw-bold mb-1">Doanh Thu</div>
+                            <div id="cb-revenue" class="fw-bold text-dark font-mono" style="font-size: 1.1rem;">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="rounded-3 p-3 h-100" style="background: linear-gradient(135deg, #faf5ff, #f3e8ff);">
+                            <div class="small text-muted fw-bold mb-1">Tỷ Lệ Lưu Ca</div>
+                            <div id="cb-luuca" class="fw-bold text-dark font-mono" style="font-size: 1.1rem;">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cb-locationBreakdown" class="mb-3"></div>
+
+                <!-- Revenue trend info -->
+                <div id="cb-trend" class="mb-3"></div>
+            </div>
+        </div>
+
+        <!-- Hoạt động & Phân tích -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="fa-solid fa-list-check me-2 text-primary"></i>Hoạt Động & Phân Tích
+                </h5>
+
+                <div class="ms-3">
+                    <div class="report-section-ai mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;"><i class="fa-solid fa-robot me-1"></i>AI</span>
+                            <strong class="small text-dark">Hoạt động trong tháng:</strong>
+                        </div>
+                        <div id="section-hoat_dong_thang" class="editable-section" contenteditable="true"></div>
+                    </div>
+
+                    <div class="report-section-ai mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;"><i class="fa-solid fa-robot me-1"></i>AI</span>
+                            <strong class="small text-dark">Phân tích biến động doanh thu:</strong>
+                        </div>
+                        <div id="section-nguyen_nhan_bien_dong" class="editable-section" contenteditable="true"></div>
+                    </div>
+
+                    <div class="report-section-ai">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;"><i class="fa-solid fa-robot me-1"></i>AI</span>
+                            <strong class="small text-dark">Hoạt động chi tiết:</strong>
+                        </div>
+                        <div id="section-hoat_dong_chi_tiet" class="editable-section" contenteditable="true"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kế hoạch -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-dark mb-3" style="color: #059669 !important;">
+                    <i class="fa-solid fa-bullseye me-2 text-success"></i>Kế Hoạch Tháng Tới
+                </h5>
+
+                <div class="ms-3">
+                    <div class="report-section-ai">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.7rem;"><i class="fa-solid fa-robot me-1"></i>AI</span>
+                            <strong class="small text-dark">Kế hoạch:</strong>
+                        </div>
+                        <div id="section-ke_hoach_thang_toi" class="editable-section" contenteditable="true"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Action Bar -->
+    <div class="d-flex justify-content-between align-items-center p-3 bg-white rounded-3 border shadow-sm mb-4">
+        <div>
+            <strong class="text-dark">Hoàn tất chỉnh sửa?</strong>
+            <p class="text-muted small m-0">Tải file Word hoặc copy nội dung để gửi báo cáo</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn-secondary-gic d-flex align-items-center gap-2" onclick="copyReport()">
+                <i class="fa-regular fa-copy"></i>
+                <span>Sao Chép</span>
+            </button>
+            <button class="btn-primary-gic d-flex align-items-center gap-2" onclick="downloadWord()">
+                <i class="fa-solid fa-file-word"></i>
+                <span>Tải File Word</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.editable-section {
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 8px;
+    padding: 12px 16px;
+    min-height: 60px;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: #1e293b;
+    transition: all 0.2s ease;
+    white-space: pre-line;
+}
+.editable-section:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: #fefefe;
+}
+.editable-section:hover {
+    border-color: #93c5fd;
+    background: #f8fafc;
+}
+.report-section-ai {
+    border-left: 3px solid #3b82f6;
+    padding-left: 16px;
+}
+.filter-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ═══════════════════════════════════
+// State Management
+// ═══════════════════════════════════
+let currentReport = null;
+
+function getSelectedPeriod() {
+    const val = document.getElementById('monthSelector').value;
+    const [month, year] = val.split('-').map(Number);
+    return { month, year };
+}
+
+function getReportType() {
+    return document.getElementById('reportType').value;
+}
+
+function formatMoney(val) {
+    if (!val && val !== 0) return '0';
+    const n = Number(val);
+    if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + ' tỷ';
+    if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + ' tr';
+    if (Math.abs(n) >= 1e3) return Math.round(n / 1e3) + ' k';
+    return n.toLocaleString('vi-VN');
+}
+
+function formatMoneyFull(val) {
+    if (!val && val !== 0) return '0 ₫';
+    return Number(val).toLocaleString('vi-VN') + ' ₫';
+}
+
+// ═══════════════════════════════════
+// Generate Report
+// ═══════════════════════════════════
+async function generateReport() {
+    const { month, year } = getSelectedPeriod();
+    const reportType = getReportType();
+
+    // Show loading
+    document.getElementById('loadingOverlay').classList.remove('d-none');
+    document.getElementById('reportPreview').classList.add('d-none');
+    document.getElementById('btnGenerate').disabled = true;
+    document.getElementById('btnGenerate').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang tạo...</span>';
+
+    try {
+        const response = await fetch('{{ url_for("reports.generate") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month, year, report_type: reportType })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            currentReport = result;
+            renderReport(result);
+        } else {
+            alert('Lỗi: ' + (result.error || 'Không thể tạo báo cáo'));
+        }
+    } catch (err) {
+        alert('Lỗi kết nối: ' + err.message);
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('d-none');
+        document.getElementById('btnGenerate').disabled = false;
+        document.getElementById('btnGenerate').innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Tạo Báo Cáo AI</span>';
+    }
+}
+
+// ═══════════════════════════════════
+// Render Report
+// ═══════════════════════════════════
+function renderReport(report) {
+    const { type, month, year, sections, data, generated_at, status } = report;
+
+    // Show preview
+    document.getElementById('reportPreview').classList.remove('d-none');
+
+    // Status badge
+    const badge = document.getElementById('statusBadge');
+    if (status === 'success') {
+        badge.className = 'badge bg-success';
+        badge.innerHTML = '<i class="fa-solid fa-check me-1"></i>AI tạo thành công';
+    } else {
+        badge.className = 'badge bg-warning text-dark';
+        badge.innerHTML = '<i class="fa-solid fa-exclamation-triangle me-1"></i>Fallback — AI không khả dụng';
+    }
+
+    // Timestamp
+    const dt = new Date(generated_at);
+    document.getElementById('generatedAt').textContent = dt.toLocaleString('vi-VN');
+
+    if (type === 'kqkd') {
+        renderKQKD(report);
+    } else {
+        renderCrossBorder(report);
+    }
+}
+
+function renderKQKD(report) {
+    const { month, year, sections, data } = report;
+    const kpi = data.kpi;
+
+    // Show KQKD, hide Cross Border
+    document.getElementById('reportKQKD').classList.remove('d-none');
+    document.getElementById('reportCrossBorder').classList.add('d-none');
+
+    // Subtitle
+    document.getElementById('kqkd-subtitle').textContent =
+        `Bộ phận: Cross Border      Kỳ báo cáo: Tháng ${String(month).padStart(2, '0')}/${year}`;
+
+    // KPI cards
+    document.getElementById('kpi-revenue').textContent = formatMoney(kpi.revenue) + ' ₫';
+    document.getElementById('kpi-profit').textContent = formatMoney(kpi.net_profit) + ' ₫';
+    document.getElementById('kpi-margin').textContent = `Tỷ suất: ${kpi.profit_margin}%`;
+    document.getElementById('kpi-declarations').textContent = data.total_declarations + ' tờ khai';
+    document.getElementById('kpi-containers').textContent = data.total_containers + ' cont';
+    document.getElementById('kpi-luuca').textContent = `Lưu ca: ${data.luu_ca_rate}%`;
+
+    // Location breakdown
+    const locDiv = document.getElementById('locationBreakdown');
+    if (data.location_breakdown && Object.keys(data.location_breakdown).length > 0) {
+        let html = '<div class="d-flex flex-wrap gap-2">';
+        for (const [loc, count] of Object.entries(data.location_breakdown)) {
+            html += `<span class="badge bg-light text-dark border px-3 py-2" style="font-size: 0.8rem;">
+                <i class="fa-solid fa-location-dot text-primary me-1"></i>${loc}: <strong>${count}</strong> cont
+            </span>`;
+        }
+        html += '</div>';
+        locDiv.innerHTML = html;
+    } else {
+        locDiv.innerHTML = '';
+    }
+
+    // Customer table
+    const tbody = document.getElementById('customerTable');
+    tbody.innerHTML = '';
+    if (data.existing_customers && data.existing_customers.length > 0) {
+        data.existing_customers.forEach((c, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-center">${i + 1}</td>
+                <td class="fw-semibold">${c.name}</td>
+                <td class="font-mono text-end">${formatMoneyFull(c.revenue)}</td>
+                <td class="text-center">${c.lot_count}</td>
+                <td class="text-center font-mono fw-bold text-primary">${c.share}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } else {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu khách hàng</td></tr>';
+    }
+
+    // Staff table
+    const staffDiv = document.getElementById('staffTable');
+    if (data.staff_assignments && Object.keys(data.staff_assignments).length > 0) {
+        let html = `<p class="small text-dark">Phân công khách hàng/nguồn hàng theo nhân viên phụ trách:</p>
+        <div class="table-responsive"><table class="table table-sm table-bordered" style="font-size: 0.85rem;">
+        <thead style="background: #1e3a5f; color: white;">
+            <tr><th>Nhân viên</th><th>Số lô phụ trách</th><th>Trạng thái</th></tr>
+        </thead><tbody>`;
+        for (const [staff, lots] of Object.entries(data.staff_assignments)) {
+            const completed = lots.filter(l => l.status === 'completed').length;
+            html += `<tr>
+                <td class="fw-semibold">${staff}</td>
+                <td class="text-center">${lots.length} lô</td>
+                <td>${completed}/${lots.length} hoàn thành</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div>';
+        staffDiv.innerHTML = html;
+    } else {
+        staffDiv.innerHTML = '<p class="text-muted small">Chưa có phân công nhân viên</p>';
+    }
+
+    // AI sections (editable)
+    renderBulletSection('section-hoat_dong_trong_thang', sections.hoat_dong_trong_thang);
+    renderBulletSection('section-kho_khan_nhan_su', sections.kho_khan_nhan_su);
+    renderBulletSection('section-kho_khan_tai_chinh', sections.kho_khan_tai_chinh);
+    renderBulletSection('section-ke_hoach_kinh_doanh', sections.ke_hoach_kinh_doanh);
+    renderBulletSection('section-de_xuat', sections.de_xuat);
+
+    // Scroll to top of report
+    document.getElementById('reportPreview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderCrossBorder(report) {
+    const { month, year, sections, data } = report;
+    const kpi = data.kpi;
+
+    // Show Cross Border, hide KQKD
+    document.getElementById('reportKQKD').classList.add('d-none');
+    document.getElementById('reportCrossBorder').classList.remove('d-none');
+
+    // Title
+    document.getElementById('cb-title').textContent =
+        `BÁO CÁO HOẠT ĐỘNG CROSS BORDER THÁNG ${String(month).padStart(2, '0')}/${year}`;
+
+    // KPI cards
+    document.getElementById('cb-declarations').textContent = data.total_declarations + ' tờ khai';
+    document.getElementById('cb-containers').textContent = data.total_containers + ' cont';
+    document.getElementById('cb-revenue').textContent = formatMoney(kpi.revenue) + ' ₫';
+    document.getElementById('cb-luuca').textContent = data.luu_ca_rate + '%';
+
+    // Location
+    const locDiv = document.getElementById('cb-locationBreakdown');
+    if (data.location_breakdown && Object.keys(data.location_breakdown).length > 0) {
+        let html = '<div class="d-flex flex-wrap gap-2">';
+        for (const [loc, count] of Object.entries(data.location_breakdown)) {
+            html += `<span class="badge bg-light text-dark border px-3 py-2" style="font-size: 0.8rem;">
+                <i class="fa-solid fa-location-dot text-primary me-1"></i>${loc}: <strong>${count}</strong> cont
+            </span>`;
+        }
+        html += '</div>';
+        locDiv.innerHTML = html;
+    } else {
+        locDiv.innerHTML = '';
+    }
+
+    // Trend
+    const trendDiv = document.getElementById('cb-trend');
+    if (kpi.has_prev_data && kpi.rev_growth !== null) {
+        const icon = kpi.rev_growth >= 0 ? 'fa-arrow-trend-up text-success' : 'fa-arrow-trend-down text-danger';
+        const label = kpi.rev_growth >= 0 ? 'tăng' : 'giảm';
+        trendDiv.innerHTML = `
+            <div class="alert alert-${kpi.rev_growth >= 0 ? 'success' : 'warning'} border-0 py-2 px-3 d-flex align-items-center gap-2" style="font-size: 0.85rem;">
+                <i class="fa-solid ${icon}"></i>
+                <span>So với tháng trước: <strong>${label} ${Math.abs(kpi.rev_growth)}%</strong> (DT tháng trước: ${formatMoneyFull(kpi.prev_revenue)})</span>
+            </div>
+        `;
+    } else {
+        trendDiv.innerHTML = '';
+    }
+
+    // AI sections
+    renderBulletSection('section-hoat_dong_thang', sections.hoat_dong_thang);
+    renderBulletSection('section-nguyen_nhan_bien_dong', sections.nguyen_nhan_bien_dong);
+    renderBulletSection('section-hoat_dong_chi_tiet', sections.hoat_dong_chi_tiet);
+    renderBulletSection('section-ke_hoach_thang_toi', sections.ke_hoach_thang_toi);
+
+    document.getElementById('reportPreview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderBulletSection(elementId, text) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    if (!text) {
+        el.innerHTML = '<em class="text-muted">(Chưa có nội dung)</em>';
+        return;
+    }
+    // Split by bullet • and render as list
+    const bullets = text.split('•').filter(b => b.trim());
+    if (bullets.length > 0) {
+        el.innerHTML = bullets.map(b => `• ${b.trim()}`).join('\n');
+    } else {
+        el.textContent = text;
+    }
+}
+
+// ═══════════════════════════════════
+// Get Current Edited Sections
+// ═══════════════════════════════════
+function getEditedSections() {
+    const type = currentReport?.type || getReportType();
+    const sections = {};
+
+    if (type === 'kqkd') {
+        const keys = ['hoat_dong_trong_thang', 'kho_khan_nhan_su', 'kho_khan_tai_chinh', 'ke_hoach_kinh_doanh', 'de_xuat'];
+        keys.forEach(key => {
+            const el = document.getElementById('section-' + key);
+            if (el) sections[key] = el.innerText;
+        });
+    } else {
+        const keys = ['hoat_dong_thang', 'nguyen_nhan_bien_dong', 'hoat_dong_chi_tiet', 'ke_hoach_thang_toi'];
+        keys.forEach(key => {
+            const el = document.getElementById('section-' + key);
+            if (el) sections[key] = el.innerText;
+        });
+    }
+
+    return sections;
+}
+
+// ═══════════════════════════════════
+// Copy Report
+// ═══════════════════════════════════
+function copyReport() {
+    if (!currentReport) {
+        alert('Chưa có báo cáo để sao chép. Hãy tạo báo cáo trước.');
+        return;
+    }
+
+    const { month, year, data } = currentReport;
+    const kpi = data.kpi;
+    const sections = getEditedSections();
+    const type = currentReport.type;
+
+    let text = '';
+
+    if (type === 'kqkd') {
+        text = `BÁO CÁO KẾT QUẢ HOẠT ĐỘNG KINH DOANH\n`;
+        text += `Bộ phận: Cross Border — Kỳ báo cáo: Tháng ${String(month).padStart(2, '0')}/${year}\n\n`;
+        text += `I. KẾT QUẢ HOẠT ĐỘNG\n`;
+        text += `I.1. Kết quả kinh doanh\n`;
+        text += `• Topline: ${formatMoneyFull(kpi.revenue)}\n`;
+        text += `• Tờ khai HQ: ${data.total_declarations}\n`;
+        text += `• Container: ${data.total_containers}\n`;
+        text += `• Tỷ lệ lưu ca: ${data.luu_ca_rate}%\n\n`;
+        text += `Hoạt động trong tháng:\n${sections.hoat_dong_trong_thang || ''}\n\n`;
+        text += `II. NHỮNG KHÓ KHĂN, VƯỚNG MẮC\n`;
+        text += `II.1. Nhân sự:\n${sections.kho_khan_nhan_su || ''}\n`;
+        text += `II.2. Tài chính:\n${sections.kho_khan_tai_chinh || ''}\n\n`;
+        text += `III. KẾ HOẠCH SẮP TỚI\n`;
+        text += `${sections.ke_hoach_kinh_doanh || ''}\n\n`;
+        text += `Đề xuất:\n${sections.de_xuat || ''}\n`;
+    } else {
+        text = `BÁO CÁO HOẠT ĐỘNG CROSS BORDER THÁNG ${String(month).padStart(2, '0')}/${year}\n\n`;
+        text += `• Tờ khai: ${data.total_declarations} | Container: ${data.total_containers} | Doanh thu: ${formatMoneyFull(kpi.revenue)}\n\n`;
+        text += `Hoạt động:\n${sections.hoat_dong_thang || ''}\n\n`;
+        text += `Biến động:\n${sections.nguyen_nhan_bien_dong || ''}\n\n`;
+        text += `Chi tiết:\n${sections.hoat_dong_chi_tiet || ''}\n\n`;
+        text += `Kế hoạch:\n${sections.ke_hoach_thang_toi || ''}\n`;
+    }
+
+    navigator.clipboard.writeText(text).then(() => {
+        alert('✅ Đã sao chép báo cáo vào clipboard!');
+    });
+}
+
+// ═══════════════════════════════════
+// Download Word
+// ═══════════════════════════════════
+async function downloadWord() {
+    if (!currentReport) {
+        alert('Chưa có báo cáo để tải. Hãy tạo báo cáo trước.');
+        return;
+    }
+
+    const { month, year, type } = currentReport;
+    const sections = getEditedSections();
+
+    try {
+        const response = await fetch('{{ url_for("reports.download") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                month, year,
+                report_type: type,
+                sections: sections
+            })
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = type === 'cross_border'
+                ? `Bao_cao_Cross_Border_T${String(month).padStart(2, '0')}_${year}.docx`
+                : `Bao_cao_KQKD_T${String(month).padStart(2, '0')}_${year}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } else {
+            const err = await response.json();
+            alert('Lỗi tải file: ' + (err.error || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Lỗi kết nối: ' + err.message);
+    }
+}
+</script>
+{% endblock %}

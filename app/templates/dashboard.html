@@ -25,6 +25,13 @@
         </div>
 
         {% if current_user.is_manager %}
+        <a href="{{ url_for('reports.index', month=selected_month, year=selected_year) }}" 
+           class="btn-primary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
+           style="padding: 0.45rem 0.9rem; font-size: 0.85rem;"
+           title="Tạo báo cáo AI tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">
+            <i class="fa-solid fa-robot" style="font-size: 1rem;"></i>
+            <span class="fw-semibold">Báo Cáo AI</span>
+        </a>
         <a href="{{ url_for('lots.export_excel', month=selected_month, year=selected_year) }}" 
            class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
            style="padding: 0.45rem 0.9rem; font-size: 0.85rem;"

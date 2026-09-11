@@ -139,6 +139,7 @@ def create_app(config_class=Config):
     from app.routes.suppliers import suppliers_bp
     from app.routes.users import users_bp
     from app.routes.advances import advances_bp
+    from app.routes.reports import reports_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -148,5 +149,6 @@ def create_app(config_class=Config):
     app.register_blueprint(suppliers_bp, url_prefix='/suppliers')
     app.register_blueprint(users_bp, url_prefix='/users')
     app.register_blueprint(advances_bp, url_prefix='/advances')
+    app.register_blueprint(reports_bp, url_prefix='/reports')
     
     return app
