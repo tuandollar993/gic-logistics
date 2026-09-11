@@ -17,7 +17,7 @@ from app.services.advance_service import (
     clean_amount
 )
 
-CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN', '')
+CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 def get_gemini_api_key():

@@ -29,11 +29,7 @@ class Config:
     BOT_UPLOAD_SECRET = os.getenv('BOT_UPLOAD_SECRET', '')
 
     # Telegram Secret Token for Webhook Verification (X-Telegram-Bot-Api-Secret-Token)
-    _tg_secret = os.getenv('TELEGRAM_SECRET_TOKEN')
-    if not _tg_secret:
-        import hashlib
-        _tg_secret = hashlib.sha256(f"telegram-webhook-token:{SECRET_KEY}".encode()).hexdigest()[:32]
-    TELEGRAM_SECRET_TOKEN = _tg_secret
+    TELEGRAM_SECRET_TOKEN = os.getenv('TELEGRAM_SECRET_TOKEN') or 'gic_tg_sec_2026_9ad8d26c9f413921'
 
     # Database
     db_url = os.getenv('DATABASE_URL')
@@ -67,12 +63,12 @@ class Config:
     PERMANENT_SESSION_LIFETIME = 86400  # 24 hours
 
     # Telegram
-    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN') or '8876222401:AAGrew-7pGQwy4SB_PSvoBzGBzaLU-YtelA'
     TELEGRAM_MANAGER_CHAT_ID = os.getenv('TELEGRAM_MANAGER_CHAT_ID', '')
-    CASHFLOW_BOT_TOKEN = os.getenv('CASHFLOW_BOT_TOKEN', '')
+    CASHFLOW_BOT_TOKEN = os.getenv('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
     ALLOWED_CHAT_IDS = [
-        cid.strip() for cid in (os.getenv('ALLOWED_CHAT_IDS') or os.getenv('ALLOWED_CHAT_ID', '')).split(',')
+        cid.strip() for cid in (os.getenv('ALLOWED_CHAT_IDS') or os.getenv('ALLOWED_CHAT_ID') or '-5294577893,5749845754').split(',')
         if cid.strip()
     ]
     # ALLOWED_CHAT_IDS is validated dynamically at request time in cashflow_bot_service
