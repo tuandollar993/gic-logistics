@@ -69,32 +69,70 @@
 
 <!-- Table Card -->
 <div class="data-table-card mb-4">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-layer-group text-primary fs-5"></i>
+            <span class="fw-bold text-dark">Danh Sách Lô Hàng Kỳ T{{ "%02d"|format(selected_month) }}/{{ selected_year }}</span>
+            <span class="badge bg-light text-dark border font-mono ms-1">{{ lots|length }} lô</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="input-group input-group-sm" style="width: 220px;">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-filter"></i></span>
+                <input type="text" id="tableQuickFilter" class="form-control border-start-0" placeholder="Lọc nhanh trên bảng...">
+            </div>
+        </div>
+    </div>
     <div class="table-responsive">
-        <table class="table-custom-clean">
+        <table class="table-custom-clean" id="lotsTable">
             <thead>
                 <tr>
-                    <th style="width: 100px;">Lô Hàng</th>
-                    <th>Khách Hàng / Dự Án</th>
-                    <th>Số Tờ Khai HQ</th>
-                    <th class="text-end">Doanh Thu (Bán)</th>
-                    <th class="text-end">Giá Mua (Cước)</th>
-                    <th class="text-end">Chi Phí VH</th>
-                    <th class="text-end">Lợi Nhuận</th>
-                    <th>Phụ Trách</th>
-                    <th>Hạn Chót</th>
-                    <th class="text-center">Trạng Thái</th>
+                    <th style="width: 100px; cursor: pointer;" onclick="sortTable(0, 'text')" title="Bấm để sắp xếp">
+                        Lô Hàng <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th style="cursor: pointer;" onclick="sortTable(1, 'text')" title="Bấm để sắp xếp">
+                        Khách Hàng / Dự Án <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th style="cursor: pointer;" onclick="sortTable(2, 'text')" title="Bấm để sắp xếp">
+                        Số Tờ Khai HQ <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th class="text-end" style="cursor: pointer;" onclick="sortTable(3, 'num')" title="Bấm để sắp xếp">
+                        Doanh Thu (Bán) <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th class="text-end" style="cursor: pointer;" onclick="sortTable(4, 'num')" title="Bấm để sắp xếp">
+                        Giá Mua (Cước) <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th class="text-end" style="cursor: pointer;" onclick="sortTable(5, 'num')" title="Bấm để sắp xếp">
+                        Chi Phí VH <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th class="text-end" style="cursor: pointer;" onclick="sortTable(6, 'num')" title="Bấm để sắp xếp">
+                        Lợi Nhuận <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th style="cursor: pointer;" onclick="sortTable(7, 'text')" title="Bấm để sắp xếp">
+                        Phụ Trách <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th style="cursor: pointer;" onclick="sortTable(8, 'date')" title="Bấm để sắp xếp">
+                        Hạn Chót <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th class="text-center" style="cursor: pointer;" onclick="sortTable(9, 'text')" title="Bấm để sắp xếp">
+                        Trạng Thái <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
                     <th class="text-center" style="width: 80px;">Chi Tiết</th>
                 </tr>
             </thead>
             <tbody>
+                {% set totals = namespace(sell=0, buy=0, ops=0, net=0) %}
                 {% for lot in lots %}
-                    <tr>
-                        <td class="fw-bold">
+                    {% set totals.sell = totals.sell + lot.total_sell_revenue %}
+                    {% set totals.buy = totals.buy + lot.total_buy_cost %}
+                    {% set totals.ops = totals.ops + lot.total_operating_cost %}
+                    {% set totals.net = totals.net + lot.net_profit %}
+                    <tr class="lot-row" data-search="{{ lot.lot_label|lower }} {{ (lot.customer.name if lot.customer else '')|lower }} {{ (lot.company or '')|lower }} {{ (lot.customs_declaration or '')|lower }} {{ (lot.assignee.full_name if lot.assignee else '')|lower }} {{ lot.status }}">
+                        <td class="fw-bold" data-val="{{ lot.lot_label or ('Lô #' ~ lot.id) }}">
                             <a href="{{ url_for('lots.detail', lot_id=lot.id) }}" class="text-primary text-decoration-none font-mono">
                                 {{ lot.lot_label or ('Lô #' ~ lot.id) }}
                             </a>
                         </td>
-                        <td>
+                        <td data-val="{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}">
                             <div class="fw-bold text-dark">{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}</div>
                             {% if lot.company %}
                                 <div class="text-muted small" style="font-size: 0.78rem;">
@@ -102,23 +140,23 @@
                                 </div>
                             {% endif %}
                         </td>
-                        <td>
+                        <td data-val="{{ lot.customs_declaration or '' }}">
                             <span class="badge bg-light text-dark border font-mono">{{ lot.customs_declaration or 'Chưa có' }}</span>
                         </td>
-                        <td class="text-end fw-bold font-mono text-primary tabular-nums">
+                        <td class="text-end fw-bold font-mono text-primary tabular-nums" data-val="{{ lot.total_sell_revenue }}">
                             {{ lot.total_sell_revenue | format_money }}
                         </td>
-                        <td class="text-end font-mono text-muted tabular-nums">
+                        <td class="text-end font-mono text-muted tabular-nums" data-val="{{ lot.total_buy_cost }}">
                             {{ lot.total_buy_cost | format_money }}
                         </td>
-                        <td class="text-end font-mono fw-semibold tabular-nums {% if lot.total_operating_cost > 0 %}text-warning text-dark{% else %}text-muted{% endif %}">
+                        <td class="text-end font-mono fw-semibold tabular-nums {% if lot.total_operating_cost > 0 %}text-warning text-dark{% else %}text-muted{% endif %}" data-val="{{ lot.total_operating_cost }}">
                             {{ lot.total_operating_cost | format_money }}
                         </td>
-                        <td class="text-end font-mono fw-bold tabular-nums {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        <td class="text-end font-mono fw-bold tabular-nums {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}" data-val="{{ lot.net_profit }}">
                             {{ lot.net_profit | format_money }}
                             <div style="font-size: 0.7rem;" class="fw-normal text-muted font-sans">({{ lot.profit_margin }}%)</div>
                         </td>
-                        <td>
+                        <td data-val="{{ lot.assignee.full_name if lot.assignee else '' }}">
                             {% if lot.assignee %}
                                 <div class="d-flex align-items-center gap-1 small text-dark fw-semibold">
                                     <i class="fa-solid fa-user-pen text-secondary" style="font-size: 0.75rem;"></i> {{ lot.assignee.full_name }}
@@ -147,7 +185,7 @@
                                 {% endif %}
                             {% endif %}
                         </td>
-                        <td>
+                        <td data-val="{{ lot.cost_deadline.strftime('%Y-%m-%d') if lot.cost_deadline else '' }}">
                             {% if lot.cost_deadline %}
                                 <span class="font-mono small {% if lot.status == 'overdue' %}text-danger fw-bold{% else %}text-secondary{% endif %}">
                                     {{ lot.cost_deadline.strftime('%d/%m/%Y') }}
@@ -156,7 +194,7 @@
                                 <span class="text-muted small">-</span>
                             {% endif %}
                         </td>
-                        <td class="text-center">
+                        <td class="text-center" data-val="{{ lot.status }}">
                             {% if lot.status == 'completed' %}
                                 <span class="badge-state badge-state-done"><i class="fa-solid fa-check"></i> Hoàn thành</span>
                             {% elif lot.status == 'overdue' %}
@@ -195,6 +233,31 @@
                     </tr>
                 {% endfor %}
             </tbody>
+            {% if lots and lots|length > 0 %}
+            <tfoot class="bg-light border-top-2">
+                <tr class="fw-bold">
+                    <td colspan="3" class="text-end text-uppercase text-dark py-3">
+                        <span class="fs-6">TỔNG CỘNG KỲ NÀY ({{ lots|length }} lô):</span>
+                    </td>
+                    <td class="text-end font-mono text-primary py-3 fs-6 tabular-nums">
+                        {{ totals.sell | format_money }}
+                    </td>
+                    <td class="text-end font-mono text-muted py-3 fs-6 tabular-nums">
+                        {{ totals.buy | format_money }}
+                    </td>
+                    <td class="text-end font-mono py-3 fs-6 tabular-nums {% if totals.ops > 0 %}text-warning text-dark{% else %}text-muted{% endif %}">
+                        {{ totals.ops | format_money }}
+                    </td>
+                    <td class="text-end font-mono py-3 fs-6 tabular-nums {% if totals.net >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ totals.net | format_money }}
+                        <div class="fw-normal text-muted font-sans" style="font-size: 0.68rem;">
+                            (Biên: {{ "%.1f"|format(totals.net / totals.sell * 100) if totals.sell > 0 else 0 }}%)
+                        </div>
+                    </td>
+                    <td colspan="4"></td>
+                </tr>
+            </tfoot>
+            {% endif %}
         </table>
     </div>
 </div>
@@ -324,7 +387,73 @@ function openAssignModal(lotId, lotName, currentAssignee, currentDeadline) {
     new bootstrap.Modal(document.getElementById('assignModal')).show();
 }
 
+// Client-side instant table sorting
+let currentSortCol = -1;
+let currentSortAsc = true;
+
+function sortTable(colIndex, type) {
+    const table = document.getElementById('lotsTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr.lot-row'));
+    if (!rows.length) return;
+
+    if (currentSortCol === colIndex) {
+        currentSortAsc = !currentSortAsc;
+    } else {
+        currentSortCol = colIndex;
+        currentSortAsc = true;
+    }
+
+    // Reset all icons
+    table.querySelectorAll('thead th i').forEach(icon => {
+        icon.className = 'fa-solid fa-sort text-muted ms-1';
+    });
+    // Set active icon
+    const thList = table.querySelectorAll('thead th');
+    if (thList[colIndex]) {
+        const activeIcon = thList[colIndex].querySelector('i');
+        if (activeIcon) {
+            activeIcon.className = currentSortAsc ? 'fa-solid fa-sort-up text-primary ms-1' : 'fa-solid fa-sort-down text-primary ms-1';
+        }
+    }
+
+    rows.sort((a, b) => {
+        const cellA = a.children[colIndex];
+        const cellB = b.children[colIndex];
+        let valA = cellA ? (cellA.getAttribute('data-val') !== null ? cellA.getAttribute('data-val') : cellA.innerText.trim()) : '';
+        let valB = cellB ? (cellB.getAttribute('data-val') !== null ? cellB.getAttribute('data-val') : cellB.innerText.trim()) : '';
+
+        if (type === 'num') {
+            const numA = parseFloat(valA) || 0;
+            const numB = parseFloat(valB) || 0;
+            return currentSortAsc ? numA - numB : numB - numA;
+        } else if (type === 'date') {
+            if (!valA) return currentSortAsc ? 1 : -1;
+            if (!valB) return currentSortAsc ? -1 : 1;
+            return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+            return currentSortAsc ? valA.localeCompare(valB, 'vi') : valB.localeCompare(valA, 'vi');
+        }
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Quick filter on table
+    const filterInput = document.getElementById('tableQuickFilter');
+    if (filterInput) {
+        filterInput.addEventListener('input', function() {
+            const q = this.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#lotsTable tbody tr.lot-row');
+            rows.forEach(row => {
+                const searchStr = row.getAttribute('data-search') || row.innerText.toLowerCase();
+                row.style.display = searchStr.includes(q) ? '' : 'none';
+            });
+        });
+    }
+
     document.querySelectorAll('.btn-open-assign').forEach(btn => {
         btn.addEventListener('click', function() {
             const lotId = this.getAttribute('data-lot-id');

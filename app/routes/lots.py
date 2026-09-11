@@ -140,9 +140,8 @@ def new_lot():
         flash(f'Đã tạo thành công {lot.lot_label} và giao việc!', 'success')
         return redirect(url_for('lots.detail', lot_id=lot.id))
         
-    customers = Customer.query.order_by(Customer.name).all()
-    staff_users = User.query.filter_by(role='staff', is_active=True).all()
-    return render_template('lot_form.html', customers=customers, staff_users=staff_users)
+    # GET request: redirect to lots list (creation is handled via modal on lots.html)
+    return redirect(url_for('lots.index'))
 
 @lots_bp.route('/<int:lot_id>/assign', methods=['POST'])
 @login_required

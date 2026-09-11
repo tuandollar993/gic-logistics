@@ -100,16 +100,18 @@
                 </button>
             </form>
 
+            {% if config.DEBUG %}
             <hr class="my-4">
 
             <div class="text-center">
-                <small class="text-muted fw-bold text-uppercase d-block mb-2" style="font-size: 0.68rem; letter-spacing: 0.06em;">Tài khoản Quản trị hệ thống:</small>
+                <small class="text-muted fw-bold text-uppercase d-block mb-2" style="font-size: 0.68rem; letter-spacing: 0.06em;">Tài khoản Thử nghiệm (Môi trường Dev):</small>
                 <div class="d-flex gap-2 justify-content-center flex-wrap">
                     <button type="button" class="btn-secondary-gic py-1 px-3" style="font-size: 0.82rem;" onclick="quickFill('admin', 'admin123')">
                         <i class="fa-solid fa-user-shield text-primary me-1"></i> Quản Lý (admin)
                     </button>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 
