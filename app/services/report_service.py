@@ -477,7 +477,7 @@ class ReportDataCollector:
 class GeminiReportWriter:
     """Sử dụng Google Gemini AI để sinh nội dung narrative cho báo cáo."""
 
-    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
 
     @classmethod
     def generate_report(cls, data, report_type='kqkd'):
@@ -854,49 +854,63 @@ class WordExporter:
         pot_custs = data.get('potential_customers', [])
         if pot_custs:
             tbl_pot = doc.add_table(rows=len(pot_custs) + 1, cols=6)
-            set_table_borders(tbl_pot)
+            set_table_borders(tbl_pot, color="7F9DB9")
             tbl_pot.alignment = WD_TABLE_ALIGNMENT.CENTER
-            pot_hdrs = ['STT', 'Tên khách hàng', 'Mảng của KH', 'Chi tiết liên hệ', 'Lưu ý', 'Thời gian kết nối']
+            pot_hdrs = ['STT', 'Tên khách hàng', 'Mảng của KH', 'Chi tiết liên hệ', 'Lưu ý', 'Thời gian bắt đầu kết nối']
             for i, h in enumerate(pot_hdrs):
                 tbl_pot.rows[0].cells[i].text = h
-                set_cell_background(tbl_pot.rows[0].cells[i], cls.GRAY_HEADER_BG)
-                if tbl_pot.rows[0].cells[i].paragraphs[0].runs:
-                    tbl_pot.rows[0].cells[i].paragraphs[0].runs[0].bold = True
-                    tbl_pot.rows[0].cells[i].paragraphs[0].runs[0].font.size = Pt(9.5)
+                set_cell_background(tbl_pot.rows[0].cells[i], "2E5B88")
+                p = tbl_pot.rows[0].cells[i].paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if p.runs:
+                    p.runs[0].bold = True
+                    p.runs[0].font.name = cls.FONT_NAME
+                    p.runs[0].font.size = Pt(9.5)
+                    p.runs[0].font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
             for r_i, c in enumerate(pot_custs):
                 r_cells = tbl_pot.rows[r_i + 1].cells
                 r_cells[0].text = c['stt']
+                r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 r_cells[1].text = c['name']
                 r_cells[2].text = c['sector']
                 r_cells[3].text = c['details']
                 r_cells[4].text = c['notes']
                 r_cells[5].text = c['start_time']
+                r_cells[5].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # ── II. NHỮNG KHÓ KHĂN, VƯỚNG MẮC ──
         cls._add_heading(doc, 'II. NHỮNG KHÓ KHĂN, VƯỚNG MẮC (cần có sự hỗ trợ)', level=1)
         cls._add_heading(doc, 'II.1. Về mặt nhân sự', level=2)
-        cls._add_bullet_text(doc, sections.get('kho_khan_nhan_su', ''))
+        cls._add_dash_text(doc, sections.get('kho_khan_nhan_su', ''))
 
         cls._add_heading(doc, 'II.2. Về mặt công cụ dụng cụ, tài chính và những khó khăn khác', level=2)
-        cls._add_bullet_text(doc, sections.get('kho_khan_tai_chinh', ''))
+        cls._add_dash_text(doc, sections.get('kho_khan_tai_chinh', ''))
 
         # ── III. KẾ HOẠCH SẮP TỚI ──
         cls._add_heading(doc, 'III. KẾ HOẠCH SẮP TỚI', level=1)
         cls._add_heading(doc, 'III.1. Kế hoạch kinh doanh', level=2)
 
-        doc.add_paragraph('Phân công khách hàng/nguồn hàng theo nhân viên phụ trách:')
+        p_sp = doc.add_paragraph()
+        r_sp = p_sp.add_run('Phân công khách hàng/nguồn hàng theo nhân viên phụ trách:')
+        r_sp.bold = True
+        
         staff_plans = data.get('staff_plan', [])
         if staff_plans:
             tbl_staff = doc.add_table(rows=len(staff_plans) + 1, cols=3)
-            set_table_borders(tbl_staff)
+            set_table_borders(tbl_staff, color="7F9DB9")
             tbl_staff.alignment = WD_TABLE_ALIGNMENT.CENTER
             s_hdrs = ['Nhân viên', f"Tháng {month + 1 if month < 12 else 1}", f"Tháng {month + 2 if month < 11 else 2}"]
             for i, h in enumerate(s_hdrs):
                 tbl_staff.rows[0].cells[i].text = h
-                set_cell_background(tbl_staff.rows[0].cells[i], cls.GRAY_HEADER_BG)
-                if tbl_staff.rows[0].cells[i].paragraphs[0].runs:
-                    tbl_staff.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+                set_cell_background(tbl_staff.rows[0].cells[i], "2E5B88")
+                p = tbl_staff.rows[0].cells[i].paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if p.runs:
+                    p.runs[0].bold = True
+                    p.runs[0].font.name = cls.FONT_NAME
+                    p.runs[0].font.size = Pt(10)
+                    p.runs[0].font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
             for r_i, sp in enumerate(staff_plans):
                 r_cells = tbl_staff.rows[r_i + 1].cells
@@ -905,24 +919,34 @@ class WordExporter:
                 r_cells[2].text = sp['month2']
 
         p_det = doc.add_paragraph()
+        p_det.paragraph_format.space_before = Pt(8)
         r_det = p_det.add_run('Chi tiết kế hoạch:')
         r_det.bold = True
-        cls._add_bullet_text(doc, sections.get('ke_hoach_kinh_doanh', ''))
+        cls._add_dash_text(doc, sections.get('ke_hoach_kinh_doanh', ''))
 
         cls._add_heading(doc, 'III.2. Kế hoạch hỗ trợ', level=2)
-        doc.add_paragraph('a) Đề xuất/Phát sinh')
+        p_sup = doc.add_paragraph()
+        r_sup = p_sup.add_run('a) Đề xuất/Phát sinh')
+        r_sup.bold = True
+        r_sup.italic = True
 
         props = data.get('proposals', [])
         if props:
             tbl_prop = doc.add_table(rows=len(props) + 1, cols=2)
-            set_table_borders(tbl_prop)
+            set_table_borders(tbl_prop, color="7F9DB9")
             tbl_prop.alignment = WD_TABLE_ALIGNMENT.CENTER
             tbl_prop.rows[0].cells[0].text = 'Nội dung đề xuất'
             tbl_prop.rows[0].cells[1].text = 'Đơn vị/bộ phận hỗ trợ'
-            set_cell_background(tbl_prop.rows[0].cells[0], cls.GRAY_HEADER_BG)
-            set_cell_background(tbl_prop.rows[0].cells[1], cls.GRAY_HEADER_BG)
-            tbl_prop.rows[0].cells[0].paragraphs[0].runs[0].bold = True
-            tbl_prop.rows[0].cells[1].paragraphs[0].runs[0].bold = True
+            set_cell_background(tbl_prop.rows[0].cells[0], "2E5B88")
+            set_cell_background(tbl_prop.rows[0].cells[1], "2E5B88")
+            for c_i in range(2):
+                p = tbl_prop.rows[0].cells[c_i].paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if p.runs:
+                    p.runs[0].bold = True
+                    p.runs[0].font.name = cls.FONT_NAME
+                    p.runs[0].font.size = Pt(10)
+                    p.runs[0].font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
             for r_i, pr in enumerate(props):
                 tbl_prop.rows[r_i + 1].cells[0].text = pr['content']
@@ -969,3 +993,26 @@ class WordExporter:
                 run = p.add_run(line)
                 run.font.name = cls.FONT_NAME
                 run.font.size = Pt(11)
+
+    @classmethod
+    def _add_dash_text(cls, doc, text):
+        """Thêm các dòng gạch đầu dòng chuẩn như mẫu Word của GIDO."""
+        if not text:
+            return
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            line = line.lstrip('•-* ').strip()
+            if line:
+                p = doc.add_paragraph()
+                p.paragraph_format.left_indent = Inches(0.25)
+                p.paragraph_format.first_line_indent = Inches(-0.25)
+                p.paragraph_format.space_after = Pt(3)
+                r_dash = p.add_run('- ')
+                r_dash.font.name = cls.FONT_NAME
+                r_dash.font.size = Pt(11)
+                r_text = p.add_run(line)
+                r_text.font.name = cls.FONT_NAME
+                r_text.font.size = Pt(11)
