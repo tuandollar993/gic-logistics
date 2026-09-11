@@ -19,12 +19,12 @@ def create_app(config_class=Config):
     @app.template_filter('format_money')
     def format_money_filter(value):
         if value is None:
-            return '0 ₫'
+            return '0\u00a0đ'
         try:
             val = float(value)
-            return f"{val:,.0f} ₫".replace(',', '.')
+            return f"{val:,.0f}\u00a0đ".replace(',', '.')
         except Exception:
-            return '0 ₫'
+            return '0\u00a0đ'
             
     @app.template_filter('format_compact_money')
     def format_compact_money(value):

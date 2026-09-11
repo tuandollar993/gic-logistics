@@ -10,7 +10,10 @@ from app.services.advance_service import (
     export_advances_excel,
     add_transaction,
     update_transaction,
-    delete_transaction
+    delete_transaction,
+    save_bill_media,
+    get_bill_media,
+    sync_all_bills_from_filedb
 )
 
 advances_bp = Blueprint('advances', __name__)
@@ -168,3 +171,76 @@ def export_excel():
     except Exception as e:
         flash(f"Lỗi xuất file Excel: {e}", "danger")
         return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/bill/<bill_id>', methods=['GET'])
+def view_bill(bill_id):
+    """Phục vụ trực tiếp ảnh biên lai/hóa đơn lưu từ Supabase"""
+    import base64
+    from flask import Response
+    
+    media = get_bill_media(bill_id)
+    if not media or not media.data_base64:
+        if media and media.storage_url and media.storage_url.startswith('http'):
+            return redirect(media.storage_url)
+        return jsonify({'error': 'Không tìm thấy hóa đơn/chứng từ'}), 404
+
+    try:
+        raw_bytes = base64.b64decode(media.data_base64)
+        mime = media.mime_type or 'image/jpeg'
+        resp = Response(raw_bytes, mimetype=mime)
+        resp.headers['Cache-Control'] = 'public, max-age=31536000'
+        resp.headers['Content-Disposition'] = f'inline; filename="{media.filename or "receipt.jpg"}"'
+        return resp
+    except Exception as e:
+        return jsonify({'error': f'Lỗi đọc ảnh: {e}'}), 500
+
+
+@advances_bp.route('/api/upload-bill', methods=['POST'])
+def upload_bill_api():
+    """API cho phép Bot hoặc Client upload ảnh hóa đơn trực tiếp lên Supabase"""
+    media_id = request.form.get('id') or (request.json.get('id') if request.is_json else None)
+    tg_file_id = request.form.get('file_id') or (request.json.get('file_id') if request.is_json else None)
+    
+    file_bytes = None
+    filename = 'receipt.jpg'
+    mime_type = 'image/jpeg'
+
+    if 'file' in request.files:
+        uploaded_file = request.files['file']
+        filename = uploaded_file.filename or 'receipt.jpg'
+        mime_type = uploaded_file.content_type or 'image/jpeg'
+        file_bytes = uploaded_file.read()
+    elif request.is_json and request.json.get('data_base64'):
+        import base64
+        file_bytes = base64.b64decode(request.json['data_base64'])
+        filename = request.json.get('filename', 'receipt.jpg')
+        mime_type = request.json.get('mime_type', 'image/jpeg')
+    elif request.data:
+        file_bytes = request.data
+        filename = request.headers.get('X-Filename', 'receipt.jpg')
+        mime_type = request.headers.get('Content-Type', 'image/jpeg')
+
+    if not file_bytes:
+        return jsonify({'ok': False, 'message': 'Không có dữ liệu file'}), 400
+
+    media = save_bill_media(media_id, file_bytes, filename, mime_type, tg_file_id)
+    return jsonify({
+        'ok': True,
+        'id': media.id,
+        'url': media.storage_url,
+        'view_url': f"/advances/bill/{media.id}",
+        'filename': media.filename,
+        'size': media.file_size
+    })
+
+
+@advances_bp.route('/api/sync-bills', methods=['POST'])
+@login_required
+def sync_bills():
+    """Đồng bộ toàn bộ hóa đơn từ Google Sheet FileDB về Supabase"""
+    count, err = sync_all_bills_from_filedb()
+    if err:
+        return jsonify({'success': False, 'message': err}), 500
+    return jsonify({'success': True, 'count': count, 'message': f'Đã đồng bộ {count} hóa đơn về Supabase!'})
+

@@ -327,13 +327,17 @@
                         <!-- Link Bill ck -->
                         <td class="text-center">
                             {% if t.bill_link %}
-                                <a href="{{ t.bill_link }}" target="_blank" class="btn btn-sm btn-outline-info py-0 px-2 d-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 0.72rem;">
-                                    {% if 't.me' in t.bill_link %}
-                                        <i class="fa-brands fa-telegram text-info"></i> Bill Bot
-                                    {% else %}
-                                        <i class="fa-solid fa-receipt"></i> Xem Bill
-                                    {% endif %}
-                                </a>
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-primary py-0 px-2 d-inline-flex align-items-center gap-1 shadow-sm text-nowrap" 
+                                        style="font-size: 0.72rem;"
+                                        data-bill-link="{{ t.bill_link }}"
+                                        data-title="{{ t.trans_date or '' }} - {{ t.content or '' }}"
+                                        data-amount="{% if t.tuan_chi and t.tuan_chi != 0 %}{{ t.tuan_chi|format_money }}{% elif t.tuan_thu_cty and t.tuan_thu_cty > 0 %}+{{ t.tuan_thu_cty|format_money }}{% elif t.partner_amount and t.partner_amount != 0 %}{{ t.partner_amount|format_money }}{% else %}-{% endif %}"
+                                        onclick="openBillPreview(this)"
+                                        title="Bấm để xem ảnh hóa đơn chứng từ">
+                                    <i class="fa-solid fa-receipt text-primary"></i> 
+                                    <span>Xem Bill</span>
+                                </button>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
@@ -593,6 +597,71 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Xem Ảnh Hóa Đơn / Chứng Từ Chuyển Khoản (Supabase Storage) -->
+<div class="modal fade" id="billPreviewModal" tabindex="-1" aria-labelledby="billPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-light py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary bg-opacity-10 text-primary p-2 rounded-3">
+                        <i class="fa-solid fa-file-invoice-dollar fs-6"></i>
+                    </span>
+                    <div>
+                        <h6 class="modal-title fw-bold text-dark mb-0" id="billPreviewModalLabel">Hóa Đơn / Chứng Từ Chuyển Khoản</h6>
+                        <small class="text-muted" id="billPreviewSubtitle" style="font-size: 0.78rem;">Đang tải thông tin giao dịch...</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a id="btnOpenBillNewTab" href="#" target="_blank" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" title="Mở ảnh trong tab mới">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> <span class="d-none d-sm-inline">Tab mới</span>
+                    </a>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body text-center p-0 position-relative" style="min-height: 420px; max-height: 80vh; overflow: auto; background-color: #0f172a;">
+                <!-- Loading Spinner -->
+                <div id="billPreviewLoading" class="position-absolute top-50 start-50 translate-middle text-center text-white">
+                    <div class="spinner-border text-primary" role="status" style="width: 2.8rem; height: 2.8rem;">
+                        <span class="visually-hidden">Đang nạp ảnh...</span>
+                    </div>
+                    <div class="mt-2 text-white-50 small">Đang nạp ảnh hóa đơn từ Supabase...</div>
+                </div>
+                
+                <!-- Error Message -->
+                <div id="billPreviewError" class="position-absolute top-50 start-50 translate-middle text-center text-white d-none w-75">
+                    <i class="fa-solid fa-circle-exclamation text-danger fs-1 mb-2"></i>
+                    <h6 class="fw-bold text-danger">Không thể nạp trực tiếp ảnh biên lai</h6>
+                    <p class="small text-white-50 mb-3" id="billPreviewErrorText">Ảnh có thể đang ở định dạng đặc biệt hoặc cần mở qua liên kết bên ngoài.</p>
+                    <a id="btnFallbackLink" href="#" target="_blank" class="btn btn-sm btn-primary">
+                        <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Mở liên kết chứng từ
+                    </a>
+                </div>
+
+                <!-- Image with interactive zoom -->
+                <img id="billPreviewImage" 
+                     src="" 
+                     alt="Biên lai chuyển khoản" 
+                     class="img-fluid d-none" 
+                     style="max-height: 78vh; object-fit: contain; cursor: zoom-in; transition: transform 0.25s ease;"
+                     onclick="toggleImageZoom(this)"
+                     onload="onBillImageLoaded()"
+                     onerror="onBillImageError()">
+            </div>
+            <div class="modal-footer bg-light py-2 px-3 border-top d-flex align-items-center justify-content-between">
+                <div class="small text-muted" id="billMetaInfo">
+                    <i class="fa-solid fa-cloud text-primary me-1"></i> Ảnh lưu trữ trực tiếp trên <strong>Supabase</strong> (Nhấp vào ảnh để phóng to/thu nhỏ)
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a id="btnDownloadBill" href="#" download="bill_chuyen_khoan.jpg" class="btn btn-sm btn-outline-success py-1 px-3 d-inline-flex align-items-center gap-1">
+                        <i class="fa-solid fa-download"></i> Tải về
+                    </a>
+                    <button type="button" class="btn btn-sm btn-secondary py-1 px-3" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -654,6 +723,70 @@ function openEditModal(trans) {
 
     const modal = new bootstrap.Modal(document.getElementById('editAdvanceModal'));
     modal.show();
+}
+
+// Bill Preview Modal Controller
+let isBillZoomed = false;
+function toggleImageZoom(img) {
+    if (!isBillZoomed) {
+        img.style.transform = 'scale(1.75)';
+        img.style.cursor = 'zoom-out';
+        isBillZoomed = true;
+    } else {
+        img.style.transform = 'scale(1)';
+        img.style.cursor = 'zoom-in';
+        isBillZoomed = false;
+    }
+}
+
+function openBillPreview(btn) {
+    const rawLink = (btn.getAttribute('data-bill-link') || '').trim();
+    const title = btn.getAttribute('data-title') || 'Chứng từ chuyển khoản';
+    const amount = btn.getAttribute('data-amount') || '';
+
+    const subtitle = document.getElementById('billPreviewSubtitle');
+    const img = document.getElementById('billPreviewImage');
+    const loading = document.getElementById('billPreviewLoading');
+    const errBox = document.getElementById('billPreviewError');
+    const openTabBtn = document.getElementById('btnOpenBillNewTab');
+    const dlBtn = document.getElementById('btnDownloadBill');
+    const fallbackBtn = document.getElementById('btnFallbackLink');
+
+    // Reset zoom and visibility
+    isBillZoomed = false;
+    img.style.transform = 'scale(1)';
+    img.style.cursor = 'zoom-in';
+    img.classList.add('d-none');
+    errBox.classList.add('d-none');
+    loading.classList.remove('d-none');
+
+    subtitle.innerText = title + (amount && amount !== '-' ? ` | ${amount}` : '');
+
+    // Resolve Image URL: If Telegram deep link, map to Supabase-backed route
+    let resolvedUrl = rawLink;
+    if (rawLink.includes('start=')) {
+        const shortId = rawLink.split('start=')[1].split('&')[0];
+        resolvedUrl = `/advances/bill/${shortId}`;
+    }
+
+    img.src = resolvedUrl;
+    openTabBtn.href = resolvedUrl;
+    dlBtn.href = resolvedUrl;
+    fallbackBtn.href = rawLink;
+
+    const modal = new bootstrap.Modal(document.getElementById('billPreviewModal'));
+    modal.show();
+}
+
+function onBillImageLoaded() {
+    document.getElementById('billPreviewLoading').classList.add('d-none');
+    document.getElementById('billPreviewImage').classList.remove('d-none');
+}
+
+function onBillImageError() {
+    document.getElementById('billPreviewLoading').classList.add('d-none');
+    document.getElementById('billPreviewImage').classList.add('d-none');
+    document.getElementById('billPreviewError').classList.remove('d-none');
 }
 </script>
 {% endblock %}

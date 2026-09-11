@@ -10,9 +10,8 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-
 from app.extensions import db
-from app.models import CashAdvanceMonthly, CashAdvanceTransaction
+from app.models import CashAdvanceMonthly, CashAdvanceTransaction, CashAdvanceBillMedia
 
 GIDO_SPREADSHEET_ID = os.environ.get('GIDO_SPREADSHEET_ID', '1ZZC5hnoRRo93Fc3AH-mcKCu692xRhX6Zy04ENhiz6p8')
 CREDENTIALS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'google-credentials.json')
@@ -731,4 +730,171 @@ def auto_sync_active_months():
     prev_year = cur_year - 1 if cur_month == 1 else cur_year
     if (prev_month, prev_year) != (8, 2026):
         sync_month_from_google(prev_month, prev_year)
+
+
+def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='image/jpeg', tg_file_id=None):
+    """
+    Lưu trữ file bill vào Supabase:
+    1. Nếu có SUPABASE_KEY / SUPABASE_SERVICE_ROLE_KEY, upload lên Supabase Storage bucket 'advance-bills'
+    2. Lưu trực tiếp nội dung base64 vào bảng 'cash_advance_bill_media' trên Supabase PostgreSQL
+    3. Trả về public URL truy cập ảnh
+    """
+    if not media_id:
+        media_id = 'gido_' + hex(int(time.time() * 1000))[2:]
+
+    supabase_url = os.environ.get('SUPABASE_URL', 'https://ogkjbdratmgasjtrgjnm.supabase.co').rstrip('/')
+    supabase_key = os.environ.get('SUPABASE_KEY') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY')
+    storage_url = None
+
+    if supabase_key:
+        try:
+            object_name = f"{media_id}_{filename}"
+            upload_url = f"{supabase_url}/storage/v1/object/advance-bills/{urllib.parse.quote(object_name)}"
+            headers = {
+                'apikey': supabase_key,
+                'Authorization': f'Bearer {supabase_key}',
+                'Content-Type': mime_type or 'image/jpeg',
+                'x-upsert': 'true'
+            }
+            resp = requests.post(upload_url, data=file_bytes, headers=headers, timeout=15)
+            if resp.status_code in (200, 201):
+                storage_url = f"{supabase_url}/storage/v1/object/public/advance-bills/{urllib.parse.quote(object_name)}"
+                print(f"[AdvanceService] Uploaded bill to Supabase Storage: {storage_url}")
+            else:
+                print(f"[AdvanceService] Supabase Storage upload response {resp.status_code}: {resp.text}")
+        except Exception as e:
+            print(f"[AdvanceService] Error uploading to Supabase Storage: {e}")
+
+    # Nếu chưa có storage_url từ Supabase Storage, dùng URL trực tiếp của route web
+    if not storage_url:
+        storage_url = f"/advances/bill/{media_id}"
+
+    # Lưu trữ bản sao dữ liệu trong Supabase PostgreSQL
+    b64_data = base64.b64encode(file_bytes).decode('utf-8')
+    media = CashAdvanceBillMedia.query.get(media_id)
+    if not media:
+        media = CashAdvanceBillMedia(
+            id=media_id,
+            file_id=tg_file_id,
+            filename=filename,
+            mime_type=mime_type or 'image/jpeg',
+            file_size=len(file_bytes),
+            data_base64=b64_data,
+            storage_url=storage_url
+        )
+        db.session.add(media)
+    else:
+        media.filename = filename
+        media.mime_type = mime_type or 'image/jpeg'
+        media.file_size = len(file_bytes)
+        media.data_base64 = b64_data
+        if storage_url:
+            media.storage_url = storage_url
+        if tg_file_id:
+            media.file_id = tg_file_id
+
+    db.session.commit()
+    return media
+
+
+def get_bill_media(media_id):
+    """
+    Lấy thông tin bill từ Supabase.
+    Nếu chưa có trong cache DB, tự động đối soát với Google Sheet FileDB và Telegram API.
+    """
+    if not media_id:
+        return None
+
+    # Bỏ tiền tố URL nếu truyền vào cả URL
+    if 'start=' in media_id:
+        media_id = media_id.split('start=')[-1].split('&')[0]
+    elif '/bill/' in media_id:
+        media_id = media_id.split('/bill/')[-1].split('?')[0]
+
+    media = CashAdvanceBillMedia.query.get(media_id)
+    if media and media.data_base64:
+        return media
+
+    # Fallback: Quét tìm trong Google Sheet FileDB
+    try:
+        token = get_google_access_token()
+        if token:
+            quoted_title = urllib.parse.quote("FileDB!A2:C100")
+            url = f'https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{quoted_title}'
+            resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+            if resp.status_code == 200:
+                rows = resp.json().get('values', [])
+                for row in rows:
+                    if len(row) >= 2 and row[0].strip() == media_id:
+                        tg_file_id = row[1].strip()
+                        file_name = row[2].strip() if len(row) > 2 else 'receipt.jpg'
+                        
+                        tg_token = os.environ.get('TELEGRAM_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+                        tg_res = requests.get(f'https://api.telegram.org/bot{tg_token}/getFile?file_id={tg_file_id}', timeout=10).json()
+                        if tg_res.get('ok'):
+                            file_path = tg_res['result']['file_path']
+                            file_url = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
+                            dl_res = requests.get(file_url, timeout=15)
+                            if dl_res.status_code == 200:
+                                mime_type = 'image/jpeg'
+                                if file_name.lower().endswith('.png'):
+                                    mime_type = 'image/png'
+                                elif file_name.lower().endswith('.pdf'):
+                                    mime_type = 'application/pdf'
+                                return save_bill_media(media_id, dl_res.content, file_name, mime_type, tg_file_id)
+    except Exception as e:
+        print(f"[AdvanceService] Error lazy-loading bill media {media_id}: {e}")
+
+    return media
+
+
+def sync_all_bills_from_filedb():
+    """Đồng bộ toàn bộ hóa đơn từ tab FileDB của Google Sheet về Supabase"""
+    token = get_google_access_token()
+    if not token:
+        return 0, "Không tìm thấy token Google Sheet"
+
+    try:
+        quoted_title = urllib.parse.quote("FileDB!A2:C200")
+        url = f'https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{quoted_title}'
+        resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=15)
+        if resp.status_code != 200:
+            return 0, f"Lỗi đọc FileDB: {resp.text}"
+
+        rows = resp.json().get('values', [])
+        tg_token = os.environ.get('TELEGRAM_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+        count = 0
+
+        for row in rows:
+            if len(row) < 2:
+                continue
+            short_id = row[0].strip()
+            tg_file_id = row[1].strip()
+            file_name = row[2].strip() if len(row) > 2 else 'receipt.jpg'
+
+            existing = CashAdvanceBillMedia.query.get(short_id)
+            if existing and existing.data_base64:
+                continue
+
+            try:
+                tg_res = requests.get(f'https://api.telegram.org/bot{tg_token}/getFile?file_id={tg_file_id}', timeout=10).json()
+                if tg_res.get('ok'):
+                    file_path = tg_res['result']['file_path']
+                    file_url = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
+                    dl = requests.get(file_url, timeout=15)
+                    if dl.status_code == 200:
+                        mime_type = 'image/jpeg'
+                        if file_name.lower().endswith('.png'):
+                            mime_type = 'image/png'
+                        elif file_name.lower().endswith('.pdf'):
+                            mime_type = 'application/pdf'
+                        save_bill_media(short_id, dl.content, file_name, mime_type, tg_file_id)
+                        count += 1
+            except Exception as item_err:
+                print(f"[AdvanceService] Error migrating {short_id}: {item_err}")
+
+        return count, None
+    except Exception as e:
+        return 0, str(e)
+
 

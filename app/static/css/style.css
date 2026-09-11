@@ -752,3 +752,15 @@ body {
     }
 }
 
+/* Currency & Numbers Never Break Line */
+.font-mono, 
+.tabular-nums, 
+td.text-end, 
+th.text-end, 
+.kpi-card h3, 
+.kpi-card strong,
+.currency-cell,
+.badge-currency {
+    white-space: nowrap !important;
+}
+

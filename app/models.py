@@ -524,3 +524,27 @@ class CashAdvanceTransaction(db.Model):
             'accounting_status': self.accounting_status or '',
             'is_manual': self.is_manual
         }
+
+
+class CashAdvanceBillMedia(db.Model):
+    __tablename__ = 'cash_advance_bill_media'
+    
+    id = db.Column(db.String(64), primary_key=True)
+    file_id = db.Column(db.Text, nullable=True)
+    filename = db.Column(db.String(255), default='receipt.jpg')
+    mime_type = db.Column(db.String(100), default='image/jpeg')
+    file_size = db.Column(db.Integer, default=0)
+    data_base64 = db.Column(db.Text, nullable=True)
+    storage_url = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'file_id': self.file_id,
+            'filename': self.filename,
+            'mime_type': self.mime_type,
+            'file_size': self.file_size,
+            'storage_url': self.storage_url,
+            'created_at': self.created_at.strftime('%d/%m/%Y %H:%M') if self.created_at else ''
+        }
