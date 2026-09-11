@@ -27,6 +27,14 @@
             </button>
         </form>
 
+        <a href="https://docs.google.com/spreadsheets/d/1ZZC5hnoRRo93Fc3AH-mcKCu692xRhX6Zy04ENhiz6p8/edit" 
+           target="_blank" 
+           class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm text-dark"
+           title="Mở trực tiếp file Google Sheets gốc">
+            <i class="fa-solid fa-arrow-up-right-from-square text-success"></i>
+            <span>Mở Google Sheet</span>
+        </a>
+
         <a href="{{ url_for('advances.export_excel', month=selected_month, year=selected_year) }}" 
            class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
            title="Xuất bảng kê Excel Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">
