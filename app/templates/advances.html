@@ -187,13 +187,18 @@
             <span class="badge bg-light text-dark border font-mono ms-1">{{ transactions|length }} dòng</span>
         </div>
 
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <div class="d-flex align-items-center gap-2 small text-muted">
                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
                     <i class="fa-solid fa-receipt me-1"></i> {{ metrics.has_bill_count }} bill đã tải
                 </span>
             </div>
-            <div class="input-group input-group-sm" style="width: 220px;">
+            <!-- Nút bật/tắt tự động ẩn cột không có dữ liệu -->
+            <button type="button" id="btnToggleEmptyCols" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1" style="font-size: 0.75rem; border-radius: 16px;" title="Tự động ẩn/hiện các cột trống không phát sinh">
+                <i class="fa-solid fa-eye-slash text-primary" id="iconToggleEmptyCols"></i>
+                <span id="textToggleEmptyCols">Ẩn cột trống</span>
+            </button>
+            <div class="input-group input-group-sm" style="width: 200px;">
                 <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-filter"></i></span>
                 <input type="text" id="tableFilter" class="form-control border-start-0" placeholder="Lọc nhanh bảng...">
             </div>
@@ -879,5 +884,143 @@ function onBillImageError() {
     document.getElementById('billPreviewImage').classList.add('d-none');
     document.getElementById('billPreviewError').classList.remove('d-none');
 }
+
+// ==========================================
+// Tự Động Ẩn Cột Không Có Data (Smart Columns)
+// ==========================================
+(function() {
+    const table = document.getElementById('advancesTable');
+    if (!table) return;
+
+    const tbody = table.querySelector('tbody');
+    const tfoot = table.querySelector('tfoot');
+    const thead = table.querySelector('thead');
+    if (!tbody || !thead) return;
+
+    const dataRows = tbody.querySelectorAll('tr[id^="row-"]');
+    if (!dataRows || dataRows.length === 0) return;
+
+    const r1Ths = thead.querySelectorAll('tr')[0].children;
+    const r2Ths = thead.querySelectorAll('tr')[1].children;
+    const tfootTr = tfoot ? tfoot.querySelector('tr') : null;
+    const tfootCells = tfootTr ? tfootTr.children : null;
+
+    // Các cột số liệu phát sinh cần kiểm tra:
+    // 3: Thu Cty, 4: Thu H.Bân, 5: Thu Khác, 6: Chi HB Cty, 8: Xuyên, 9: Lương Thu, 10: Lương Chi, 11: Trường, 12: Đối Tác
+    // Col 2 (Tồn) và Col 7 (Chi Tuấn) luôn giữ
+    const checkableCols = [3, 4, 5, 6, 8, 9, 10, 11, 12];
+
+    function isValueZeroOrEmpty(text) {
+        if (!text) return true;
+        const s = text.replace(/[₫đVNDvnd\s+]/g, '').trim();
+        return (!s || s === '-' || s === '–' || s === '0' || s === '-0' || s === '0.0' || s === '0,0');
+    }
+
+    const emptyCols = [];
+    checkableCols.forEach(colIdx => {
+        let hasAnyData = false;
+        for (let row of dataRows) {
+            const cell = row.children[colIdx];
+            if (cell && !isValueZeroOrEmpty(cell.innerText)) {
+                hasAnyData = true;
+                break;
+            }
+        }
+        if (!hasAnyData && tfootCells && tfootCells[colIdx]) {
+            if (!isValueZeroOrEmpty(tfootCells[colIdx].innerText)) {
+                hasAnyData = true;
+            }
+        }
+        if (!hasAnyData) {
+            emptyCols.push(colIdx);
+        }
+    });
+
+    const btn = document.getElementById('btnToggleEmptyCols');
+    const textEl = document.getElementById('textToggleEmptyCols');
+    const iconEl = document.getElementById('iconToggleEmptyCols');
+
+    if (emptyCols.length === 0) {
+        if (btn) {
+            btn.classList.add('disabled', 'opacity-75');
+            if (textEl) textEl.innerText = 'Đầy đủ 18 cột (có data)';
+            if (iconEl) iconEl.className = 'fa-solid fa-check text-success';
+        }
+        return;
+    }
+
+    let hideEmpty = localStorage.getItem('advances_hide_empty_cols') !== 'false';
+
+    function applyVisibility() {
+        // 1. Điều chỉnh các cột Tuấn (cols 2..7)
+        const tuanSubCols = [2, 3, 4, 5, 6, 7];
+        const tuanVisibleCount = tuanSubCols.filter(c => !hideEmpty || !emptyCols.includes(c)).length;
+        if (r1Ths[2]) {
+            r1Ths[2].colSpan = tuanVisibleCount;
+            r1Ths[2].style.display = tuanVisibleCount > 0 ? '' : 'none';
+        }
+        tuanSubCols.forEach((c, i) => {
+            if (r2Ths[i]) {
+                r2Ths[i].style.display = (hideEmpty && emptyCols.includes(c)) ? 'none' : '';
+            }
+        });
+
+        // 2. Điều chỉnh các cột Lương (cols 9, 10)
+        const luongSubCols = [9, 10];
+        const luongVisibleCount = luongSubCols.filter(c => !hideEmpty || !emptyCols.includes(c)).length;
+        if (r1Ths[4]) {
+            r1Ths[4].colSpan = luongVisibleCount;
+            r1Ths[4].style.display = luongVisibleCount > 0 ? '' : 'none';
+        }
+        if (r2Ths[6]) r2Ths[6].style.display = (hideEmpty && emptyCols.includes(9)) ? 'none' : '';
+        if (r2Ths[7]) r2Ths[7].style.display = (hideEmpty && emptyCols.includes(10)) ? 'none' : '';
+
+        // 3. Điều chỉnh các cột đơn ở hàng 1 (Xuyên: 8 -> r1Ths[3], Trường: 11 -> r1Ths[5], Đối tác: 12 -> r1Ths[6])
+        if (r1Ths[3]) r1Ths[3].style.display = (hideEmpty && emptyCols.includes(8)) ? 'none' : '';
+        if (r1Ths[5]) r1Ths[5].style.display = (hideEmpty && emptyCols.includes(11)) ? 'none' : '';
+        if (r1Ths[6]) r1Ths[6].style.display = (hideEmpty && emptyCols.includes(12)) ? 'none' : '';
+
+        // 4. Điều chỉnh các ô dữ liệu tbody
+        dataRows.forEach(row => {
+            emptyCols.forEach(c => {
+                if (row.children[c]) {
+                    row.children[c].style.display = hideEmpty ? 'none' : '';
+                }
+            });
+        });
+
+        // 5. Điều chỉnh dòng footer tfoot
+        if (tfootCells) {
+            emptyCols.forEach(c => {
+                if (tfootCells[c]) {
+                    tfootCells[c].style.display = hideEmpty ? 'none' : '';
+                }
+            });
+        }
+
+        // 6. Cập nhật giao diện nút bấm
+        if (btn && textEl && iconEl) {
+            if (hideEmpty) {
+                btn.className = 'btn btn-sm btn-primary bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1';
+                textEl.innerHTML = `Đang ẩn <strong>${emptyCols.length}</strong> cột trống (Bấm để hiện)`;
+                iconEl.className = 'fa-solid fa-eye-slash text-primary';
+            } else {
+                btn.className = 'btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1';
+                textEl.innerHTML = `Hiện đủ 18 cột (Bấm để ẩn ${emptyCols.length} cột trống)`;
+                iconEl.className = 'fa-solid fa-eye text-secondary';
+            }
+        }
+    }
+
+    applyVisibility();
+
+    if (btn) {
+        btn.addEventListener('click', function() {
+            hideEmpty = !hideEmpty;
+            localStorage.setItem('advances_hide_empty_cols', hideEmpty ? 'true' : 'false');
+            applyVisibility();
+        });
+    }
+})();
 </script>
 {% endblock %}

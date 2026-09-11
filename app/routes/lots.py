@@ -1,14 +1,39 @@
+import re
 from datetime import datetime, timezone
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Lot, Customer, User, CostEntryTask, RevenueItem, Supplier, OperatingCost
+from app.models import Lot, Customer, User, CostEntryTask, RevenueItem, Supplier, OperatingCost, CashAdvanceBillMedia
 from app.security import manager_required, log_audit
 from app.services.calculator import CalculatorService
 from app.services.reminder_service import ReminderService
 from app.services.excel_exporter import ExcelExporterService
 
 lots_bp = Blueprint('lots', __name__)
+
+def clean_money_input(val, default=0.0):
+    """Làm sạch chuỗi nhập tiền tệ Việt Nam (VD: '3.250.000', '4,000,000', '3250000.0') thành float"""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s or s in ('-', '–'):
+        return default
+    is_neg = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+    s = s.lstrip('-()').rstrip(')')
+    s = s.replace('₫', '').replace('đ', '').replace('VND', '').replace('vnd', '').strip()
+    
+    # Chỉ bóc tách phần đuôi thập phân .0 hoặc ,0 (1 đến 2 số 0 sau dấu chấm/phẩy đơn)
+    if s.count('.') <= 1 and s.count(',') <= 1:
+        s = re.sub(r'[,.]0{1,2}$', '', s)
+        
+    s = s.replace('.', '').replace(',', '').replace(' ', '')
+    try:
+        amt = float(s)
+        return -amt if is_neg else amt
+    except (ValueError, TypeError):
+        return default
 
 @lots_bp.route('/')
 @login_required
@@ -78,7 +103,14 @@ def detail(lot_id):
         
     staff_users = User.query.filter_by(role='staff', is_active=True).all() if current_user.is_manager else []
     suppliers = Supplier.query.order_by(Supplier.name).all()
-    return render_template('lot_detail.html', lot=lot, staff_users=staff_users, suppliers=suppliers)
+    other_lots = []
+    if current_user.is_manager:
+        other_lots = Lot.query.filter(
+            Lot.id != lot.id,
+            Lot.is_deleted == False
+        ).order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label).all()
+        
+    return render_template('lot_detail.html', lot=lot, staff_users=staff_users, suppliers=suppliers, other_lots=other_lots)
 
 @lots_bp.route('/new', methods=['GET', 'POST'])
 @login_required
@@ -229,20 +261,9 @@ def add_revenue_item(lot_id):
     invoice_number = request.form.get('invoice_number', '').strip()
     invoice_type = request.form.get('invoice_type', '').strip()
     
-    try:
-        buy_price = float(request.form.get('buy_price', 0) or 0)
-    except ValueError:
-        buy_price = 0.0
-        
-    try:
-        sell_price = float(request.form.get('sell_price', 0) or 0)
-    except ValueError:
-        sell_price = 0.0
-        
-    try:
-        surcharges = float(request.form.get('surcharges', 0) or 0)
-    except ValueError:
-        surcharges = 0.0
+    buy_price = clean_money_input(request.form.get('buy_price', 0))
+    sell_price = clean_money_input(request.form.get('sell_price', 0))
+    surcharges = clean_money_input(request.form.get('surcharges', 0))
 
     cost = OperatingCost(
         lot_id=lot.id,
@@ -287,24 +308,22 @@ def edit_revenue_item(lot_id, item_id):
         
     item.service_description = request.form.get('service_description', item.service_description or '').strip()
     
-    try:
-        item.buy_price = float(request.form.get('buy_price', item.buy_price) or 0)
-    except ValueError:
-        pass
+    buy_raw = request.form.get('buy_price')
+    if buy_raw is not None and buy_raw != '':
+        item.buy_price = clean_money_input(buy_raw)
         
-    try:
-        item.sell_price = float(request.form.get('sell_price', item.sell_price) or 0)
-    except ValueError:
-        pass
+    sell_raw = request.form.get('sell_price')
+    if sell_raw is not None and sell_raw != '':
+        item.sell_price = clean_money_input(sell_raw)
         
-    try:
-        surcharges = float(request.form.get('surcharges', item.other_surcharge or 0) or 0)
-    except ValueError:
-        surcharges = item.other_surcharge or 0.0
+    surcharges_raw = request.form.get('surcharges')
+    if surcharges_raw is not None and surcharges_raw != '':
+        item.other_surcharge = clean_money_input(surcharges_raw)
+    else:
+        item.other_surcharge = 0.0
         
-    item.other_surcharge = surcharges
     item.total_buy_price_excel = item.buy_price
-    item.total_sell_price_excel = item.sell_price + surcharges
+    item.total_sell_price_excel = (item.sell_price or 0.0) + (item.other_surcharge or 0.0)
     
     db.session.commit()
     flash('Đã cập nhật mục doanh thu và chi phí thành công!', 'success')
@@ -359,18 +378,15 @@ def edit_cost_item(lot_id, cost_id):
     cost.invoice_number = request.form.get('invoice_number', cost.invoice_number or '').strip()
     cost.invoice_type = request.form.get('invoice_type', cost.invoice_type or '').strip()
     
-    try:
-        buy_p = float(request.form.get('buy_price', cost.total_amount) or 0)
+    buy_raw = request.form.get('buy_price')
+    if buy_raw is not None and buy_raw != '':
+        buy_p = clean_money_input(buy_raw)
         cost.total_amount = buy_p
         cost.unit_price = buy_p
-    except ValueError:
-        pass
 
-    try:
-        sell_p = float(request.form.get('sell_price', cost.sell_price or 0) or 0)
-        cost.sell_price = sell_p
-    except ValueError:
-        pass
+    sell_raw = request.form.get('sell_price')
+    if sell_raw is not None and sell_raw != '':
+        cost.sell_price = clean_money_input(sell_raw)
         
     db.session.commit()
     flash('Đã cập nhật chi phí vận hành thành công!', 'success')
@@ -398,6 +414,142 @@ def delete_cost_item(lot_id, cost_id):
         db.session.rollback()
         flash(f'Lỗi xóa chi phí: {e}', 'danger')
     return redirect(url_for('lots.detail', lot_id=lot.id))
+
+
+@lots_bp.route('/<int:lot_id>/edit', methods=['POST'])
+@login_required
+def edit_lot(lot_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if not current_user.is_manager and lot.assigned_to != current_user.id:
+        flash('Bạn không có quyền chỉnh sửa lô hàng này.', 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+        
+    lot_label = request.form.get('lot_label', '').strip()
+    company = request.form.get('company', '').strip()
+    customer_name = request.form.get('customer_name', '').strip()
+    customs_declaration = request.form.get('customs_declaration', '').strip()
+    status = request.form.get('status', '').strip()
+    
+    before_state = {
+        'lot_label': lot.lot_label,
+        'company': lot.company,
+        'customs_declaration': lot.customs_declaration,
+        'status': lot.status
+    }
+    
+    if lot_label:
+        lot.lot_label = lot_label
+    lot.company = company
+    lot.customs_declaration = customs_declaration
+    
+    if customer_name:
+        cust = Customer.query.filter_by(name=customer_name).first()
+        if not cust:
+            cust = Customer(name=customer_name)
+            db.session.add(cust)
+            db.session.flush()
+        lot.customer_id = cust.id
+        
+    if status in ['pending', 'assigned', 'in_progress', 'completed', 'overdue']:
+        lot.status = status
+        if status == 'completed' and not lot.completed_at:
+            lot.completed_at = datetime.now(timezone.utc)
+            
+    # Quản lý có thể điều chỉnh thêm tháng/năm, người phụ trách và hạn chót
+    if current_user.is_manager:
+        month = request.form.get('month', type=int)
+        year = request.form.get('year', type=int)
+        if month and 1 <= month <= 12:
+            lot.month = month
+        if year and 2020 <= year <= 2030:
+            lot.year = year
+            
+        assigned_to = request.form.get('assigned_to', type=int)
+        if assigned_to:
+            lot.assigned_to = assigned_to
+        elif 'assigned_to' in request.form and request.form.get('assigned_to') == '':
+            lot.assigned_to = None
+            
+        deadline_str = request.form.get('cost_deadline')
+        if deadline_str:
+            try:
+                lot.cost_deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+                
+    log_audit('edit_lot', 'lot', lot.id,
+              f"Cập nhật thông tin lô {lot.lot_label}",
+              before_state=before_state,
+              after_state={'lot_label': lot.lot_label, 'company': lot.company, 'customs': lot.customs_declaration, 'status': lot.status})
+    db.session.commit()
+    flash(f'Đã cập nhật thành công thông tin {lot.lot_label}!', 'success')
+    return redirect(url_for('lots.detail', lot_id=lot.id))
+
+
+@lots_bp.route('/<int:lot_id>/merge', methods=['POST'])
+@login_required
+@manager_required
+def merge_lot(lot_id):
+    target_lot = Lot.query.get_or_404(lot_id)
+    source_lot_id = request.form.get('source_lot_id', type=int)
+    
+    if not source_lot_id or source_lot_id == target_lot.id:
+        flash('Vui lòng chọn một lô hàng hợp lệ khác để gộp.', 'warning')
+        return redirect(url_for('lots.detail', lot_id=target_lot.id))
+        
+    source_lot = Lot.query.filter_by(id=source_lot_id, is_deleted=False).first_or_404()
+    source_label = source_lot.lot_label
+    source_id = source_lot.id
+    
+    try:
+        # 1. Chuyển toàn bộ các dòng doanh thu sang target_lot
+        rev_count = RevenueItem.query.filter_by(lot_id=source_lot.id).update(
+            {RevenueItem.lot_id: target_lot.id}, synchronize_session=False
+        )
+        
+        # 2. Chuyển toàn bộ các dòng chi phí vận hành sang target_lot
+        cost_count = OperatingCost.query.filter_by(lot_id=source_lot.id).update(
+            {OperatingCost.lot_id: target_lot.id}, synchronize_session=False
+        )
+        
+        # 3. Chuyển toàn bộ chứng từ ảnh hóa đơn sang target_lot
+        media_count = CashAdvanceBillMedia.query.filter_by(lot_id=source_lot.id).update(
+            {CashAdvanceBillMedia.lot_id: target_lot.id}, synchronize_session=False
+        )
+        
+        # 4. Chuyển tasks nếu có
+        CostEntryTask.query.filter_by(lot_id=source_lot.id).update(
+            {CostEntryTask.lot_id: target_lot.id}, synchronize_session=False
+        )
+        
+        # 5. Bổ sung tờ khai HQ nếu chưa có hoặc khác
+        if source_lot.customs_declaration:
+            if not target_lot.customs_declaration:
+                target_lot.customs_declaration = source_lot.customs_declaration
+            elif source_lot.customs_declaration not in target_lot.customs_declaration:
+                target_lot.customs_declaration = f"{target_lot.customs_declaration}, {source_lot.customs_declaration}"
+                
+        # 6. Bổ sung thông tin cty nếu target_lot chưa có
+        if source_lot.company and not target_lot.company:
+            target_lot.company = source_lot.company
+            
+        # 7. Soft delete source_lot
+        now_utc = datetime.now(timezone.utc)
+        source_lot.is_deleted = True
+        source_lot.deleted_at = now_utc
+        source_lot.deleted_by = current_user.id
+        
+        log_audit('merge_lot', 'lot', target_lot.id,
+                  f"Đã gộp lô {source_label} (ID: {source_id}) vào lô {target_lot.lot_label} (ID: {target_lot.id}) - Di chuyển {rev_count} mục cước, {cost_count} CPVH, {media_count} bill.",
+                  before_state={'source_lot_id': source_id, 'target_lot_id': target_lot.id})
+                  
+        db.session.commit()
+        flash(f'Đã gộp thành công {source_label} vào {target_lot.lot_label} (chuyển {rev_count} mục doanh thu và {cost_count} chi phí vận hành)!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khi gộp lô hàng: {e}', 'danger')
+        
+    return redirect(url_for('lots.detail', lot_id=target_lot.id))
 
 
 @lots_bp.route('/<int:lot_id>/delete', methods=['POST'])

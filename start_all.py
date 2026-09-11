@@ -43,6 +43,21 @@ try:
     _app = create_app()
     with _app.app_context():
         db.create_all()
+        # Tự động đồng bộ chuẩn hóa các dòng cước bị thiếu tổng tiền từ Excel
+        try:
+            from app.models import RevenueItem
+            items = RevenueItem.query.filter(
+                RevenueItem.buy_price > 0,
+                (RevenueItem.total_buy_price_excel == 0.0) | (RevenueItem.total_buy_price_excel == None)
+            ).all()
+            for it in items:
+                surcharges = (it.overtime_fee or 0) + (it.inspection_fee or 0) + (it.routing_fee or 0) + (it.empty_container or 0)
+                it.total_buy_price_excel = (it.buy_price or 0) + (it.buy_price_loading or 0) + surcharges
+            if items:
+                db.session.commit()
+                print(f'✅ [STARTUP] Đã tự động đồng bộ {len(items)} dòng cước giá mua trên production DB!')
+        except Exception as db_sync_err:
+            print(f'⚠️ [STARTUP] Cảnh báo đồng bộ dòng cước: {db_sync_err}')
     print('✅ [STARTUP] Cơ sở dữ liệu đã sẵn sàng!')
 except Exception as e:
     print(f'⚠️ [STARTUP] Cảnh báo tạo DB: {e}')
