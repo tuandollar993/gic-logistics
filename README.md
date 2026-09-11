@@ -48,15 +48,15 @@ Truy cập hệ thống trên trình duyệt:
 
 ### Bước 2: Đăng nhập hệ thống
 
-Hệ thống đã tạo sẵn tài khoản quản lý và 10 nhân viên:
+Hệ thống hỗ trợ phân quyền người dùng (Quản trị viên / Quản lý / Nhân viên):
 
-| Vai trò | Tên đăng nhập | Mật khẩu | Chức năng |
-|---|---|---|---|
-| **Quản lý (Admin)** | `admin` | `admin123` | Toàn quyền quản trị, xem Dashboard, phân công lô, đặt deadline |
-| **Nhân viên 01** | `nv_ngocan` | `123456` | Nguyễn Ngọc An - Điền CPVH các lô được giao |
-| **Nhân viên 02** | `nv_haidang` | `123456` | Trần Hải Đăng - Điền CPVH các lô được giao |
-| **Nhân viên 03** | `nv_cuongtrang` | `123456` | Đặng Cường Tráng - Điền CPVH các lô được giao |
-| ... | `nv_phuongthao`, `nv_hoangdung`, `nv_thuanphat`, `nv_maianh`, `nv_minhtri`, `nv_thanhxuyen`, `nv_phuonguyen` | `123456` | Các nhân viên còn lại |
+| Vai trò | Tên đăng nhập mẫu | Chức năng chính |
+|---|---|---|
+| **Quản trị viên (Admin)** | `admin` | Toàn quyền quản trị, cấu hình hệ thống, quản lý người dùng |
+| **Quản lý (Manager)** | `manager` | Xem Dashboard tài chính, phân công lô, kiểm soát deadline, quản lý dòng tiền |
+| **Nhân viên (Staff)** | `nv_ngocan`, `nv_haidang`, ... | Điền CPVH và quản lý các lô hàng được phân công |
+
+*Lưu ý: Mật khẩu ban đầu được thiết lập qua biến môi trường `INITIAL_ADMIN_PASSWORD` và `INITIAL_STAFF_PASSWORD` hoặc do Quản trị viên cấp trong tab Quản Lý Người Dùng.*
 
 ---
 

@@ -44,7 +44,7 @@ class ReminderService:
     @staticmethod
     def send_manual_reminder(task_id):
         """Quản lý gửi nhắc nhở thủ công"""
-        task = CostEntryTask.query.get(task_id)
+        task = db.session.get(CostEntryTask, task_id)
         if not task:
             return False, "Không tìm thấy nhiệm vụ."
             

@@ -37,7 +37,7 @@ class ExcelExporterService:
         num_fmt_currency = '#,##0'
         num_fmt_percent = '0.0%'
         
-        lots = Lot.query.filter_by(month=month, year=year).order_by(Lot.id.asc()).all()
+        lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).order_by(Lot.id.asc()).all()
         kpi = CalculatorService.get_monthly_kpi(month, year)
         
         # SHEET 1: BÁO CÁO KINH DOANH
@@ -236,7 +236,9 @@ class ExcelExporterService:
             cell.border = thin_border
             
         lot_ids = [lot.id for lot in lots]
-        costs = OperatingCost.query.filter(OperatingCost.lot_id.in_(lot_ids)).order_by(OperatingCost.id.asc()).all() if lot_ids else []
+        costs = OperatingCost.query.filter(
+            OperatingCost.lot_id.in_(lot_ids), OperatingCost.is_deleted.is_(False)
+        ).order_by(OperatingCost.id.asc()).all() if lot_ids else []
         
         start_row2 = 4
         for idx, cost in enumerate(costs, 1):

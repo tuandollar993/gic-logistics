@@ -71,6 +71,7 @@
             {% endwith %}
 
             <form method="POST" action="{{ url_for('auth.login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Tên Đăng Nhập</label>
                     <div class="input-group">
@@ -99,28 +100,9 @@
                     <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </form>
-
-            {% if config.DEBUG %}
-            <hr class="my-4">
-
-            <div class="text-center">
-                <small class="text-muted fw-bold text-uppercase d-block mb-2" style="font-size: 0.68rem; letter-spacing: 0.06em;">Tài khoản Thử nghiệm (Môi trường Dev):</small>
-                <div class="d-flex gap-2 justify-content-center flex-wrap">
-                    <button type="button" class="btn-secondary-gic py-1 px-3" style="font-size: 0.82rem;" onclick="quickFill('admin', 'admin123')">
-                        <i class="fa-solid fa-user-shield text-primary me-1"></i> Quản Lý (admin)
-                    </button>
-                </div>
-            </div>
-            {% endif %}
         </div>
     </div>
 
-    <script>
-        function quickFill(user, pass) {
-            document.getElementById('inputUsername').value = user;
-            document.getElementById('inputPassword').value = pass;
-        }
-    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -104,7 +104,7 @@
                     <div class="p-3 rounded-3 bg-light border">
                         <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">3. Chi Phí Vận Hành</small>
                         <h5 class="fw-bold text-warning text-dark font-mono m-0 mt-1 tabular-nums">{{ lot.total_operating_cost | format_money }}</h5>
-                        <small class="text-muted font-mono" style="font-size: 0.68rem;">{{ lot.operating_costs|length }} mục thực tế</small>
+                        <small class="text-muted font-mono" style="font-size: 0.68rem;">{{ lot.active_operating_costs|length }} mục thực tế</small>
                     </div>
                 </div>
                 <div class="col-sm-3">
@@ -136,7 +136,7 @@
         </div>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-light text-dark border font-mono">
-                Tổng: {{ lot.revenue_items|length + lot.operating_costs|length }} mục
+                Tổng: {{ lot.active_revenue_items|length + lot.active_operating_costs|length }} mục
             </span>
             <button type="button" class="btn-primary-gic py-1 px-3 d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#unifiedItemModal" style="font-size: 0.82rem;">
                 <i class="fa-solid fa-plus"></i>
@@ -162,7 +162,7 @@
             </thead>
             <tbody>
                 <!-- 1. Dịch Vụ Cước & Doanh Thu Bán Ra -->
-                {% for item in lot.revenue_items %}
+                {% for item in lot.active_revenue_items %}
                 {% set profit = item.total_sell_price - item.total_buy_price %}
                 <tr>
                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
@@ -229,9 +229,9 @@
                 {% endfor %}
 
                 <!-- 2. Chi Phí Vận Hành Thực Tế (Mua vào / Trả NCC) -->
-                {% for cost in lot.operating_costs %}
+                {% for cost in lot.active_operating_costs %}
                 <tr>
-                    <td class="text-center font-mono text-muted">{{ lot.revenue_items|length + loop.index }}</td>
+                    <td class="text-center font-mono text-muted">{{ lot.active_revenue_items|length + loop.index }}</td>
                     <td>
                         <span class="badge bg-light text-dark border font-mono">
                             {{ cost.cost_type or 'Chi phí' }}
@@ -303,7 +303,7 @@
                 </tr>
                 {% endfor %}
 
-                {% if not lot.revenue_items and not lot.operating_costs %}
+            {% if not lot.active_revenue_items and not lot.active_operating_costs %}
                 <tr>
                     <td colspan="10" class="text-center py-5 text-muted">
                         <i class="fa-solid fa-folder-open fa-2x mb-2 d-block text-secondary opacity-50"></i>
@@ -314,11 +314,11 @@
                 {% endif %}
             </tbody>
 
-            {% if lot.revenue_items or lot.operating_costs %}
+            {% if lot.active_revenue_items or lot.active_operating_costs %}
             <tfoot class="bg-light border-top-2">
                 <tr class="fw-bold">
                     <td colspan="5" class="text-end text-uppercase text-dark py-3">
-                        <span class="fs-6">TỔNG CỘNG LÔ HÀNG ({{ lot.revenue_items|length + lot.operating_costs|length }} mục):</span>
+                        <span class="fs-6">TỔNG CỘNG LÔ HÀNG ({{ lot.active_revenue_items|length + lot.active_operating_costs|length }} mục):</span>
                     </td>
                     <td class="text-end font-mono text-danger py-3 fs-6 tabular-nums">
                         {{ (lot.total_buy_cost + lot.total_operating_cost) | format_money }}

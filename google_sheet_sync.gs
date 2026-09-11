@@ -20,7 +20,8 @@ var GIDO_SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1ZZC5hnoRRo93
 
 // URL web server Render của bạn (thay bằng domain Render thực tế của bạn)
 var RENDER_URL = 'https://gic-logistics.onrender.com';
-var WEBHOOK_SECRET = 'gic-secret-2026';
+// Đọc secret từ Script Properties (hoặc cấu hình trực tiếp)
+var WEBHOOK_SECRET = PropertiesService.getScriptProperties().getProperty('WEBHOOK_SECRET') || 'YOUR_WEBHOOK_SECRET_HERE';
 
 // DANH SÁCH TẤT CẢ CÁC TRƯỜNG DỮ LIỆU CỦA GOOGLE SHEET
 var SHEET_FIELDS = [
@@ -99,16 +100,16 @@ function handleSpreadsheetChange(e) {
  * HÀM 3: Gửi tín hiệu Webhook sang Render để cập nhật tức thì
  */
 function sendWebhookToRender(month, year) {
-  var webhookUrl = RENDER_URL + '/advances/webhook?secret=' + encodeURIComponent(WEBHOOK_SECRET) +
-                   '&month=' + encodeURIComponent(month) +
-                   '&year=' + encodeURIComponent(year);
-                   
-  Logger.log('Đang gửi Webhook tới: ' + webhookUrl);
+  var webhookUrl = RENDER_URL + '/advances/webhook';
+  Logger.log('Đang gửi Webhook tới: ' + webhookUrl + ' (Tháng ' + month + '/' + year + ')');
   
   try {
     var options = {
       method: 'post',
       contentType: 'application/json',
+      headers: {
+        'X-Webhook-Secret': WEBHOOK_SECRET
+      },
       payload: JSON.stringify({
         spreadsheetId: GIDO_SPREADSHEET_ID,
         month: month,

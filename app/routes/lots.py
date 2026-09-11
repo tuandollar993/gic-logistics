@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Lot, Customer, User, CostEntryTask, RevenueItem, Supplier, OperatingCost
-from app.routes.auth import manager_required
+from app.security import manager_required, log_audit
 from app.services.calculator import CalculatorService
 from app.services.reminder_service import ReminderService
 from app.services.excel_exporter import ExcelExporterService
@@ -24,10 +24,12 @@ def index():
     query = request.args.get('q', '').strip()
     status_filter = request.args.get('status', '')
     
-    lots_query = Lot.query.filter_by(month=selected_month, year=selected_year)
+    lots_query = Lot.query.filter_by(month=selected_month, year=selected_year, is_deleted=False)
     # Exclude completely empty placeholder lots
     lots_query = lots_query.filter(
-        (Lot.revenue_items.any()) | (Lot.operating_costs.any()) | (Lot.tasks.any())
+        (Lot.revenue_items.any(RevenueItem.is_deleted.is_(False))) |
+        (Lot.operating_costs.any(OperatingCost.is_deleted.is_(False))) |
+        (Lot.tasks.any())
     )
     
     # If staff, can see all lots or only assigned depending on view mode
@@ -316,10 +318,20 @@ def delete_revenue_item(lot_id, item_id):
         flash('Bạn không có quyền chỉnh sửa lô hàng này.', 'danger')
         return redirect(url_for('lots.detail', lot_id=lot.id))
         
-    item = RevenueItem.query.filter_by(id=item_id, lot_id=lot.id).first_or_404()
-    db.session.delete(item)
-    db.session.commit()
-    flash('Đã xóa mục thành công!', 'success')
+    item = RevenueItem.query.filter_by(id=item_id, lot_id=lot.id, is_deleted=False).first_or_404()
+    try:
+        item.is_deleted = True
+        item.deleted_at = datetime.now(timezone.utc)
+        item.deleted_by = current_user.id
+        log_audit('delete_revenue_item', 'revenue_item', item.id,
+                  f'Soft deleted revenue item {item.id} from lot {lot.id}',
+                  before_state={'lot_id': lot.id, 'total_buy_price': item.total_buy_price,
+                                'total_sell_price': item.total_sell_price})
+        db.session.commit()
+        flash('Đã xóa mục thành công!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi xóa mục: {e}', 'danger')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
 @lots_bp.route('/<int:lot_id>/costs/<int:cost_id>/edit', methods=['POST'])
@@ -330,7 +342,7 @@ def edit_cost_item(lot_id, cost_id):
         flash('Bạn không có quyền chỉnh sửa chi phí này.', 'danger')
         return redirect(url_for('lots.detail', lot_id=lot.id))
         
-    cost = OperatingCost.query.filter_by(id=cost_id, lot_id=lot.id).first_or_404()
+    cost = OperatingCost.query.filter_by(id=cost_id, lot_id=lot.id, is_deleted=False).first_or_404()
     cost.description = request.form.get('service_description', cost.description).strip()
     cost.supplier_name = request.form.get('supplier', cost.supplier_name or '').strip()
     cost.vehicle_plate = request.form.get('vehicle_plate', cost.vehicle_plate or '').strip()
@@ -373,8 +385,43 @@ def delete_cost_item(lot_id, cost_id):
         return redirect(url_for('lots.detail', lot_id=lot.id))
         
     cost = OperatingCost.query.filter_by(id=cost_id, lot_id=lot.id).first_or_404()
-    db.session.delete(cost)
-    db.session.commit()
-    flash('Đã xóa khoản chi phí thành công!', 'success')
+    try:
+        log_audit('delete_cost', 'cost', cost_id, f"Deleted cost item {cost_id} from lot {lot_id}",
+                  before_state={'cost_id': cost.id, 'description': cost.description, 'total_amount': cost.total_amount})
+        cost.is_deleted = True
+        cost.deleted_at = datetime.now(timezone.utc)
+        cost.deleted_by = current_user.id
+        db.session.flush()
+        db.session.commit()
+        flash('Đã xóa khoản chi phí thành công!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi xóa chi phí: {e}', 'danger')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
+
+@lots_bp.route('/<int:lot_id>/delete', methods=['POST'])
+@login_required
+@manager_required
+def delete_lot(lot_id):
+    lot = Lot.query.get_or_404(lot_id)
+    label = lot.lot_label
+    m, y = lot.month, lot.year
+    try:
+        now_utc = datetime.now(timezone.utc)
+        lot.is_deleted = True
+        lot.deleted_at = now_utc
+        lot.deleted_by = current_user.id
+        for cost in lot.operating_costs:
+            cost.is_deleted = True
+            cost.deleted_at = now_utc
+            cost.deleted_by = current_user.id
+        log_audit('delete_lot', 'lot', lot_id, f"Soft deleted lot {label} (Tháng {m}/{y})",
+                  before_state={'lot_id': lot_id, 'lot_label': label, 'month': m, 'year': y})
+        db.session.flush()
+        db.session.commit()
+        flash(f'Đã xóa thành công lô hàng {label}!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi xóa lô hàng: {e}', 'danger')
+    return redirect(url_for('lots.index', month=m, year=y))

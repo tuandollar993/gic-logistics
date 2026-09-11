@@ -1,6 +1,6 @@
-from datetime import date
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
+from app.security import manager_required
 from app.services.calculator import CalculatorService
 from app.services.comment_engine import CommentEngine
 
@@ -8,6 +8,7 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/')
 @login_required
+@manager_required
 def index():
     months = CalculatorService.get_available_months()
     # Default to latest month in database or current month
@@ -33,6 +34,7 @@ def index():
 
 @dashboard_bp.route('/api/dashboard/kpis')
 @login_required
+@manager_required
 def api_kpis():
     month = request.args.get('month', 8, type=int)
     year = request.args.get('year', 2026, type=int)
@@ -41,6 +43,7 @@ def api_kpis():
 
 @dashboard_bp.route('/api/dashboard/trend')
 @login_required
+@manager_required
 def api_trend():
     year = request.args.get('year', 2026, type=int)
     data = CalculatorService.get_year_trend(year)
@@ -48,9 +51,9 @@ def api_trend():
 
 @dashboard_bp.route('/api/dashboard/customers')
 @login_required
+@manager_required
 def api_customers():
     month = request.args.get('month', 8, type=int)
     year = request.args.get('year', 2026, type=int)
     customers = CalculatorService.get_customer_breakdown(month, year)
     return jsonify(customers)
-

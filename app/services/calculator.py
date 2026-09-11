@@ -11,7 +11,7 @@ class CalculatorService:
         """Get all unique (year, month) pairs present in the database"""
         if CalculatorService._cached_months is not None:
             return CalculatorService._cached_months
-        lots = Lot.query.with_entities(Lot.year, Lot.month).distinct().order_by(Lot.year.desc(), Lot.month.desc()).all()
+        lots = Lot.query.filter_by(is_deleted=False).with_entities(Lot.year, Lot.month).distinct().order_by(Lot.year.desc(), Lot.month.desc()).all()
         CalculatorService._cached_months = [(l.year, l.month) for l in lots]
         return CalculatorService._cached_months
 
@@ -20,7 +20,7 @@ class CalculatorService:
         """
         Calculate total revenue, costs, profit, and target progress for given month & year
         """
-        all_lots = Lot.query.filter_by(month=month, year=year).options(
+        all_lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).options(
             selectinload(Lot.revenue_items),
             selectinload(Lot.operating_costs)
         ).all()
@@ -54,7 +54,7 @@ class CalculatorService:
         # Previous month comparison (Requirement 11)
         prev_m = 12 if month == 1 else month - 1
         prev_y = year - 1 if month == 1 else year
-        prev_lots = Lot.query.filter_by(month=prev_m, year=prev_y).options(
+        prev_lots = Lot.query.filter_by(month=prev_m, year=prev_y, is_deleted=False).options(
             selectinload(Lot.revenue_items),
             selectinload(Lot.operating_costs)
         ).all()
@@ -97,7 +97,7 @@ class CalculatorService:
         Get 12-month series of revenue, costs, and target for charts.
         Optimized to fetch all year lots and targets in 2 queries instead of 24.
         """
-        all_year_lots = Lot.query.filter_by(year=year).options(
+        all_year_lots = Lot.query.filter_by(year=year, is_deleted=False).options(
             selectinload(Lot.revenue_items),
             selectinload(Lot.operating_costs)
         ).all()
@@ -132,7 +132,7 @@ class CalculatorService:
         Returns Top 5 customers + 'Khác', summing to exactly 100%.
         Eager loads customer to avoid N+1 queries.
         """
-        lots = Lot.query.filter_by(month=month, year=year).options(
+        lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).options(
             joinedload(Lot.customer),
             selectinload(Lot.revenue_items)
         ).all()
@@ -140,6 +140,9 @@ class CalculatorService:
         total_rev = 0
         
         for lot in lots:
+            # Exclude zero-revenue CPVH lots from customer sales breakdown
+            if lot.source_type == 'cpvh' and lot.total_sell_revenue <= 0:
+                continue
             cname = lot.customer.name if lot.customer else "Khách vãng lai"
             rev = lot.total_sell_revenue
             total_rev += rev

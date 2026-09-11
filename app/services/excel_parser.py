@@ -1,5 +1,6 @@
 import re
 import datetime
+import json
 import unicodedata
 from pathlib import Path
 import openpyxl
@@ -392,7 +393,10 @@ class ExcelParserService:
                     lot_label = f"Lô {lot_counter}"
                     
                 if is_new_lot:
-                    cust = get_or_create_customer(cust_name or company)
+                    # Enterprise company takes priority over individual contact (e.g. 'Anh Thắng' -> 'Sunluxe')
+                    norm_c = cust_name.lower() if cust_name else ''
+                    resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
+                    cust = get_or_create_customer(resolved_cust)
                     current_lot = Lot(
                         lot_label=lot_label or f"Lô {lot_counter}",
                         customer_id=cust.id if cust else None,
@@ -413,7 +417,9 @@ class ExcelParserService:
                 else:
                     if current_lot:
                         if (cust_name or company) and not current_lot.customer_id:
-                            cust = get_or_create_customer(cust_name or company)
+                            norm_c = cust_name.lower() if cust_name else ''
+                            resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
+                            cust = get_or_create_customer(resolved_cust)
                             current_lot.customer_id = cust.id
                         if decl_num and not current_lot.customs_declaration:
                             current_lot.customs_declaration = decl_num
@@ -564,43 +570,111 @@ class ExcelParserService:
                     break
             if header_row == -1:
                 continue
+
+            # Dynamic column mapping from header row
+            col_map = {}
+            for c in range(1, ws.max_column + 1):
+                hdr = normalize_text(ws.cell(header_row, c).value)
+                if not hdr:
+                    continue
+                if hdr == 'stt':
+                    col_map['stt'] = c
+                elif 'khach hang' in hdr or 'ten kh' in hdr:
+                    col_map['khach_hang'] = c
+                elif 'ma lo' in hdr or 'to khai' in hdr or 'so tkhq' in hdr:
+                    col_map['to_khai'] = c
+                elif 'loai chi phi' in hdr or 'loai cp' in hdr:
+                    col_map['loai_cp'] = c
+                elif 'noi dung' in hdr or 'dien giai' in hdr:
+                    col_map['noi_dung'] = c
+                elif 'bks' in hdr or 'bien so' in hdr:
+                    col_map['bks'] = c
+                elif 'sl xe' in hdr or 'so luong' in hdr:
+                    col_map['sl_xe'] = c
+                elif 'don gia' in hdr:
+                    col_map['don_gia'] = c
+                elif 'tong tien' in hdr:
+                    col_map['tong_tien'] = c
+                elif hdr == 'chi phi' or ('chi phi' in hdr and 'loai' not in hdr and 'ky' not in hdr and 'phat sinh' not in hdr):
+                    col_map['chi_phi'] = c
+                elif 'vat' in hdr or 'thue' in hdr:
+                    col_map['vat'] = c
+                elif 'loai hd' in hdr or ('loai' in hdr and 'phieu' in hdr):
+                    col_map['loai_hd'] = c
+                elif 'ky hieu' in hdr:
+                    col_map['ky_hieu'] = c
+                elif 'so hd' in hdr or ('so' in hdr and 'phieu' in hdr):
+                    col_map['so_hd'] = c
+                elif 'ngay' in hdr and ('chung tu' in hdr or 'ct' in hdr):
+                    col_map['ngay_ct'] = c
+                elif 'mst' in hdr or 'ma so thue' in hdr:
+                    col_map['mst'] = c
+                elif 'nha cung cap' in hdr or hdr == 'ncc':
+                    col_map['ncc'] = c
+                elif 'ghi chu' in hdr:
+                    col_map['ghi_chu'] = c
+                elif 'pic' in hdr:
+                    col_map['pic'] = c
+                elif 'unc' in hdr or 'tien mat' in hdr or 'phuong thuc' in hdr:
+                    col_map['payment_method'] = c
+
+            def get_cell_val(row_idx, col_key, clean_fn=clean_str):
+                c_idx = col_map.get(col_key)
+                if c_idx:
+                    return clean_fn(ws.cell(row_idx, c_idx).value)
+                return clean_fn(None)
                 
             current_lot_match = None
+            current_customer_name = ''
+            current_decl = ''
+            source_customer_name = ''
+            source_decl = ''
+            detail_sequence = 0
             
             for r in range(header_row + 1, ws.max_row + 1):
-                stt_val = clean_str(ws.cell(r, 1).value)
-                kh_val = clean_str(ws.cell(r, 2).value)
-                code_val = clean_str(ws.cell(r, 3).value)
-                cost_type = clean_str(ws.cell(r, 4).value)
-                desc = clean_str(ws.cell(r, 5).value)
+                stt_val = get_cell_val(r, 'stt')
+                kh_val = get_cell_val(r, 'khach_hang')
+                code_val = get_cell_val(r, 'to_khai')
+                cost_type = get_cell_val(r, 'loai_cp')
+                desc = get_cell_val(r, 'noi_dung')
+
+                # Values can first appear on either a group header or a
+                # detail row, and then apply to subsequent blanks.
+                if kh_val:
+                    current_customer_name = kh_val
+                    source_customer_name = kh_val
+                if code_val:
+                    current_decl = code_val
+                    source_decl = code_val
                 
                 # Check footer / summary rows
                 row_vals = [stt_val, kh_val, code_val, cost_type, desc]
                 if is_summary_or_footer_row(row_vals):
                     continue
                     
-                plate = clean_str(ws.cell(r, 6).value)
-                veh_count = clean_float(ws.cell(r, 7).value) or 1.0
-                unit_p = clean_float(ws.cell(r, 8).value)
-                total_amt = clean_float(ws.cell(r, 9).value) or (unit_p * veh_count)
-                cost_amt = clean_float(ws.cell(r, 18).value) if ws.max_column >= 18 else 0.0
-                vat_amt = clean_float(ws.cell(r, 19).value) if ws.max_column >= 19 else 0.0
+                plate = get_cell_val(r, 'bks')
+                veh_count = get_cell_val(r, 'sl_xe', clean_float) or 1.0
+                unit_p = get_cell_val(r, 'don_gia', clean_float)
+                total_amt = get_cell_val(r, 'tong_tien', clean_float)
+                cost_amt = get_cell_val(r, 'chi_phi', clean_float)
+                vat_amt = get_cell_val(r, 'vat', clean_float)
                 
                 if total_amt == 0 and cost_amt > 0:
                     total_amt = cost_amt + (vat_amt or 0.0)
                 elif total_amt == 0 and unit_p > 0:
                     total_amt = unit_p * veh_count
                     
-                # GROUP HEADER DETECTION (Sheet T07, T08):
+                # GROUP HEADER DETECTION (Sheet T07, T08, T09):
                 # If row has STT, cost_type is empty: this is a group header row
                 is_group_header = bool(stt_val and (not cost_type or str(cost_type).strip() == ''))
                 
                 if stt_val and (stt_val.isdigit() or clean_float(stt_val) > 0 or is_group_header):
-                    current_customer_name = kh_val
-                    current_decl = code_val
-                    doc_date = clean_date(ws.cell(r, 13).value)
+                    # Spreadsheet group headers commonly omit repeated
+                    # customer/declaration cells. Carry forward the last
+                    # non-empty source value, exactly as the source layout
+                    # represents the block.
+                    doc_date = get_cell_val(r, 'ngay_ct', clean_date)
                     
-                    # 5-TIER LOT MATCHING (Requirement 8):
                     sales_lots = Lot.query.filter(Lot.month == month, Lot.year == year, Lot.source_type != 'cpvh').all()
                     matched_lot = None
                     clean_decl = current_decl.strip() if current_decl else ''
@@ -639,6 +713,23 @@ class ExcelParserService:
                         ]
                         if len(date_matches) == 1:
                             matched_lot = date_matches[0]
+
+                    # 4.5 Match by lot sequence number (STT in CPVH == Lot number in Sales report)
+                    if not matched_lot and stt_val and (stt_val.isdigit() or clean_float(stt_val) > 0):
+                        try:
+                            stt_num = int(clean_float(stt_val))
+                            stt_matches = [
+                                l for l in sales_lots
+                                if l.lot_label and (
+                                    l.lot_label.strip().lower() == f"lô {stt_num}" or
+                                    l.lot_label.strip().lower() == f"lô {stt_num:02d}" or
+                                    l.lot_label.strip().lower() == f"lô 0{stt_num}"
+                                )
+                            ]
+                            if len(stt_matches) == 1:
+                                matched_lot = stt_matches[0]
+                        except Exception:
+                            pass
                             
                     current_lot_match = matched_lot
                     
@@ -646,10 +737,10 @@ class ExcelParserService:
                     if not current_lot_match:
                         # If current_customer_name is missing, try to detect from block rows
                         if not current_customer_name:
-                            for look_r in range(r, min(r + 30, ws.max_row + 1)):
-                                if look_r > r and ws.cell(look_r, 1).value:
+                            for look_r in range(r, min(r + 35, ws.max_row + 1)):
+                                if look_r > r and ws.cell(look_r, col_map.get('stt', 1)).value:
                                     break
-                                desc_look = normalize_text(ws.cell(look_r, 5).value or '')
+                                desc_look = normalize_text(get_cell_val(look_r, 'noi_dung') or '')
                                 if 'keep rise' in desc_look or 'keep' in desc_look:
                                     current_customer_name = 'Keep Rise'
                                     break
@@ -675,17 +766,40 @@ class ExcelParserService:
                 if is_group_header:
                     continue
                     
-                # DETAIL ROW: Only add if positive cost
-                if current_lot_match and (total_amt > 0 or cost_amt > 0):
-                    inv_type = clean_str(ws.cell(r, 10).value)
-                    inv_symbol = clean_str(ws.cell(r, 11).value)
-                    inv_number = clean_str(ws.cell(r, 12).value)
-                    doc_date = clean_date(ws.cell(r, 13).value)
-                    tax_code = clean_str(ws.cell(r, 14).value)
-                    supp_name = clean_str(ws.cell(r, 15).value)
-                    note = clean_str(ws.cell(r, 16).value)
-                    pic = clean_str(ws.cell(r, 17).value)
-                    pay_method = clean_str(ws.cell(r, 20).value) or 'Tiền mặt'
+                # A detail row is defined by its cost type, not by a positive
+                # amount.  T09 has pre-filled zero-value lines whose actual
+                # values may appear only later in the month; dropping them
+                # breaks source-row traceability and reconciliation.
+                if current_lot_match and cost_type:
+                    inv_type = get_cell_val(r, 'loai_hd')
+                    inv_symbol = get_cell_val(r, 'ky_hieu')
+                    inv_number = get_cell_val(r, 'so_hd')
+                    doc_date = get_cell_val(r, 'ngay_ct', clean_date)
+                    tax_code = get_cell_val(r, 'mst')
+                    supp_name = get_cell_val(r, 'ncc')
+                    note = get_cell_val(r, 'ghi_chu')
+                    pic = get_cell_val(r, 'pic')
+                    pay_method = get_cell_val(r, 'payment_method') or 'Tiền mặt'
+                    detail_sequence += 1
+                    invoice_status = f"{inv_type} {inv_number}".strip() if inv_type or inv_number else 'Không HĐ'
+                    source_payload = json.dumps({
+                        'stt': detail_sequence,
+                        'ngay_thang': doc_date.strftime('%d/%m/%Y') if doc_date else '',
+                        'ma_chi_phi': cost_type or '',
+                        'nha_cung_cap': supp_name or '',
+                        'chi_tiet': desc or '',
+                        'gia_chua_vat': cost_amt or 0.0,
+                        'co_vat': vat_amt or 0.0,
+                        'tong_tien': total_amt or 0.0,
+                        'thanh_toan': 'Chuyển khoản' if 'hóa đơn' in (inv_type or '').lower() else 'Tiền mặt',
+                        'cong_no': 0.0,
+                        'da_thanh_toan': total_amt or 0.0,
+                        'lo_hang': source_customer_name or '',
+                        'ma_ho_so': source_decl or '',
+                        'invoice_status': invoice_status,
+                        'payment_status': 'Đã đối soát' if clean_str(ws.cell(r, 21).value) else 'Hoàn thành',
+                        'ghi_chu': note or ''
+                    }, ensure_ascii=False)
                     
                     op_cost = OperatingCost(
                         lot_id=current_lot_match.id,
@@ -705,7 +819,10 @@ class ExcelParserService:
                         supplier_name=supp_name,
                         note=note,
                         pic=pic,
-                        payment_method=pay_method
+                        payment_method=pay_method,
+                        source_sheet=sn,
+                        source_row=r,
+                        source_payload=source_payload
                     )
                     db.session.add(op_cost)
                     total_costs += 1

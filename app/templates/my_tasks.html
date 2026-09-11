@@ -70,8 +70,8 @@
                             {% endif %}
                         </td>
                         <td class="text-center font-mono fw-bold">
-                            <span class="{% if task.lot.operating_costs|length > 0 %}text-success{% else %}text-muted{% endif %}">
-                                {{ task.lot.operating_costs|length }} mục
+                            <span class="{% if task.lot.active_operating_costs|length > 0 %}text-success{% else %}text-muted{% endif %}">
+                                {{ task.lot.active_operating_costs|length }} mục
                             </span>
                         </td>
                         <td class="text-center">

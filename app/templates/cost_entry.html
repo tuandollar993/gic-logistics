@@ -72,7 +72,7 @@
         <div class="d-flex align-items-center gap-2">
             <i class="fa-solid fa-receipt text-warning"></i>
             <h6 class="fw-bold m-0 text-dark">
-                Danh Sách Chi Phí Đã Nhập Cho Lô Này (<span id="costCountBadge" class="font-mono">{{ lot.operating_costs|length }}</span> mục)
+                Danh Sách Chi Phí Đã Nhập Cho Lô Này (<span id="costCountBadge" class="font-mono">{{ lot.active_operating_costs|length }}</span> mục)
             </h6>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -98,7 +98,7 @@
                 </tr>
             </thead>
             <tbody id="costTableBody">
-                {% for cost in lot.operating_costs %}
+                {% for cost in lot.active_operating_costs %}
                     <tr id="cost-row-{{ cost.id }}">
                         <td class="font-mono text-muted">{{ loop.index }}</td>
                         <td><span class="badge bg-light text-dark border">{{ cost.cost_type or '-' }}</span></td>

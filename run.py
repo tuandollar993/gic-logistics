@@ -68,9 +68,8 @@ if __name__ == '__main__':
     print("👉 http://127.0.0.1:5000")
     print("👉 http://localhost:5000")
     print("=" * 70)
-    print("Tài khoản đăng nhập Quản trị:")
-    print("• Quản lý:  admin       / pass: admin123")
-    print("• Nhân viên: Quản lý thêm tài khoản nhân viên tại tab 'Quản Lý Nhân Viên'")
+    print("Tài khoản đăng nhập:")
+    print("• Đăng nhập bằng tài khoản Quản trị viên hoặc Nhân viên được cấp.")
     print("=" * 70 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=False)

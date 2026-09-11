@@ -1,6 +1,6 @@
 from flask import Flask
 from app.config import Config
-from app.extensions import db, login_manager
+from app.extensions import db, login_manager, migrate
 from app.models import User
 
 def create_app(config_class=Config):
@@ -9,12 +9,49 @@ def create_app(config_class=Config):
     
     # Initialize extensions
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Vui lòng đăng nhập để truy cập trang này.'
+    login_manager.login_message_category = 'warning'
     
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
-        
+        try:
+            user = db.session.get(User, int(user_id))
+            if user and getattr(user, 'is_active', True):
+                return user
+        except Exception:
+            pass
+        return None
+
+    # Security & CSRF
+    from app.security import generate_csrf_token, validate_csrf
+
+    @app.context_processor
+    def inject_csrf():
+        return dict(csrf_token=generate_csrf_token)
+
+    @app.before_request
+    def check_csrf_protection():
+        if not validate_csrf():
+            from flask import jsonify, abort, request
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'success': False, 'error': 'CSRF token missing or invalid'}), 400
+            abort(400, description="CSRF token missing or invalid. Please refresh the page and try again.")
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self' https: data: 'unsafe-inline'; "
+            "img-src 'self' data: https: blob:; "
+            "font-src 'self' https: data:;"
+        )
+        return response
+
     # Custom Jinja filters
     @app.template_filter('format_money')
     def format_money_filter(value):

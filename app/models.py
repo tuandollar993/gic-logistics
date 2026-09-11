@@ -27,8 +27,16 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
     
     @property
+    def is_admin(self):
+        return self.role == 'admin'
+
+    @property
     def is_manager(self):
-        return self.role == 'manager'
+        return self.role in ('manager', 'admin')
+
+    @property
+    def is_staff(self):
+        return self.role == 'staff'
     
     def to_dict(self):
         return {
@@ -106,6 +114,9 @@ class Lot(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
     # Relationships
     revenue_items = db.relationship('RevenueItem', backref='lot', cascade='all, delete-orphan', lazy='joined')
@@ -115,19 +126,21 @@ class Lot(db.Model):
     @property
     def total_sell_revenue(self):
         """Tổng doanh thu bán (chưa VAT) của lô"""
-        revenue_items_total = sum(item.total_sell_price for item in self.revenue_items)
-        operating_costs_sell = sum(cost.sell_price or 0 for cost in self.operating_costs)
+        revenue_items_total = sum(item.total_sell_price for item in self.revenue_items if not item.is_deleted)
+        operating_costs_sell = sum(
+            cost.sell_price or 0 for cost in self.operating_costs if not cost.is_deleted
+        )
         return revenue_items_total + operating_costs_sell
     
     @property
     def total_buy_cost(self):
         """Tổng chi phí mua (đã có VAT) từ báo cáo bán hàng"""
-        return sum(item.total_buy_price for item in self.revenue_items)
+        return sum(item.total_buy_price for item in self.revenue_items if not item.is_deleted)
     
     @property
     def total_operating_cost(self):
         """Tổng chi phí vận hành thực tế do nhân viên điền"""
-        return sum(cost.total_amount or 0 for cost in self.operating_costs)
+        return sum(cost.total_amount or 0 for cost in self.operating_costs if not cost.is_deleted)
     
     @property
     def gross_profit(self):
@@ -152,6 +165,14 @@ class Lot(db.Model):
         return self.source_type != 'cpvh'
 
     @property
+    def active_revenue_items(self):
+        return [item for item in self.revenue_items if not item.is_deleted]
+
+    @property
+    def active_operating_costs(self):
+        return [cost for cost in self.operating_costs if not cost.is_deleted]
+
+    @property
     def cost_status(self):
         """
         Trạng thái điền chi phí vận hành:
@@ -159,7 +180,7 @@ class Lot(db.Model):
         - 'partial': Có chi phí nhưng chưa đủ thông tin hợp lệ
         - 'completed': Đã đủ thông tin hợp lệ và hoàn tất
         """
-        costs = self.operating_costs
+        costs = [cost for cost in self.operating_costs if not cost.is_deleted]
         if not costs or len(costs) == 0:
             return 'none'
         all_valid = True
@@ -168,7 +189,7 @@ class Lot(db.Model):
             has_amount = bool((c.total_amount and c.total_amount > 0) or (c.cost_amount and c.cost_amount > 0))
             has_doc = bool(c.invoice_type or c.invoice_number or (c.note and 'không hđ' in c.note.lower()))
             has_supp = bool(c.supplier_name or c.supplier_tax_code)
-            if not (has_desc and has_amount and has_doc and has_supp):
+            if not (has_desc and has_amount and has_doc and has_supp and c.document_date):
                 all_valid = False
                 break
         if all_valid and self.status == 'completed':
@@ -201,8 +222,8 @@ class Lot(db.Model):
             'gross_profit': self.gross_profit,
             'net_profit': self.net_profit,
             'profit_margin': round(self.profit_margin, 1),
-            'operating_cost_count': len(self.operating_costs),
-            'revenue_item_count': len(self.revenue_items)
+            'operating_cost_count': sum(1 for cost in self.operating_costs if not cost.is_deleted),
+            'revenue_item_count': len(self.active_revenue_items)
         }
 
 class RevenueItem(db.Model):
@@ -253,6 +274,9 @@ class RevenueItem(db.Model):
     # Giá trị từ cột Tổng tiền mua và Tổng tiền bán trong Excel
     total_buy_price_excel = db.Column(db.Float, nullable=True)
     total_sell_price_excel = db.Column(db.Float, nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
     @property
     def total_buy_price(self):
@@ -327,6 +351,12 @@ class OperatingCost(db.Model):
     
     filled_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     filled_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    source_sheet = db.Column(db.String(50), nullable=True, index=True)
+    source_row = db.Column(db.Integer, nullable=True)
+    source_payload = db.Column(db.Text, nullable=True)
     
     filler = db.relationship('User', foreign_keys=[filled_by])
 
@@ -431,6 +461,9 @@ class CashAdvanceMonthly(db.Model):
     
     creator_name = db.Column(db.String(100), default='Trần Xuân Trường')
     last_synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_locked = db.Column(db.Boolean, default=False)
+    locked_at = db.Column(db.DateTime, nullable=True)
+    locked_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
     # Relationships
     transactions = db.relationship('CashAdvanceTransaction', backref='monthly_sheet', cascade='all, delete-orphan', lazy='dynamic', order_by='CashAdvanceTransaction.row_index')
@@ -457,6 +490,8 @@ class CashAdvanceMonthly(db.Model):
             'total_partner': self.total_partner,
             'closing_balance': self.closing_balance,
             'creator_name': self.creator_name,
+            'is_locked': self.is_locked,
+            'locked_at': self.locked_at.strftime('%d/%m/%Y %H:%M') if self.locked_at else None,
             'last_synced_at': self.last_synced_at.strftime('%d/%m/%Y %H:%M') if self.last_synced_at else ''
         }
 
@@ -469,6 +504,12 @@ class CashAdvanceTransaction(db.Model):
     month = db.Column(db.Integer, nullable=False, index=True)
     year = db.Column(db.Integer, nullable=False, index=True)
     row_index = db.Column(db.Integer, default=0)
+    external_id = db.Column(db.String(128), nullable=True, unique=True, index=True)
+    sync_status = db.Column(db.String(30), default='synced', index=True)
+    sync_hash = db.Column(db.String(64), nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_reason = db.Column(db.Text, nullable=True)
     
     trans_date = db.Column(db.String(50), nullable=True)
     content = db.Column(db.Text, nullable=False)
@@ -536,7 +577,16 @@ class CashAdvanceBillMedia(db.Model):
     file_size = db.Column(db.Integer, default=0)
     data_base64 = db.Column(db.Text, nullable=True)
     storage_url = db.Column(db.Text, nullable=True)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('cash_advance_transactions.id', name='fk_cabm_transaction_id'), nullable=True, index=True)
+    operating_cost_id = db.Column(db.Integer, db.ForeignKey('operating_costs.id', name='fk_cabm_operating_cost_id'), nullable=True, index=True)
+    lot_id = db.Column(db.Integer, db.ForeignKey('lots.id', name='fk_cabm_lot_id'), nullable=True, index=True)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id', name='fk_cabm_uploaded_by'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    transaction = db.relationship('CashAdvanceTransaction', foreign_keys=[transaction_id], backref=db.backref('bill_media_items', lazy='dynamic'))
+    operating_cost = db.relationship('OperatingCost', foreign_keys=[operating_cost_id], backref=db.backref('bill_media_items', lazy='dynamic'))
+    lot = db.relationship('Lot', foreign_keys=[lot_id], backref=db.backref('bill_media_items', lazy='dynamic'))
+    uploader = db.relationship('User', foreign_keys=[uploaded_by], backref=db.backref('uploaded_bills', lazy='dynamic'))
 
     def to_dict(self):
         return {
@@ -545,6 +595,47 @@ class CashAdvanceBillMedia(db.Model):
             'filename': self.filename,
             'mime_type': self.mime_type,
             'file_size': self.file_size,
-            'storage_url': self.storage_url,
+            'transaction_id': self.transaction_id,
+            'operating_cost_id': self.operating_cost_id,
+            'lot_id': self.lot_id,
+            'uploaded_by': self.uploaded_by,
             'created_at': self.created_at.strftime('%d/%m/%Y %H:%M') if self.created_at else ''
+        }
+
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    actor = db.Column(db.String(100), nullable=True) # username or automated service
+    action = db.Column(db.String(50), nullable=False, index=True)
+    target_type = db.Column(db.String(50), nullable=False, index=True) # entity name
+    target_id = db.Column(db.String(64), nullable=True, index=True)   # entity id
+    before_state = db.Column(db.Text, nullable=True)                  # JSON string before mutation
+    after_state = db.Column(db.Text, nullable=True)                   # JSON string after mutation
+    reason = db.Column(db.Text, nullable=True)                        # reason for action
+    request_id = db.Column(db.String(64), nullable=True, index=True)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship('User', backref=db.backref('audit_logs', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'actor': self.actor or (self.user.username if self.user else 'system'),
+            'username': self.user.username if self.user else self.actor,
+            'action': self.action,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'before_state': self.before_state,
+            'after_state': self.after_state,
+            'reason': self.reason,
+            'request_id': self.request_id,
+            'details': self.details,
+            'ip_address': self.ip_address,
+            'created_at': self.created_at.strftime('%d/%m/%Y %H:%M:%S') if self.created_at else ''
         }

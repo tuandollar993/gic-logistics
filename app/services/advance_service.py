@@ -3,9 +3,11 @@ import json
 import time
 import base64
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
+import contextlib
 import unicodedata
 import requests
+import sqlalchemy as sa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
@@ -14,8 +16,61 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from app.extensions import db
 from app.models import CashAdvanceMonthly, CashAdvanceTransaction, CashAdvanceBillMedia
 
+import threading
+
 GIDO_SPREADSHEET_ID = os.environ.get('GIDO_SPREADSHEET_ID', '1ZZC5hnoRRo93Fc3AH-mcKCu692xRhX6Zy04ENhiz6p8')
 CREDENTIALS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'google-credentials.json')
+
+_sync_lock = threading.Lock()
+
+@contextlib.contextmanager
+def acquire_sync_lock(lock_id=987654321):
+    """
+    Acquires synchronization lock across threads and database processes.
+    Uses PostgreSQL advisory lock (pg_try_advisory_lock) when available,
+    falling back to Python thread Lock for SQLite/testing.
+    """
+    acquired_thread = _sync_lock.acquire(blocking=False)
+    if not acquired_thread:
+        yield False
+        return
+
+    acquired_pg = False
+    is_postgres = False
+    try:
+        bind = db.session.get_bind()
+        if bind.dialect.name == 'postgresql':
+            is_postgres = True
+            result = db.session.execute(sa.text("SELECT pg_try_advisory_lock(:lid)"), {'lid': lock_id}).scalar()
+            if not result:
+                acquired_pg = False
+            else:
+                acquired_pg = True
+        else:
+            acquired_pg = True
+    except Exception:
+        # A production lock failure must never silently degrade to a
+        # process-local lock: multiple web workers could otherwise sync at once.
+        if is_postgres:
+            _sync_lock.release()
+            yield False
+            return
+        acquired_pg = True
+
+    if not acquired_pg:
+        _sync_lock.release()
+        yield False
+        return
+
+    try:
+        yield True
+    finally:
+        if is_postgres and acquired_pg:
+            try:
+                db.session.execute(sa.text("SELECT pg_advisory_unlock(:lid)"), {'lid': lock_id})
+            except Exception:
+                pass
+        _sync_lock.release()
 
 _token_cache = {
     'token': None,
@@ -67,6 +122,13 @@ def clean_date_vn(val, default_month=None, default_year=2026):
         y, mth, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         return f'{d:02d}/{mth:02d}/{y}'
         
+    # 1.5. Date without year DD/MM or DD.MM or DD-MM (e.g. 20.8 -> 20/08/2026)
+    m = re.match(r'^(\d{1,2})[/\.-](\d{1,2})$', val_str)
+    if m:
+        d, mth = int(m.group(1)), int(m.group(2))
+        y = default_year or 2026
+        return f'{d:02d}/{mth:02d}/{y}'
+
     # 2. 'thg 6' or 'thg6' or 'tháng 6'
     m = re.match(r'^(\d{1,2})[/\s\.-]+(?:thg|tháng)\s*(\d{1,2})', val_str, re.IGNORECASE)
     if m:
@@ -209,185 +271,267 @@ def get_sheet_title_for_month(month, year):
 
 def sync_month_from_google(month, year):
     """
-    Đồng bộ dữ liệu bảng kê tạm ứng của Tháng/Năm từ Google Sheet vào SQLite
+    Đồng bộ dữ liệu bảng kê tạm ứng của Tháng/Năm từ Google Sheet vào DB.
+    - Dynamic range A1:Q
+    - Kiểm tra khóa sổ tháng
+    - Chuẩn hóa phân loại lương chi / lương thu
+    - UPSERT thông minh với external_id và sync_status (không xóa trắng dữ liệu)
     """
-    token = get_google_access_token()
-    if not token:
-        return None, "Không tìm thấy token kết nối Google Service Account"
+    import hashlib
 
-    sheet_title, sheet_gid = get_sheet_title_for_month(month, year)
-    quoted_title = urllib.parse.quote(f"{sheet_title}!A1:Q50")
-    url = f'https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{quoted_title}'
+    # Kiểm tra trạng thái khóa sổ
+    existing_monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
+    if existing_monthly and existing_monthly.is_locked:
+        return None, f"Tháng {month:02d}/{year} đã bị KHÓA SỔ. Không thể đồng bộ đè dữ liệu!"
 
-    try:
-        resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=20)
-        if resp.status_code != 200:
-            return None, f"Lỗi Google API ({resp.status_code}): {resp.text}"
+    with acquire_sync_lock() as acquired:
+        if not acquired:
+            return None, "Đang có tiến trình đồng bộ khác đang chạy. Vui lòng thử lại sau giây lát."
 
-        rows = resp.json().get('values', [])
-        if not rows or len(rows) < 6:
-            return None, f"Sheet '{sheet_title}' không có dữ liệu giao dịch hoặc chưa đúng cấu trúc."
+        try:
+            token = get_google_access_token()
+            if not token:
+                return None, "Không tìm thấy token kết nối Google Service Account"
 
-        # Bắt đầu duyệt dữ liệu từ dòng 7 (index 6) trở đi
-        # Tìm dòng tiêu đề 'TỔNG' để dừng
-        transactions_data = []
-        totals_row = None
-        creator = "Trần Xuân Trường"
+            sheet_title, sheet_gid = get_sheet_title_for_month(month, year)
+            quoted_title = urllib.parse.quote(f"{sheet_title}!A1:R")
+            url = f'https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{quoted_title}'
+            resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=20)
+            if resp.status_code != 200:
+                return None, f"Lỗi Google API ({resp.status_code}): {resp.text}"
 
-        import unicodedata
+            rows = resp.json().get('values', [])
+            if not rows or len(rows) < 6:
+                return None, f"Sheet '{sheet_title}' không có dữ liệu giao dịch hoặc chưa đúng cấu trúc."
 
-        for idx, row in enumerate(rows):
-            if idx < 6:
-                continue
+            # Bắt đầu duyệt dữ liệu từ dòng 7 (index 6) trở đi
+            # Tìm dòng tiêu đề 'TỔNG' để dừng
+            transactions_data = []
+            totals_row = None
+            creator = "Trần Xuân Trường"
+
+            import unicodedata
+
+            for idx, row in enumerate(rows):
+                if idx < 6:
+                    continue
+
+                first_col = unicodedata.normalize('NFC', row[0].strip()) if len(row) > 0 and row[0] else ''
+                second_col = unicodedata.normalize('NFC', row[1].strip()) if len(row) > 1 and row[1] else ''
+
+                # Kiểm tra dòng TỔNG (chuẩn hóa NFC)
+                clean_second = second_col.upper()
+                if clean_second.startswith('TỔNG') or clean_second.startswith('TONG'):
+                    totals_row = row
+                    break
+                if clean_second.startswith('NGƯỜI LẬP') or clean_second.startswith('NGUOI LAP'):
+                    break
+                if idx >= len(rows) - 3 and not first_col and second_col:
+                    creator = second_col
+                    continue
+
+                # Bỏ qua dòng trống hoàn toàn
+                if not any(bool(str(c).strip()) for c in row):
+                    continue
+
+                # Nếu có nội dung hoặc có ngày
+                if first_col or second_col:
+                    l_thu = clean_amount(row[9]) if len(row) > 9 else 0.0
+                    l_chi = clean_amount(row[10]) if len(row) > 10 else 0.0
+
+                    # Chuẩn hóa nếu nội dung ghi rõ là lương chi ra nhưng nằm ở cột thu
+                    norm_desc = second_col.lower()
+                    if 'lương' in norm_desc or 'luong' in norm_desc:
+                        if ('về cho' in norm_desc or 'tra cho' in norm_desc or 'chi cho' in norm_desc or 'chi ra' in norm_desc):
+                            if l_thu > 0 and l_chi == 0:
+                                l_chi = l_thu
+                                l_thu = 0.0
+
+                    trans = {
+                        'row_index': idx + 1,
+                        'trans_date': clean_date_vn(first_col, default_year=year),
+                        'content': second_col,
+                        'tuan_ton': clean_amount(row[2]) if len(row) > 2 else 0.0,
+                        'tuan_thu_cty': clean_amount(row[3]) if len(row) > 3 else 0.0,
+                        'tuan_thu_haiban': clean_amount(row[4]) if len(row) > 4 else 0.0,
+                        'tuan_thu_khac': clean_amount(row[5]) if len(row) > 5 else 0.0,
+                        'tuan_chi_haiban_cty': clean_amount(row[6]) if len(row) > 6 else 0.0,
+                        'tuan_chi': clean_amount(row[7]) if len(row) > 7 else 0.0,
+                        'xuyen_amount': clean_amount(row[8]) if len(row) > 8 else 0.0,
+                        'luong_thu': l_thu,
+                        'luong_chi': l_chi,
+                        'truong_amount': clean_amount(row[11]) if len(row) > 11 else 0.0,
+                        'partner_amount': clean_amount(row[12]) if len(row) > 12 else 0.0,
+                        'partner_invoice': str(row[13]).strip() if len(row) > 13 and row[13] else '',
+                        'bill_link': str(row[14]).strip() if len(row) > 14 and row[14] else '',
+                        'advance_refund': str(row[15]).strip() if len(row) > 15 and row[15] else '',
+                        'accounting_status': str(row[16]).strip() if len(row) > 16 and row[16] else '',
+                        'raw_ext_id': str(row[17]).strip() if len(row) > 17 and str(row[17]).strip() else None
+                    }
+                    transactions_data.append(trans)
+
+            # Tính toán hoặc lấy tổng
+            opening_bal = 0.0
+            closing_bal = 0.0
+            tot_cty = sum(t['tuan_thu_cty'] for t in transactions_data)
+            tot_haiban = sum(t['tuan_thu_haiban'] for t in transactions_data)
+            tot_khac = sum(t['tuan_thu_khac'] for t in transactions_data)
+            tot_hb_cty = sum(t['tuan_chi_haiban_cty'] for t in transactions_data)
+            tot_spent = sum(abs(t['tuan_chi']) for t in transactions_data if t['tuan_chi'] < 0) or sum(t['tuan_chi'] for t in transactions_data)
+            tot_xuyen = sum(t['xuyen_amount'] for t in transactions_data)
+            tot_luong_thu = sum(t['luong_thu'] for t in transactions_data)
+            tot_luong_chi = sum(t['luong_chi'] for t in transactions_data)
+            tot_truong = sum(t['truong_amount'] for t in transactions_data)
+            tot_partner = sum(t['partner_amount'] for t in transactions_data)
+
+            if totals_row:
+                closing_bal = clean_amount(totals_row[2]) if len(totals_row) > 2 else 0.0
+                if len(totals_row) > 3 and clean_amount(totals_row[3]):
+                    tot_cty = clean_amount(totals_row[3])
+                if len(totals_row) > 4 and clean_amount(totals_row[4]):
+                    tot_haiban = clean_amount(totals_row[4])
+                if len(totals_row) > 5 and clean_amount(totals_row[5]):
+                    tot_khac = clean_amount(totals_row[5])
+                if len(totals_row) > 6 and clean_amount(totals_row[6]):
+                    tot_hb_cty = clean_amount(totals_row[6])
+                if len(totals_row) > 7 and clean_amount(totals_row[7]):
+                    tot_spent = clean_amount(totals_row[7])
+                if len(totals_row) > 8 and clean_amount(totals_row[8]):
+                    tot_xuyen = clean_amount(totals_row[8])
+                if len(totals_row) > 9 and clean_amount(totals_row[9]):
+                    tot_luong_thu = clean_amount(totals_row[9])
+                if len(totals_row) > 10 and clean_amount(totals_row[10]):
+                    tot_luong_chi = clean_amount(totals_row[10])
+                if len(totals_row) > 11 and clean_amount(totals_row[11]):
+                    tot_truong = clean_amount(totals_row[11])
+                if len(totals_row) > 12 and clean_amount(totals_row[12]):
+                    tot_partner = clean_amount(totals_row[12])
+
+            # Lấy tồn tháng trước nếu có để làm opening balance
+            prev_month = 12 if month == 1 else month - 1
+            prev_year = year - 1 if month == 1 else year
+            prev_record = CashAdvanceMonthly.query.filter_by(month=prev_month, year=prev_year).first()
+            if prev_record and prev_record.closing_balance:
+                opening_bal = prev_record.closing_balance
+
+            # Upsert CashAdvanceMonthly
+            monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
+            if not monthly:
+                monthly = CashAdvanceMonthly(month=month, year=year)
+                db.session.add(monthly)
+
+            monthly.sheet_name = sheet_title
+            monthly.sheet_gid = sheet_gid
+            monthly.opening_balance = opening_bal
+            monthly.total_company_receipts = tot_cty
+            monthly.total_haiban_receipts = tot_haiban
+            monthly.total_other_receipts = tot_khac
+            monthly.total_haiban_to_company = tot_hb_cty
+            monthly.total_advances_spent = tot_spent
+            monthly.total_xuyen = tot_xuyen
+            monthly.total_luong_thu = tot_luong_thu
+            monthly.total_luong_chi = tot_luong_chi
+            monthly.total_truong = tot_truong
+            monthly.total_partner = tot_partner
+            monthly.closing_balance = closing_bal
+            monthly.creator_name = creator
+            monthly.last_synced_at = datetime.now(timezone.utc)
             
-            first_col = unicodedata.normalize('NFC', row[0].strip()) if len(row) > 0 and row[0] else ''
-            second_col = unicodedata.normalize('NFC', row[1].strip()) if len(row) > 1 and row[1] else ''
-            
-            # Kiểm tra dòng TỔNG (chuẩn hóa NFC)
-            clean_second = second_col.upper()
-            if clean_second.startswith('TỔNG') or clean_second.startswith('TONG'):
-                totals_row = row
-                break
-            if clean_second.startswith('NGƯỜI LẬP') or clean_second.startswith('NGUOI LAP'):
-                break
-            if idx >= len(rows) - 3 and not first_col and second_col:
-                creator = second_col
-                continue
+            db.session.flush()
 
-            # Bỏ qua dòng trống hoàn toàn
-            if not any(bool(str(c).strip()) for c in row):
-                continue
+            # UPSERT các transaction (bảo toàn ID và các liên kết hóa đơn đã gán thủ công)
+            existing_trans_list = CashAdvanceTransaction.query.filter_by(month=month, year=year, is_manual=False).all()
+            existing_by_ext_id = {t.external_id: t for t in existing_trans_list if t.external_id}
+            matched_ids = set()
 
-            # Nếu có nội dung hoặc có ngày
-            if first_col or second_col:
-                trans = {
-                    'row_index': idx + 1,
-                    'trans_date': clean_date_vn(first_col, default_month=month, default_year=year),
-                    'content': second_col,
-                    'tuan_ton': clean_amount(row[2]) if len(row) > 2 else 0.0,
-                    'tuan_thu_cty': clean_amount(row[3]) if len(row) > 3 else 0.0,
-                    'tuan_thu_haiban': clean_amount(row[4]) if len(row) > 4 else 0.0,
-                    'tuan_thu_khac': clean_amount(row[5]) if len(row) > 5 else 0.0,
-                    'tuan_chi_haiban_cty': clean_amount(row[6]) if len(row) > 6 else 0.0,
-                    'tuan_chi': clean_amount(row[7]) if len(row) > 7 else 0.0,
-                    'xuyen_amount': clean_amount(row[8]) if len(row) > 8 else 0.0,
-                    'luong_thu': clean_amount(row[9]) if len(row) > 9 else 0.0,
-                    'luong_chi': clean_amount(row[10]) if len(row) > 10 else 0.0,
-                    'truong_amount': clean_amount(row[11]) if len(row) > 11 else 0.0,
-                    'partner_amount': clean_amount(row[12]) if len(row) > 12 else 0.0,
-                    'partner_invoice': str(row[13]).strip() if len(row) > 13 and row[13] else '',
-                    'bill_link': str(row[14]).strip() if len(row) > 14 and row[14] else '',
-                    'advance_refund': str(row[15]).strip() if len(row) > 15 and row[15] else '',
-                    'accounting_status': str(row[16]).strip() if len(row) > 16 and row[16] else ''
-                }
-                transactions_data.append(trans)
+            for item in transactions_data:
+                r_idx = item['row_index']
+                raw_ext = item.get('raw_ext_id')
+                row_hash = hashlib.sha256(
+                    f"{item['trans_date']}|{item['content']}|{item['tuan_chi']}|{item['luong_chi']}|{item['luong_thu']}|{item['partner_amount']}".encode('utf-8')
+                ).hexdigest()[:16]
 
-        # Tính toán hoặc lấy tổng
-        opening_bal = 0.0
-        closing_bal = 0.0
-        tot_cty = sum(t['tuan_thu_cty'] for t in transactions_data)
-        tot_haiban = sum(t['tuan_thu_haiban'] for t in transactions_data)
-        tot_khac = sum(t['tuan_thu_khac'] for t in transactions_data)
-        tot_hb_cty = sum(t['tuan_chi_haiban_cty'] for t in transactions_data)
-        tot_spent = sum(abs(t['tuan_chi']) for t in transactions_data if t['tuan_chi'] < 0) or sum(t['tuan_chi'] for t in transactions_data)
-        tot_xuyen = sum(t['xuyen_amount'] for t in transactions_data)
-        tot_luong_thu = sum(t['luong_thu'] for t in transactions_data)
-        tot_luong_chi = sum(t['luong_chi'] for t in transactions_data)
-        tot_truong = sum(t['truong_amount'] for t in transactions_data)
-        tot_partner = sum(t['partner_amount'] for t in transactions_data)
+                if raw_ext:
+                    ext_id = raw_ext
+                    existing_t = existing_by_ext_id.get(ext_id)
+                    if existing_t:
+                        matched_ids.add(existing_t.id)
+                        # Nếu transaction đã bị soft-delete bởi người dùng, không được tự ý khôi phục
+                        if not existing_t.is_deleted:
+                            existing_t.trans_date = item['trans_date']
+                            existing_t.content = item['content']
+                            existing_t.tuan_ton = item['tuan_ton']
+                            existing_t.tuan_thu_cty = item['tuan_thu_cty']
+                            existing_t.tuan_thu_haiban = item['tuan_thu_haiban']
+                            existing_t.tuan_thu_khac = item['tuan_thu_khac']
+                            existing_t.tuan_chi_haiban_cty = item['tuan_chi_haiban_cty']
+                            existing_t.tuan_chi = item['tuan_chi']
+                            existing_t.xuyen_amount = item['xuyen_amount']
+                            existing_t.luong_thu = item['luong_thu']
+                            existing_t.luong_chi = item['luong_chi']
+                            existing_t.truong_amount = item['truong_amount']
+                            existing_t.partner_amount = item['partner_amount']
+                            existing_t.partner_invoice = item['partner_invoice']
+                            if item['bill_link']:
+                                existing_t.bill_link = item['bill_link']
+                            existing_t.advance_refund = item['advance_refund']
+                            existing_t.accounting_status = item['accounting_status']
+                            existing_t.row_index = r_idx
+                            existing_t.sync_status = 'synced'
+                            existing_t.sync_hash = row_hash
+                    else:
+                        trans = CashAdvanceTransaction(
+                            monthly_id=monthly.id,
+                            month=month,
+                            year=year,
+                            row_index=r_idx,
+                            external_id=ext_id,
+                            sync_status='synced',
+                            sync_hash=row_hash,
+                            trans_date=item['trans_date'],
+                            content=item['content'],
+                            tuan_ton=item['tuan_ton'],
+                            tuan_thu_cty=item['tuan_thu_cty'],
+                            tuan_thu_haiban=item['tuan_thu_haiban'],
+                            tuan_thu_khac=item['tuan_thu_khac'],
+                            tuan_chi_haiban_cty=item['tuan_chi_haiban_cty'],
+                            tuan_chi=item['tuan_chi'],
+                            xuyen_amount=item['xuyen_amount'],
+                            luong_thu=item['luong_thu'],
+                            luong_chi=item['luong_chi'],
+                            truong_amount=item['truong_amount'],
+                            partner_amount=item['partner_amount'],
+                            partner_invoice=item['partner_invoice'],
+                            bill_link=item['bill_link'],
+                            advance_refund=item['advance_refund'],
+                            accounting_status=item['accounting_status'],
+                            is_manual=False,
+                            is_deleted=False
+                        )
+                        db.session.add(trans)
+                else:
+                    # Identity is mandatory for a financial transaction.  Do
+                    # not persist an unidentifiable source row: doing so made
+                    # every subsequent sync create another duplicate record.
+                    print(f"[AdvanceService] Cảnh báo: Bỏ qua dòng {r_idx} sheet {sheet_title} thiếu External ID (UUID)")
 
-        if totals_row:
-            closing_bal = clean_amount(totals_row[2]) if len(totals_row) > 2 else 0.0
-            if len(totals_row) > 3 and clean_amount(totals_row[3]):
-                tot_cty = clean_amount(totals_row[3])
-            if len(totals_row) > 4 and clean_amount(totals_row[4]):
-                tot_haiban = clean_amount(totals_row[4])
-            if len(totals_row) > 5 and clean_amount(totals_row[5]):
-                tot_khac = clean_amount(totals_row[5])
-            if len(totals_row) > 6 and clean_amount(totals_row[6]):
-                tot_hb_cty = clean_amount(totals_row[6])
-            if len(totals_row) > 7 and clean_amount(totals_row[7]):
-                tot_spent = clean_amount(totals_row[7])
-            if len(totals_row) > 8 and clean_amount(totals_row[8]):
-                tot_xuyen = clean_amount(totals_row[8])
-            if len(totals_row) > 9 and clean_amount(totals_row[9]):
-                tot_luong_thu = clean_amount(totals_row[9])
-            if len(totals_row) > 10 and clean_amount(totals_row[10]):
-                tot_luong_chi = clean_amount(totals_row[10])
-            if len(totals_row) > 11 and clean_amount(totals_row[11]):
-                tot_truong = clean_amount(totals_row[11])
-            if len(totals_row) > 12 and clean_amount(totals_row[12]):
-                tot_partner = clean_amount(totals_row[12])
+            # Xử lý khi dòng bị xoá trên Google Sheet:
+            # Nếu 1 transaction có external_id mà lần sync mới không còn trên Sheet:
+            # KHÔNG hard delete. Đánh dấu sync_status = 'missing_source'
+            for old_t in existing_trans_list:
+                if old_t.id not in matched_ids and old_t.external_id:
+                    if not old_t.is_deleted:
+                        old_t.sync_status = 'missing_source'
+                        if not old_t.deleted_reason:
+                            old_t.deleted_reason = 'Không còn xuất hiện trên Google Sheet trong lần đồng bộ này (missing_source)'
 
-        # Lấy tồn tháng trước nếu có để làm opening balance
-        prev_month = 12 if month == 1 else month - 1
-        prev_year = year - 1 if month == 1 else year
-        prev_record = CashAdvanceMonthly.query.filter_by(month=prev_month, year=prev_year).first()
-        if prev_record and prev_record.closing_balance:
-            opening_bal = prev_record.closing_balance
+            db.session.commit()
+            return monthly, None
 
-        # Upsert CashAdvanceMonthly
-        monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
-        if not monthly:
-            monthly = CashAdvanceMonthly(month=month, year=year)
-            db.session.add(monthly)
-
-        monthly.sheet_name = sheet_title
-        monthly.sheet_gid = sheet_gid
-        monthly.opening_balance = opening_bal
-        monthly.total_company_receipts = tot_cty
-        monthly.total_haiban_receipts = tot_haiban
-        monthly.total_other_receipts = tot_khac
-        monthly.total_haiban_to_company = tot_hb_cty
-        monthly.total_advances_spent = tot_spent
-        monthly.total_xuyen = tot_xuyen
-        monthly.total_luong_thu = tot_luong_thu
-        monthly.total_luong_chi = tot_luong_chi
-        monthly.total_truong = tot_truong
-        monthly.total_partner = tot_partner
-        monthly.closing_balance = closing_bal
-        monthly.creator_name = creator
-        monthly.last_synced_at = datetime.utcnow()
-        
-        db.session.flush()
-
-        # Xóa các dòng sync cũ (giữ lại dòng tạo manual nếu có)
-        CashAdvanceTransaction.query.filter_by(month=month, year=year, is_manual=False).delete()
-
-        for item in transactions_data:
-            trans = CashAdvanceTransaction(
-                monthly_id=monthly.id,
-                month=month,
-                year=year,
-                row_index=item['row_index'],
-                trans_date=item['trans_date'],
-                content=item['content'],
-                tuan_ton=item['tuan_ton'],
-                tuan_thu_cty=item['tuan_thu_cty'],
-                tuan_thu_haiban=item['tuan_thu_haiban'],
-                tuan_thu_khac=item['tuan_thu_khac'],
-                tuan_chi_haiban_cty=item['tuan_chi_haiban_cty'],
-                tuan_chi=item['tuan_chi'],
-                xuyen_amount=item['xuyen_amount'],
-                luong_thu=item['luong_thu'],
-                luong_chi=item['luong_chi'],
-                truong_amount=item['truong_amount'],
-                partner_amount=item['partner_amount'],
-                partner_invoice=item['partner_invoice'],
-                bill_link=item['bill_link'],
-                advance_refund=item['advance_refund'],
-                accounting_status=item['accounting_status'],
-                is_manual=False
-            )
-            db.session.add(trans)
-
-        db.session.commit()
-        return monthly, None
-
-    except Exception as e:
-        db.session.rollback()
-        print(f"[AdvanceService] Error syncing sheet: {e}")
-        return None, str(e)
+        except Exception as e:
+            db.session.rollback()
+            print(f"[AdvanceService] Error syncing sheet: {e}")
+            return None, str(e)
 
 def get_monthly_advances_data(month, year):
     """
@@ -404,7 +548,10 @@ def get_monthly_advances_data(month, year):
 
     transactions = []
     if monthly:
-        transactions = monthly.transactions.order_by(CashAdvanceTransaction.row_index.asc(), CashAdvanceTransaction.id.asc()).all()
+        transactions = CashAdvanceTransaction.query.filter_by(
+            monthly_id=monthly.id,
+            is_deleted=False
+        ).order_by(CashAdvanceTransaction.row_index.asc(), CashAdvanceTransaction.id.asc()).all()
 
     # Tính toán các chỉ số tóm tắt (KPIs)
     total_in = (monthly.total_company_receipts if monthly else 0.0) + \
@@ -649,7 +796,7 @@ def add_transaction(data):
         month=month,
         year=year,
         row_index=max_idx + 1,
-        trans_date=data.get('trans_date', datetime.utcnow().strftime('%d/%m/%Y')),
+        trans_date=data.get('trans_date', datetime.now(timezone.utc).strftime('%d/%m/%Y')),
         content=data.get('content', '').strip(),
         tuan_ton=clean_amount(data.get('tuan_ton')),
         tuan_thu_cty=clean_amount(data.get('tuan_thu_cty')),
@@ -678,7 +825,7 @@ def add_transaction(data):
 
 def update_transaction(trans_id, data):
     """Cập nhật bút toán tạm ứng"""
-    trans = CashAdvanceTransaction.query.get(trans_id)
+    trans = db.session.get(CashAdvanceTransaction, trans_id)
     if not trans:
         return None
     
@@ -715,7 +862,7 @@ def update_transaction(trans_id, data):
     if 'accounting_status' in data:
         trans.accounting_status = data['accounting_status'].strip()
 
-    trans.updated_at = datetime.utcnow()
+    trans.updated_at = datetime.now(timezone.utc)
     
     monthly = CashAdvanceMonthly.query.filter_by(month=trans.month, year=trans.year).first()
     if monthly:
@@ -727,7 +874,7 @@ def update_transaction(trans_id, data):
 
 def delete_transaction(trans_id):
     """Xóa bút toán tạm ứng trên cả Google Sheet và Supabase"""
-    trans = CashAdvanceTransaction.query.get(trans_id)
+    trans = db.session.get(CashAdvanceTransaction, trans_id)
     if not trans:
         return False
     
@@ -830,8 +977,11 @@ def delete_transaction(trans_id):
     except Exception as e:
         print(f"[AdvanceService] Error deleting row from Google Sheet: {e}")
 
-    # 2. Xóa trong database
-    db.session.delete(trans)
+    # 2. Xóa mềm (soft delete) trong database
+    trans.is_deleted = True
+    trans.deleted_at = datetime.now(timezone.utc)
+    trans.deleted_reason = "Người dùng thực hiện xóa bút toán"
+    trans.sync_status = "deleted"
     db.session.commit()
 
     # 3. Đồng bộ lại tháng từ Google Sheet để cập nhật lại row_index và tổng số
@@ -848,8 +998,12 @@ def delete_transaction(trans_id):
 
 
 def _recalculate_monthly_totals(monthly):
-    """Tính toán lại các chỉ số tổng hợp trong tháng"""
-    all_trans = CashAdvanceTransaction.query.filter_by(month=monthly.month, year=monthly.year).all()
+    """Tính toán lại các chỉ số tổng hợp trong tháng (chỉ tính dòng chưa bị xóa mềm)"""
+    all_trans = CashAdvanceTransaction.query.filter_by(
+        month=monthly.month,
+        year=monthly.year,
+        is_deleted=False
+    ).all()
     monthly.total_company_receipts = sum(t.tuan_thu_cty or 0 for t in all_trans)
     monthly.total_haiban_receipts = sum(t.tuan_thu_haiban or 0 for t in all_trans)
     monthly.total_other_receipts = sum(t.tuan_thu_khac or 0 for t in all_trans)
@@ -887,12 +1041,14 @@ def auto_sync_active_months():
         sync_month_from_google(prev_month, prev_year)
 
 
-def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='image/jpeg', tg_file_id=None):
+def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='image/jpeg', tg_file_id=None,
+                    transaction_id=None, operating_cost_id=None, lot_id=None, uploaded_by=None):
     """
-    Lưu trữ file bill vào Supabase:
-    1. Nếu có SUPABASE_KEY / SUPABASE_SERVICE_ROLE_KEY, upload lên Supabase Storage bucket 'advance-bills'
-    2. Lưu trực tiếp nội dung base64 vào bảng 'cash_advance_bill_media' trên Supabase PostgreSQL
-    3. Trả về public URL truy cập ảnh
+    Lưu trữ file bill an toàn vào Supabase Storage nội bộ và PostgreSQL:
+    1. Nếu có SUPABASE_KEY, upload lên Supabase Storage bucket 'advance-bills' (private bucket).
+    2. TUYỆT ĐỐI KHÔNG lưu hay phát sinh public URL dạng /object/public/...
+    3. Lưu path nội bộ 'advance-bills/{object_name}' hoặc route '/advances/bill/{media_id}'.
+    4. Gán FK rõ ràng: transaction_id, operating_cost_id, lot_id, uploaded_by.
     """
     if not media_id:
         media_id = 'gido_' + hex(int(time.time() * 1000))[2:]
@@ -913,20 +1069,20 @@ def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='ima
             }
             resp = requests.post(upload_url, data=file_bytes, headers=headers, timeout=15)
             if resp.status_code in (200, 201):
-                storage_url = f"{supabase_url}/storage/v1/object/public/advance-bills/{urllib.parse.quote(object_name)}"
-                print(f"[AdvanceService] Uploaded bill to Supabase Storage: {storage_url}")
+                storage_url = f"advance-bills/{object_name}"
+                print(f"[AdvanceService] Uploaded bill to private Supabase Storage: {storage_url}")
             else:
                 print(f"[AdvanceService] Supabase Storage upload response {resp.status_code}: {resp.text}")
         except Exception as e:
             print(f"[AdvanceService] Error uploading to Supabase Storage: {e}")
 
-    # Nếu chưa có storage_url từ Supabase Storage, dùng URL trực tiếp của route web
+    # Nếu chưa có storage_url từ Supabase Storage, dùng URL nội bộ của route web
     if not storage_url:
         storage_url = f"/advances/bill/{media_id}"
 
     # Lưu trữ bản sao dữ liệu trong Supabase PostgreSQL
     b64_data = base64.b64encode(file_bytes).decode('utf-8')
-    media = CashAdvanceBillMedia.query.get(media_id)
+    media = db.session.get(CashAdvanceBillMedia, media_id)
     if not media:
         media = CashAdvanceBillMedia(
             id=media_id,
@@ -935,7 +1091,11 @@ def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='ima
             mime_type=mime_type or 'image/jpeg',
             file_size=len(file_bytes),
             data_base64=b64_data,
-            storage_url=storage_url
+            storage_url=storage_url,
+            transaction_id=transaction_id,
+            operating_cost_id=operating_cost_id,
+            lot_id=lot_id,
+            uploaded_by=uploaded_by
         )
         db.session.add(media)
     else:
@@ -947,8 +1107,16 @@ def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='ima
             media.storage_url = storage_url
         if tg_file_id:
             media.file_id = tg_file_id
+        if transaction_id is not None:
+            media.transaction_id = transaction_id
+        if operating_cost_id is not None:
+            media.operating_cost_id = operating_cost_id
+        if lot_id is not None:
+            media.lot_id = lot_id
+        if uploaded_by is not None:
+            media.uploaded_by = uploaded_by
 
-    db.session.commit()
+    db.session.flush()
     return media
 
 
@@ -966,7 +1134,7 @@ def get_bill_media(media_id):
     elif '/bill/' in media_id:
         media_id = media_id.split('/bill/')[-1].split('?')[0]
 
-    media = CashAdvanceBillMedia.query.get(media_id)
+    media = db.session.get(CashAdvanceBillMedia, media_id)
     if media and media.data_base64:
         return media
 
@@ -984,7 +1152,10 @@ def get_bill_media(media_id):
                         tg_file_id = row[1].strip()
                         file_name = row[2].strip() if len(row) > 2 else 'receipt.jpg'
                         
-                        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+                        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN', '')
+                        if not tg_token:
+                            print("[AdvanceService] Warning: CASHFLOW_BOT_TOKEN not configured for lazy download.")
+                            return media
                         tg_res = requests.get(f'https://api.telegram.org/bot{tg_token}/getFile?file_id={tg_file_id}', timeout=10).json()
                         if tg_res.get('ok'):
                             file_path = tg_res['result']['file_path']
@@ -1016,10 +1187,12 @@ def sync_all_bills_from_filedb():
         if resp.status_code != 200:
             return 0, f"Lỗi đọc FileDB: {resp.text}"
 
-        rows = resp.json().get('values', [])
-        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN', '')
+        if not tg_token:
+            return 0, "CASHFLOW_BOT_TOKEN chưa được cấu hình"
         count = 0
 
+        rows = resp.json().get('values', [])
         for row in rows:
             if len(row) < 2:
                 continue
@@ -1027,7 +1200,7 @@ def sync_all_bills_from_filedb():
             tg_file_id = row[1].strip()
             file_name = row[2].strip() if len(row) > 2 else 'receipt.jpg'
 
-            existing = CashAdvanceBillMedia.query.get(short_id)
+            existing = db.session.get(CashAdvanceBillMedia, short_id)
             if existing and existing.data_base64:
                 continue
 
@@ -1051,5 +1224,3 @@ def sync_all_bills_from_filedb():
         return count, None
     except Exception as e:
         return 0, str(e)
-
-

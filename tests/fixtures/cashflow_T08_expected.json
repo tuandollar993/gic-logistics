@@ -1,0 +1,183 @@
+{
+  "sheet": "Tháng 08-2026",
+  "month": 8,
+  "year": 2026,
+  "opening_balance": 30090895.0,
+  "total_thu_cty": 4797799.0,
+  "total_thu_haiban": 0.0,
+  "total_thu_khac": 14287372.0,
+  "total_chi_haiban_cty": 0.0,
+  "total_tuan_chi": -57472000.0,
+  "total_xuyen_chi": 0.0,
+  "total_luong_thu": 9036628.0,
+  "total_luong_chi": 0.0,
+  "closing_balance": -9259306.0,
+  "transaction_count": 15,
+  "transactions": [
+    {
+      "row_index": 7,
+      "date": "03/08/2026",
+      "content": "CTY CP DVTM XUYEN BIEN GIOI GIC B3.018.GIC TT TIEN CP tiep khach NG UYEN SON TUAN HD 482409 - CTY CP DVTM XUYEN BIEN GIOI GIC",
+      "thu_cty": 3004999.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": 0.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 8,
+      "date": "04/08/2026",
+      "content": "Nguyen Son Tuan chuyen khoan nhanh qua Zalo - NGUYEN THI KIEU TU",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -172000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 9,
+      "date": "11/08/2026",
+      "content": "NGUYEN SON TUAN chuyen tien - LIEU THANH LUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -5500000.0,
+      "luong_thu": 5500000.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 10,
+      "date": "13-Aug",
+      "content": "Nguyễn Sơn Tuấn chuyển khoản nhanh qua Zalo - NONG THI THUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -300000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 11,
+      "date": "17-Aug",
+      "content": "Gido chuyen tien lam lo pin 17.8 - LIEU THANH LUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -4000000.0,
+      "luong_thu": 4000000.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 12,
+      "date": "19-Aug",
+      "content": "gido ck tien lam lo keep 19.8 - TRAN XUAN TRUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -25000000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 13,
+      "date": "20-Aug",
+      "content": "Thanh Luong chuyen khoan nhanh qua Zalo - Thanh Luong",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 463372.0,
+      "tuan_chi": 0.0,
+      "luong_thu": -463372.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 14,
+      "date": "22-Aug",
+      "content": "gido chuyen tien lam hang hai phong 228 - TRAN TRUNG DUNG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -7000000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 15,
+      "date": "22-Aug",
+      "content": "gido chuyen tien lam hang lang son 228 - TRAN XUAN TRUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -4000000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 16,
+      "date": "25-Aug",
+      "content": "gido chuyen tien lam hang 258 - TRAN XUAN TRUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -1500000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 17,
+      "date": "26-Aug",
+      "content": "Hoàn ứng chi phí hiện trường hp t52026 200826 - TRAN TRUNG DUNG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 13824000.0,
+      "tuan_chi": 0.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 18,
+      "date": "27-Aug",
+      "content": "gido chuyen tien bop xep Coc Nam va mua bang keo - TRAN XUAN TRUONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -1300000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 19,
+      "date": "27-Aug",
+      "content": "B3.018.GIC TT TIEN DV Chu ky so ECA HD 40577 - CTY CP DVTM XUYEN BIEN GIOI GIC",
+      "thu_cty": 1792800.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": 0.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 20,
+      "date": "28-Aug",
+      "content": "gido tt tien thue kho + boc xep ha hang keep Da Lat - TRAN NHU LONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -8300000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    },
+    {
+      "row_index": 21,
+      "date": "29-Aug",
+      "content": "gido chuyen tien boc xep Ba Ria 28.8 - TRAN NHU LONG",
+      "thu_cty": 0.0,
+      "thu_haiban": 0.0,
+      "thu_khac": 0.0,
+      "tuan_chi": -400000.0,
+      "luong_thu": 0.0,
+      "luong_chi": 0.0
+    }
+  ]
+}

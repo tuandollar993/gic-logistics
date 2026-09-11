@@ -17,9 +17,12 @@ from app.services.advance_service import (
     clean_amount
 )
 
-CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or 'AIzaSyBw4meqMYr07l1LkoQWNz3MK9GIksGmA6A'
-ALLOWED_CHAT_IDS = [cid.strip() for cid in os.environ.get('ALLOWED_CHAT_ID', '-5294577893,5749845754').split(',') if cid.strip()]
+CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+ALLOWED_CHAT_IDS = [
+    cid.strip() for cid in (os.environ.get('ALLOWED_CHAT_IDS') or os.environ.get('ALLOWED_CHAT_ID', '')).split(',')
+    if cid.strip()
+]
 
 # Cache lưu trữ các giao dịch đang chờ bấm nút Xác nhận
 _pending_confirmations = {}
@@ -423,6 +426,15 @@ def handle_telegram_update(update):
         msg_id = cq['message']['message_id']
         cb_data = cq.get('data', '')
 
+        # Kiểm tra danh sách chat được phép
+        is_prod = os.getenv('FLASK_ENV') == 'production' or os.getenv('ENVIRONMENT') == 'production' or bool(os.getenv('RENDER'))
+        if is_prod and not ALLOWED_CHAT_IDS:
+            answer_callback_query(cq_id, "Lỗi bảo mật: ALLOWED_CHAT_IDS chưa được cấu hình.")
+            return {'ok': True}
+        if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS:
+            answer_callback_query(cq_id, "Bạn không có quyền thực hiện thao tác này.")
+            return {'ok': True}
+
         answer_callback_query(cq_id)
         edit_message_reply_markup(chat_id, msg_id)
 
@@ -431,6 +443,11 @@ def handle_telegram_update(update):
             pending = _pending_confirmations.get(confirm_id)
             if not pending:
                 send_telegram_message(chat_id, "⏳ Phiên xác nhận đã hết hạn. Vui lòng gửi lại ảnh hóa đơn.")
+                return {'ok': True}
+
+            # Xác thực người bấm nút phải thuộc cùng chat_id khởi tạo giao dịch
+            if str(pending.get('chat_id')) != str(chat_id):
+                send_telegram_message(chat_id, "❌ Lỗi bảo mật: Bạn không có quyền xác nhận giao dịch khởi tạo từ cuộc trò chuyện khác.")
                 return {'ok': True}
 
             load_msg = send_telegram_message(chat_id, "⏳ Đang lưu ảnh lên Supabase và ghi vào Sổ quỹ...")
@@ -463,6 +480,10 @@ def handle_telegram_update(update):
 
         elif cb_data.startswith('canceltx_'):
             confirm_id = cb_data.split('canceltx_')[1]
+            pending = _pending_confirmations.get(confirm_id)
+            if pending and str(pending.get('chat_id')) != str(chat_id):
+                send_telegram_message(chat_id, "❌ Lỗi bảo mật: Bạn không có quyền hủy giao dịch từ cuộc trò chuyện khác.")
+                return {'ok': True}
             _pending_confirmations.pop(confirm_id, None)
             send_telegram_message(chat_id, "🚫 Đã hủy. Giao dịch KHÔNG được ghi vào Sổ quỹ.")
 
@@ -477,9 +498,14 @@ def handle_telegram_update(update):
         chat_type = msg.get('chat', {}).get('type', 'private')
         print(f"[CashflowBot] Nhận tin nhắn từ chat_id={chat_id} ({chat_type}), text={text[:50] if text else ''}")
 
-        # Cho phép tất cả tin nhắn riêng tư (1-1) với bot; chỉ lọc nếu là tin nhắn nhóm không nằm trong danh sách
-        if chat_type not in ('private', '') and ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS and str(msg['chat'].get('id')) not in ALLOWED_CHAT_IDS:
-            print(f"[CashflowBot] Bỏ qua tin nhắn từ group chat không nằm trong danh sách: {chat_id}")
+        # Kiểm tra phân quyền chat: Bắt buộc trong production hoặc khi ALLOWED_CHAT_IDS được cấu hình
+        is_prod = os.getenv('FLASK_ENV') == 'production' or os.getenv('ENVIRONMENT') == 'production' or bool(os.getenv('RENDER'))
+        if is_prod and not ALLOWED_CHAT_IDS:
+            print("[CashflowBot Security] Bỏ qua: Production yêu cầu ALLOWED_CHAT_IDS nhưng danh sách đang rỗng.")
+            return {'ok': True}
+
+        if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS and str(msg['chat'].get('id')) not in ALLOWED_CHAT_IDS:
+            print(f"[CashflowBot Security] Bỏ qua tin nhắn từ chat không nằm trong ALLOWED_CHAT_IDS: {chat_id}")
             return {'ok': True}
 
         # Nếu là lệnh báo cáo
@@ -550,17 +576,15 @@ def handle_telegram_update(update):
                 short_id = 'gido_' + hex(int(time.time() * 1000))[2:]
                 media = save_bill_media(short_id, image_bytes, file_name, mime_type, file_id)
 
-                # 4. Xác định URL công khai cho bill
+                # 4. Xác định URL nội bộ cho bill (tuyệt đối không dùng public bucket link)
                 render_host = os.environ.get('RENDER_EXTERNAL_URL') or 'https://gic-logistics.onrender.com'
-                public_url = f"{render_host.rstrip('/')}/advances/bill/{short_id}"
-                if media.storage_url and media.storage_url.startswith('http'):
-                    public_url = media.storage_url
+                internal_bill_url = f"{render_host.rstrip('/')}/advances/bill/{short_id}"
 
                 confirm_id = short_id
                 _pending_confirmations[confirm_id] = {
                     'data': ai_data,
                     'media_id': short_id,
-                    'public_url': public_url,
+                    'public_url': internal_bill_url,
                     'chat_id': chat_id
                 }
 

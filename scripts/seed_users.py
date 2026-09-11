@@ -12,6 +12,9 @@ from app import create_app
 from app.extensions import db
 from app.models import User
 
+import os
+import secrets
+
 def seed():
     app = create_app()
     with app.app_context():
@@ -20,18 +23,18 @@ def seed():
         # 1. Quản lý (Admin)
         manager = User.query.filter_by(username='admin').first()
         if not manager:
+            admin_pwd = os.environ.get('INITIAL_ADMIN_PASSWORD') or secrets.token_urlsafe(12)
             manager = User(
                 username='admin',
-                full_name='Quản lý Vận hành GIC',
-                role='manager',
-                email='manager@gic.vn'
+                full_name='Quản trị viên Hệ thống',
+                role='admin',
+                email='admin@gic.vn'
             )
-            manager.set_password('admin123')
+            manager.set_password(admin_pwd)
             db.session.add(manager)
-            print("Đã tạo tài khoản Quản lý: admin / admin123")
+            print("Đã tạo tài khoản Quản trị viên: admin (Mật khẩu được đặt từ INITIAL_ADMIN_PASSWORD)")
         else:
-            manager.set_password('admin123')
-            print("Đã cập nhật mật khẩu admin: admin123")
+            print("Tài khoản admin đã tồn tại. Giữ nguyên mật khẩu hiện tại.")
             
         # 2. 10 Nhân viên vận hành
         staff_list = [
@@ -47,6 +50,7 @@ def seed():
             ('nv_phuonguyen', 'Đỗ Phương Uyên', 'phuonguyen@gic.vn')
         ]
         
+        default_staff_pwd = os.environ.get('INITIAL_STAFF_PASSWORD') or 'GicLogistics@2026'
         for username, full_name, email in staff_list:
             user = User.query.filter_by(username=username).first()
             if not user:
@@ -56,13 +60,14 @@ def seed():
                     role='staff',
                     email=email
                 )
-                user.set_password('123456')
+                user.set_password(default_staff_pwd)
                 db.session.add(user)
-                print(f"Đã tạo nhân viên: {username} ({full_name}) / pass: 123456")
+                print(f"Đã tạo nhân viên: {username} ({full_name})")
             else:
-                user.set_password('123456')
+                pass  # Giữ nguyên mật khẩu hiện có
                 
         db.session.commit()
+        print("Hoàn tất thiết lập người dùng ban đầu.")
         print("\n✅ Hoàn tất khởi tạo 1 Quản lý + 10 Nhân viên!")
 
 if __name__ == '__main__':
