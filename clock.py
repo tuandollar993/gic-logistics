@@ -36,10 +36,28 @@ def scheduled_deadline_check():
         print('⏰ [CLOCK] Đang tự động rà soát deadline và gửi nhắc nhở hàng ngày...')
         ReminderService.run_daily_deadline_check()
 
+def scheduled_sync_advances():
+    with app.app_context():
+        print('🔄 [CLOCK] Đang tự động đồng bộ dòng tiền tạm ứng từ Google Sheets...')
+        try:
+            from app.services.advance_service import auto_sync_active_months
+            auto_sync_active_months()
+            print('✅ [CLOCK] Đồng bộ dòng tiền tạm ứng hoàn tất!')
+        except Exception as e:
+            print(f'⚠️ [CLOCK] Lỗi đồng bộ Google Sheets: {e}')
+
 if __name__ == '__main__':
     scheduler = BlockingScheduler()
     scheduler.add_job(scheduled_deadline_check, 'cron', hour=9, minute=0)
-    print('✅ [CLOCK] Đã kích hoạt APScheduler (Blocking) lúc 09:00 AM.')
+    # Tự động đồng bộ dòng tiền tạm ứng mỗi 15 phút
+    scheduler.add_job(scheduled_sync_advances, 'interval', minutes=15)
+    print('✅ [CLOCK] Đã kích hoạt APScheduler (Blocking):')
+    print('   • Deadline Check: Hàng ngày lúc 09:00 AM')
+    print('   • Google Sheets Sync: Tự động mỗi 15 phút')
+    
+    # Đồng bộ 1 lần ngay khi khởi động
+    scheduled_sync_advances()
+    
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):

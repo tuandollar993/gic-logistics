@@ -703,3 +703,24 @@ def _recalculate_monthly_totals(monthly):
     total_in = monthly.total_company_receipts + monthly.total_haiban_receipts + monthly.total_other_receipts
     total_out = abs(monthly.total_advances_spent) + abs(monthly.total_haiban_to_company)
     monthly.closing_balance = monthly.opening_balance + total_in - total_out
+
+
+def auto_sync_active_months():
+    """Tự động đồng bộ các tháng đang hoạt động từ Google Sheets"""
+    now = datetime.now()
+    cur_month = now.month
+    cur_year = now.year
+    
+    # Đồng bộ tháng hiện tại
+    sync_month_from_google(cur_month, cur_year)
+    
+    # Đồng bộ Tháng 08/2026 nếu dữ liệu chính đang ở tháng 8
+    if (cur_month, cur_year) != (8, 2026):
+        sync_month_from_google(8, 2026)
+    
+    # Đồng bộ tháng trước nếu cần
+    prev_month = 12 if cur_month == 1 else cur_month - 1
+    prev_year = cur_year - 1 if cur_month == 1 else cur_year
+    if (prev_month, prev_year) != (8, 2026):
+        sync_month_from_google(prev_month, prev_year)
+
