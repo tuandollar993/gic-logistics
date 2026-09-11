@@ -35,6 +35,56 @@ def clean_money_input(val, default=0.0):
     except (ValueError, TypeError):
         return default
 
+def suggest_lot_label(month, year):
+    """
+    Tìm số thứ tự lô cao nhất trong tháng/năm đã chọn và đề xuất mã lô tiếp theo.
+    Định dạng đề xuất: GIDO(tháng)(năm)-(số lô) ví dụ: GIDO092026-03
+    """
+    lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).all()
+    nums = []
+    existing_labels = set()
+    for l in lots:
+        lbl = (l.lot_label or '').strip()
+        if lbl:
+            existing_labels.add(lbl.lower())
+            # 1. Match GIDO{month}{year}-NN
+            m = re.search(r'GIDO\d{6}[-_]?(\d+)', lbl, re.IGNORECASE)
+            if m:
+                nums.append(int(m.group(1)))
+                continue
+            # 2. Match "Lô (\d+)" (bỏ qua Lô CP vì là placeholder CPVH)
+            if 'lô cp' not in lbl.lower() and 'lo cp' not in lbl.lower():
+                m = re.search(r'lô\s*(\d+)', lbl, re.IGNORECASE)
+                if m:
+                    nums.append(int(m.group(1)))
+                    continue
+                m = re.search(r'(\d+)$', lbl)
+                if m:
+                    nums.append(int(m.group(1)))
+
+    next_num = max(nums) + 1 if nums else 1
+    while True:
+        candidate = f"GIDO{month:02d}{year}-{next_num:02d}"
+        if candidate.lower() not in existing_labels:
+            break
+        next_num += 1
+
+    return candidate, next_num
+
+
+@lots_bp.route('/api/suggest-label')
+@login_required
+def api_suggest_label():
+    month = request.args.get('month', type=int) or datetime.now().month
+    year = request.args.get('year', type=int) or datetime.now().year
+    code, next_num = suggest_lot_label(month, year)
+    return jsonify({
+        'code': code,
+        'alt_label': f"Lô {next_num:02d}",
+        'next_num': next_num
+    })
+
+
 @lots_bp.route('/')
 @login_required
 def index():
@@ -81,6 +131,9 @@ def index():
     lots = lots_query.order_by(Lot.id.desc()).all()
     staff_users = User.query.filter_by(is_active=True).all()
     
+    suggested_code, next_num = suggest_lot_label(selected_month, selected_year)
+    suggested_lo = f"Lô {next_num:02d}"
+    
     return render_template(
         'lots.html',
         lots=lots,
@@ -89,7 +142,9 @@ def index():
         selected_year=selected_year,
         staff_users=staff_users,
         query=query,
-        status_filter=status_filter
+        status_filter=status_filter,
+        suggested_code=suggested_code,
+        suggested_lo=suggested_lo
     )
 
 @lots_bp.route('/<int:lot_id>')
@@ -142,9 +197,19 @@ def new_lot():
                 deadline = datetime.strptime(deadline_str, '%Y-%m-%d').date()
             except ValueError:
                 pass
+
+        if not lot_label:
+            lot_label, _ = suggest_lot_label(month, year)
+        else:
+            # Ngăn chặn trùng lặp mã lô trong cùng một kỳ báo cáo
+            existing = Lot.query.filter_by(month=month, year=year, lot_label=lot_label, is_deleted=False).first()
+            if existing:
+                code, _ = suggest_lot_label(month, year)
+                flash(f"Tên lô '{lot_label}' đã tồn tại trong Tháng {month:02d}/{year}. Hệ thống đã tự động gán mã mới '{code}' để tránh trùng lặp.", 'warning')
+                lot_label = code
                 
         lot = Lot(
-            lot_label=lot_label or f"Lô mới",
+            lot_label=lot_label,
             customer_id=cust.id,
             company=company,
             customs_declaration=customs_declaration,
@@ -171,6 +236,7 @@ def new_lot():
             ReminderService.send_task_assignment_notification(task)
             
         db.session.commit()
+        CalculatorService._cached_months = None
         flash(f'Đã tạo thành công {lot.lot_label} và giao việc!', 'success')
         return redirect(url_for('lots.detail', lot_id=lot.id))
         

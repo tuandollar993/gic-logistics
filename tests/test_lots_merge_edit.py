@@ -193,3 +193,92 @@ def test_edit_item_with_dot_money_formatting(auth_client_manager, app):
         loaded_cost = db.session.get(OperatingCost, cost_id)
         assert loaded_cost.total_amount == 750000.0
         assert loaded_cost.sell_price == 900000.0
+
+
+def test_available_months_descending_order():
+    from app.services.advance_service import get_all_available_months
+    months = get_all_available_months()
+    # Must be ordered descending: 12 down to 1
+    month_numbers = [m for y, m in months]
+    assert month_numbers == list(range(12, 0, -1))
+    assert months[0] == (2026, 12)
+    assert months[-1] == (2026, 1)
+
+
+def test_suggest_lot_label_sequential_and_no_duplicates(app):
+    from app.routes.lots import suggest_lot_label
+    with app.app_context():
+        # Clean test month
+        code_1, num_1 = suggest_lot_label(11, 2026)
+        assert code_1 == 'GIDO112026-01'
+        assert num_1 == 1
+
+        # Add lot 1 and lot 2
+        lot1 = Lot(month=11, year=2026, lot_label='Lô 01')
+        lot2 = Lot(month=11, year=2026, lot_label='Lô 02')
+        db.session.add_all([lot1, lot2])
+        db.session.commit()
+
+        # Next should be 03
+        code_3, num_3 = suggest_lot_label(11, 2026)
+        assert code_3 == 'GIDO112026-03'
+        assert num_3 == 3
+
+        # Add GIDO112026-03
+        lot3 = Lot(month=11, year=2026, lot_label='GIDO112026-03')
+        db.session.add(lot3)
+        db.session.commit()
+
+        # Next should be 04
+        code_4, num_4 = suggest_lot_label(11, 2026)
+        assert code_4 == 'GIDO112026-04'
+        assert num_4 == 4
+
+
+def test_api_suggest_label_endpoint(auth_client_manager, app):
+    res = auth_client_manager.get('/lots/api/suggest-label?month=12&year=2026')
+    assert res.status_code == 200
+    data = res.get_json()
+    assert 'code' in data
+    assert 'alt_label' in data
+    assert data['code'].startswith('GIDO122026-')
+    assert data['alt_label'].startswith('Lô ')
+
+
+def test_create_new_lot_auto_code_and_duplicate_prevention(auth_client_manager, app):
+    with auth_client_manager.session_transaction() as sess:
+        csrf_token = sess.get('_csrf_token', 'test_csrf')
+
+    # 1. Create lot with empty lot_label -> should auto assign suggested code
+    res1 = auth_client_manager.post('/lots/new', data={
+        'csrf_token': csrf_token,
+        'customer_name': 'Khách Test Auto',
+        'month': 10,
+        'year': 2026,
+        'lot_label': ''
+    }, follow_redirects=True)
+    assert res1.status_code == 200
+
+    with app.app_context():
+        created_1 = Lot.query.filter_by(month=10, year=2026, is_deleted=False).first()
+        assert created_1 is not None
+        assert created_1.lot_label == 'GIDO102026-01'
+
+    # 2. Create another lot deliberately with duplicate label 'GIDO102026-01'
+    res2 = auth_client_manager.post('/lots/new', data={
+        'csrf_token': csrf_token,
+        'customer_name': 'Khách Test Trùng',
+        'month': 10,
+        'year': 2026,
+        'lot_label': 'GIDO102026-01'
+    }, follow_redirects=True)
+    assert res2.status_code == 200
+
+    with app.app_context():
+        lots = Lot.query.filter_by(month=10, year=2026, is_deleted=False).all()
+        assert len(lots) == 2
+        labels = [l.lot_label for l in lots]
+        # Should have avoided duplicate by generating GIDO102026-02
+        assert 'GIDO102026-01' in labels
+        assert 'GIDO102026-02' in labels
+

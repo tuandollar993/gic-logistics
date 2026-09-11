@@ -659,9 +659,8 @@ def get_monthly_advances_data(month, year):
     }
 
 def get_all_available_months():
-    """Lấy danh sách các tháng có sẵn trong năm 2026"""
-    # Các tháng cố định 1 đến 12 năm 2026
-    return [(2026, m) for m in range(1, 13)]
+    """Lấy danh sách các tháng có sẵn trong năm 2026 sắp xếp từ gần đến xa (mới nhất lên trên cùng)"""
+    return [(2026, m) for m in range(12, 0, -1)]
 
 def export_advances_excel(month, year):
     """
