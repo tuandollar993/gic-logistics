@@ -314,10 +314,18 @@ Lưu ý quan trọng:
     @classmethod
     def _call_gemini(cls, prompt):
         """Gọi Gemini API và parse JSON response với xử lý robust."""
-        if not GEMINI_API_KEY:
-            raise Exception("GEMINI_API_KEY chưa được cấu hình")
+        api_key = os.environ.get('GEMINI_API_KEY') or GEMINI_API_KEY
+        if not api_key:
+            from flask import current_app
+            try:
+                api_key = current_app.config.get('GEMINI_API_KEY', '')
+            except Exception:
+                pass
 
-        url = f"{cls.GEMINI_URL}?key={GEMINI_API_KEY}"
+        if not api_key:
+            raise Exception("GEMINI_API_KEY chưa được cấu hình trong Environment Variables")
+
+        url = f"{cls.GEMINI_URL}?key={api_key}"
         payload = {
             "contents": [{
                 "parts": [{"text": prompt}]
