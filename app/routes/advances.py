@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
@@ -73,6 +74,35 @@ def sync_data():
         flash(msg, "success")
 
     return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/webhook', methods=['GET', 'POST'])
+def google_sheet_webhook():
+    """
+    Webhook nhận tín hiệu tự động từ Google Apps Script mỗi khi có chỉnh sửa trên Google Sheet.
+    Chạy 100% trên Cloud, kích hoạt đồng bộ ngay lập tức mà không cần máy tính cá nhân bật.
+    """
+    secret = request.args.get('secret') or (request.get_json(silent=True) or {}).get('secret')
+    expected_secret = os.environ.get('WEBHOOK_SECRET', 'gic-secret-2026')
+    if secret and secret != expected_secret:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    payload = request.get_json(silent=True) or {}
+    month = request.args.get('month', type=int) or payload.get('month')
+    year = request.args.get('year', type=int) or payload.get('year', 2026)
+
+    try:
+        from app.services.advance_service import auto_sync_active_months, sync_month_from_google
+        if month:
+            monthly, err = sync_month_from_google(int(month), int(year))
+            if err:
+                return jsonify({'success': False, 'error': err}), 500
+            return jsonify({'success': True, 'synced_month': month, 'synced_year': year})
+        else:
+            auto_sync_active_months()
+            return jsonify({'success': True, 'message': 'Đã tự động đồng bộ các tháng từ Google Sheets!'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @advances_bp.route('/add', methods=['POST'])

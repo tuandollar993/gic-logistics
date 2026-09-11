@@ -64,6 +64,14 @@ def get_credentials_data():
         except Exception:
             pass
 
+    client_email = os.environ.get('GOOGLE_CLIENT_EMAIL')
+    private_key = os.environ.get('GOOGLE_PRIVATE_KEY')
+    if client_email and private_key:
+        return {
+            'client_email': client_email.strip(),
+            'private_key': private_key.replace('\\n', '\n').strip()
+        }
+
     if os.path.exists(CREDENTIALS_FILE):
         try:
             with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
