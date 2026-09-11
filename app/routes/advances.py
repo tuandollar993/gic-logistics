@@ -489,7 +489,8 @@ def upload_bill_api():
         media = save_bill_media(
             media_id=media_id, file_bytes=file_bytes, filename=filename,
             mime_type=mime_type, tg_file_id=tg_file_id, transaction_id=tx_id,
-            operating_cost_id=cost_id, lot_id=lot_id, uploaded_by=uploaded_by
+            operating_cost_id=cost_id, lot_id=lot_id, uploaded_by=uploaded_by,
+            commit=False
         )
         log_audit('upload_bill', 'bill', media.id,
                   f'Uploaded bill {media.id} ({filename}, {len(file_bytes)} bytes)')

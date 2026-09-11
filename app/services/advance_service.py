@@ -1075,7 +1075,7 @@ def auto_sync_active_months():
 
 
 def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='image/jpeg', tg_file_id=None,
-                    transaction_id=None, operating_cost_id=None, lot_id=None, uploaded_by=None):
+                    transaction_id=None, operating_cost_id=None, lot_id=None, uploaded_by=None, commit=True):
     """
     Lưu trữ file bill an toàn vào Supabase Storage nội bộ và PostgreSQL:
     1. Nếu có SUPABASE_KEY, upload lên Supabase Storage bucket 'advance-bills' (private bucket).
@@ -1150,12 +1150,18 @@ def save_bill_media(media_id, file_bytes, filename='receipt.jpg', mime_type='ima
             media.uploaded_by = uploaded_by
 
     db.session.flush()
+    if commit:
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"[AdvanceService] Error committing bill media {media_id}: {e}")
     return media
 
 
 def get_bill_media(media_id):
     """
-    Lấy thông tin bill từ Supabase.
+    Lấy thông tin bill từ Supabase / PostgreSQL.
     Nếu chưa có trong cache DB, tự động đối soát với Google Sheet FileDB và Telegram API.
     """
     if not media_id:
@@ -1171,11 +1177,28 @@ def get_bill_media(media_id):
     if media and media.data_base64:
         return media
 
-    # Fallback: Quét tìm trong Google Sheet FileDB
+    # Trường hợp media đã có trong DB nhưng chưa có data_base64, tải từ Telegram nếu có file_id
+    if media and media.file_id and not media.data_base64:
+        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN', '')
+        if tg_token:
+            try:
+                tg_res = requests.get(f'https://api.telegram.org/bot{tg_token}/getFile?file_id={media.file_id}', timeout=10).json()
+                if tg_res.get('ok'):
+                    file_path = tg_res['result']['file_path']
+                    dl_res = requests.get(f'https://api.telegram.org/file/bot{tg_token}/{file_path}', timeout=15)
+                    if dl_res.status_code == 200:
+                        media.data_base64 = base64.b64encode(dl_res.content).decode('utf-8')
+                        media.file_size = len(dl_res.content)
+                        db.session.commit()
+                        return media
+            except Exception as e:
+                print(f"[AdvanceService] Error fetching media by file_id {media.file_id}: {e}")
+
+    # Fallback 1: Quét tìm trong Google Sheet FileDB
     try:
         token = get_google_access_token()
         if token:
-            quoted_title = urllib.parse.quote("FileDB!A2:C100")
+            quoted_title = urllib.parse.quote("FileDB!A2:C500")
             url = f'https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{quoted_title}'
             resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
             if resp.status_code == 200:
@@ -1203,6 +1226,18 @@ def get_bill_media(media_id):
                                 return save_bill_media(media_id, dl_res.content, file_name, mime_type, tg_file_id)
     except Exception as e:
         print(f"[AdvanceService] Error lazy-loading bill media {media_id}: {e}")
+
+    # Fallback 2: Tra cứu qua transaction nếu media_id là external_id
+    try:
+        tx = CashAdvanceTransaction.query.filter_by(external_id=media_id).first()
+        if tx and tx.bill_link and 'start=' in tx.bill_link:
+            ext_code = tx.bill_link.split('start=')[-1].split('&')[0]
+            if ext_code != media_id:
+                sub_media = get_bill_media(ext_code)
+                if sub_media:
+                    return sub_media
+    except Exception as e:
+        print(f"[AdvanceService] Error checking transaction external_id: {e}")
 
     return media
 

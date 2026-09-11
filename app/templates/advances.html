@@ -849,17 +849,21 @@ function openBillPreview(btn) {
 
     subtitle.innerText = title + (amount && amount !== '-' ? ` | ${amount}` : '');
 
-    // Resolve Image URL: If Telegram deep link, map to Supabase-backed route
+    // Resolve Image URL: If Telegram deep link or absolute app URL, map to /advances/bill/<id>
     let resolvedUrl = rawLink;
+    let shortId = '';
     if (rawLink.includes('start=')) {
-        const shortId = rawLink.split('start=')[1].split('&')[0];
+        shortId = rawLink.split('start=')[1].split('&')[0];
+        resolvedUrl = `/advances/bill/${shortId}`;
+    } else if (rawLink.includes('/advances/bill/')) {
+        shortId = rawLink.split('/advances/bill/')[1].split('?')[0].split('#')[0];
         resolvedUrl = `/advances/bill/${shortId}`;
     }
 
     img.src = resolvedUrl;
     openTabBtn.href = resolvedUrl;
     dlBtn.href = resolvedUrl;
-    fallbackBtn.href = rawLink;
+    fallbackBtn.href = rawLink.includes('t.me') ? rawLink : resolvedUrl;
 
     const modal = new bootstrap.Modal(document.getElementById('billPreviewModal'));
     modal.show();

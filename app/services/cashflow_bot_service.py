@@ -458,6 +458,15 @@ def handle_telegram_update(update):
                 # Tự động đồng bộ tháng vừa cập nhật vào cơ sở dữ liệu Supabase của Render
                 try:
                     sync_month_from_google(month, year)
+                    # Gán transaction_id cho media nếu có
+                    med_id = pending.get('media_id')
+                    if med_id:
+                        tx = CashAdvanceTransaction.query.filter_by(external_id=med_id).first()
+                        if tx:
+                            m = db.session.get(CashAdvanceBillMedia, med_id)
+                            if m and not m.transaction_id:
+                                m.transaction_id = tx.id
+                                db.session.commit()
                 except Exception as sync_err:
                     print(f"[CashflowBot] Auto-sync error: {sync_err}")
 
@@ -598,9 +607,23 @@ def handle_telegram_update(update):
                 # 2. Phân tích với Gemini AI
                 ai_data = extract_receipt_with_gemini(image_b64, mime_type)
 
-                # 3. Tạo mã định danh và lưu trữ ảnh ngay lập tức vào Supabase
+                # 3. Tạo mã định danh và lưu trữ ảnh ngay lập tức vào Supabase / PostgreSQL
                 short_id = 'gido_' + hex(int(time.time() * 1000))[2:]
                 media = save_bill_media(short_id, image_bytes, file_name, mime_type, file_id)
+
+                # Ghi dự phòng mã file và telegram file_id vào Google Sheet tab FileDB
+                try:
+                    g_tok = get_google_access_token()
+                    if g_tok:
+                        fdb_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/FileDB!A:C:append?valueInputOption=USER_ENTERED"
+                        requests.post(
+                            fdb_url,
+                            headers={'Authorization': f'Bearer {g_tok}'},
+                            json={'values': [[short_id, file_id, file_name]]},
+                            timeout=6
+                        )
+                except Exception as fdb_err:
+                    print(f"[CashflowBot] FileDB backup skipped: {fdb_err}")
 
                 # 4. Xác định URL nội bộ cho bill (tuyệt đối không dùng public bucket link)
                 render_host = os.environ.get('RENDER_EXTERNAL_URL') or 'https://gic-logistics.onrender.com'
@@ -647,6 +670,42 @@ def handle_telegram_update(update):
             finally:
                 if load_msg and 'result' in load_msg:
                     delete_telegram_message(chat_id, load_msg['result']['message_id'])
+
+        elif text.startswith('/start ') or text.startswith('/bill ') or text.startswith('/start@') or text.startswith('/bill@'):
+            parts = text.split(maxsplit=1)
+            payload = parts[1].strip() if len(parts) > 1 else ''
+            if payload:
+                from app.services.advance_service import get_bill_media
+                media = get_bill_media(payload)
+                if media and media.data_base64:
+                    import base64
+                    send_photo_url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/sendPhoto"
+                    photo_bytes = base64.b64decode(media.data_base64)
+                    caption = f"🧾 <b>Biên lai / Chứng từ</b>: <code>{html.escape(payload)}</code>"
+                    requests.post(
+                        send_photo_url,
+                        data={'chat_id': chat_id, 'caption': caption, 'parse_mode': 'HTML'},
+                        files={'photo': (media.filename or 'bill.jpg', photo_bytes, media.mime_type or 'image/jpeg')},
+                        timeout=15
+                    )
+                    return {'ok': True}
+                elif media and media.file_id:
+                    send_photo_url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/sendPhoto"
+                    caption = f"🧾 <b>Biên lai / Chứng từ</b>: <code>{html.escape(payload)}</code>"
+                    requests.post(
+                        send_photo_url,
+                        json={'chat_id': chat_id, 'photo': media.file_id, 'caption': caption, 'parse_mode': 'HTML'},
+                        timeout=10
+                    )
+                    return {'ok': True}
+                else:
+                    send_telegram_message(
+                        chat_id,
+                        f"⚠️ Không tìm thấy ảnh hóa đơn cho mã <code>{html.escape(payload)}</code>.\n"
+                        f"Ảnh có thể đã cũ hoặc chưa được lưu trên hệ thống.",
+                        reply_to_message_id=msg_id
+                    )
+                    return {'ok': True}
 
         elif text in ('/start', '/help', 'menu', '/bd'):
             welcome = (
