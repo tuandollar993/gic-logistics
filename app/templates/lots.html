@@ -27,7 +27,7 @@
 
 <!-- Filters Bar -->
 <div class="card border-0 shadow-sm rounded-3 p-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
-    <form method="GET" action="{{ url_for('lots.index') }}" class="row g-2 align-items-center">
+    <form id="filterLotsForm" method="GET" action="{{ url_for('lots.index') }}" class="row g-2 align-items-center">
         <!-- Month Filter -->
         <div class="col-md-3">
             <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Kỳ Báo Cáo:</label>
@@ -366,9 +366,18 @@
 <script>
 function submitFilter(val) {
     const [m, y] = val.split('-');
-    document.getElementById('filterMonth').value = m;
-    document.getElementById('filterYear').value = y;
-    document.forms[0].submit();
+    const filterMonth = document.getElementById('filterMonth');
+    const filterYear = document.getElementById('filterYear');
+    if (filterMonth && filterYear) {
+        filterMonth.value = m;
+        filterYear.value = y;
+    }
+    const form = document.getElementById('filterLotsForm');
+    if (form) {
+        form.submit();
+    } else {
+        window.location.href = `{{ url_for('lots.index') }}?month=${m}&year=${y}`;
+    }
 }
 
 function openAssignModal(lotId, lotName, currentAssignee, currentDeadline) {
