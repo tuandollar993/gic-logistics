@@ -403,7 +403,50 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phân Loại Khoản Mục / Loại Xe</label>
-                        <input type="text" name="weight_class" class="form-control" placeholder="VD: Xe 5T, Xe 15T, Bốc xếp, Cân xe, Hải quan...">
+                        <select class="form-select" id="addWeightSelect" name="weight_class_select">
+                            <option value="">-- Chọn phân loại danh mục --</option>
+                            <optgroup label="🚛 Cước Vận Tải / Loại Xe">
+                                <option value="Xe 1.25T">Xe 1.25T</option>
+                                <option value="Xe 2.5T">Xe 2.5T</option>
+                                <option value="Xe 3.5T">Xe 3.5T</option>
+                                <option value="Xe 5T">Xe 5T</option>
+                                <option value="Xe 8T">Xe 8T</option>
+                                <option value="Xe 10T">Xe 10T</option>
+                                <option value="Xe 15T">Xe 15T</option>
+                                <option value="Xe 25T">Xe 25T</option>
+                                <option value="Cont 20'">Cont 20'</option>
+                                <option value="Cont 40'">Cont 40'</option>
+                                <option value="Cont 45'">Cont 45'</option>
+                                <option value="Cont 53'">Cont 53'</option>
+                                <option value="Xe Fooc">Xe Fooc</option>
+                                <option value="Mooc sàn">Mooc sàn</option>
+                                <option value="Mooc rào">Mooc rào</option>
+                                <option value="Vận chuyển">Vận chuyển chung</option>
+                            </optgroup>
+                            <optgroup label="📦 Chi Phí Vận Hành / Dịch Vụ">
+                                <option value="Bốc xếp">Bốc xếp</option>
+                                <option value="Nâng hạ">Nâng hạ</option>
+                                <option value="Phí CSHT">Phí CSHT (Cơ sở hạ tầng)</option>
+                                <option value="Phí bến bãi">Phí bến bãi / Lưu kho</option>
+                                <option value="Phí thông quan">Phí thông quan / Hải quan</option>
+                                <option value="Phí cửa khẩu">Phí kiểm dịch / Cửa khẩu</option>
+                                <option value="Cân xe">Cân xe</option>
+                                <option value="Vé cầu đường / BOT">Vé cầu đường / BOT</option>
+                                <option value="Lưu ca xe">Lưu ca xe</option>
+                                <option value="Chi phí vận hành">Chi phí vận hành khác</option>
+                            </optgroup>
+                            <optgroup label="✏️ Phân Loại Khác">
+                                <option value="Khác">➕ Khác (Điền tay mục mới)...</option>
+                            </optgroup>
+                        </select>
+                        <div id="addCustomWeightGroup" class="mt-2 d-none">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-warning-subtle text-dark fw-semibold" style="font-size: 0.72rem;">
+                                    <i class="fa-solid fa-pen-nib me-1"></i> Tên mục mới:
+                                </span>
+                                <input type="text" id="addCustomWeightInput" name="weight_class_custom" class="form-control" placeholder="Nhập tên phân loại mới...">
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nội Dung / Tuyến Dịch Vụ <span class="text-danger">*</span></label>
@@ -489,7 +532,50 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phân Loại / Trọng Tải</label>
-                        <input type="text" name="weight_class" id="editWeight" class="form-control">
+                        <select class="form-select" id="editWeightSelect" name="weight_class_select">
+                            <option value="">-- Chọn phân loại danh mục --</option>
+                            <optgroup label="🚛 Cước Vận Tải / Loại Xe">
+                                <option value="Xe 1.25T">Xe 1.25T</option>
+                                <option value="Xe 2.5T">Xe 2.5T</option>
+                                <option value="Xe 3.5T">Xe 3.5T</option>
+                                <option value="Xe 5T">Xe 5T</option>
+                                <option value="Xe 8T">Xe 8T</option>
+                                <option value="Xe 10T">Xe 10T</option>
+                                <option value="Xe 15T">Xe 15T</option>
+                                <option value="Xe 25T">Xe 25T</option>
+                                <option value="Cont 20'">Cont 20'</option>
+                                <option value="Cont 40'">Cont 40'</option>
+                                <option value="Cont 45'">Cont 45'</option>
+                                <option value="Cont 53'">Cont 53'</option>
+                                <option value="Xe Fooc">Xe Fooc</option>
+                                <option value="Mooc sàn">Mooc sàn</option>
+                                <option value="Mooc rào">Mooc rào</option>
+                                <option value="Vận chuyển">Vận chuyển chung</option>
+                            </optgroup>
+                            <optgroup label="📦 Chi Phí Vận Hành / Dịch Vụ">
+                                <option value="Bốc xếp">Bốc xếp</option>
+                                <option value="Nâng hạ">Nâng hạ</option>
+                                <option value="Phí CSHT">Phí CSHT (Cơ sở hạ tầng)</option>
+                                <option value="Phí bến bãi">Phí bến bãi / Lưu kho</option>
+                                <option value="Phí thông quan">Phí thông quan / Hải quan</option>
+                                <option value="Phí cửa khẩu">Phí kiểm dịch / Cửa khẩu</option>
+                                <option value="Cân xe">Cân xe</option>
+                                <option value="Vé cầu đường / BOT">Vé cầu đường / BOT</option>
+                                <option value="Lưu ca xe">Lưu ca xe</option>
+                                <option value="Chi phí vận hành">Chi phí vận hành khác</option>
+                            </optgroup>
+                            <optgroup label="✏️ Phân Loại Khác">
+                                <option value="Khác">➕ Khác (Điền tay mục mới)...</option>
+                            </optgroup>
+                        </select>
+                        <div id="editCustomWeightGroup" class="mt-2 d-none">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-warning-subtle text-dark fw-semibold" style="font-size: 0.72rem;">
+                                    <i class="fa-solid fa-pen-nib me-1"></i> Tên mục mới:
+                                </span>
+                                <input type="text" id="editCustomWeightInput" name="weight_class_custom" class="form-control" placeholder="Nhập tên phân loại mới...">
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nội Dung / Tuyến Dịch Vụ / Diễn Giải <span class="text-danger">*</span></label>
@@ -583,12 +669,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Add Modal Category Selection Handler
+    const addSelect = document.getElementById('addWeightSelect');
+    const addCustomGroup = document.getElementById('addCustomWeightGroup');
+    const addCustomInput = document.getElementById('addCustomWeightInput');
+    if (addSelect) {
+        addSelect.addEventListener('change', function() {
+            if (this.value === 'Khác') {
+                addCustomGroup.classList.remove('d-none');
+                addCustomInput.setAttribute('required', 'required');
+                addCustomInput.focus();
+            } else {
+                addCustomGroup.classList.add('d-none');
+                addCustomInput.removeAttribute('required');
+                addCustomInput.value = '';
+            }
+        });
+    }
+
     // Unified Edit Row Modal
     const editModalEl = document.getElementById('editUnifiedModal');
     if (editModalEl) {
         const editModal = new bootstrap.Modal(editModalEl);
         const editForm = document.getElementById('editUnifiedForm');
         const editTitle = document.getElementById('editModalTitle');
+        const editSelect = document.getElementById('editWeightSelect');
+        const editCustomGroup = document.getElementById('editCustomWeightGroup');
+        const editCustomInput = document.getElementById('editCustomWeightInput');
+
+        if (editSelect) {
+            editSelect.addEventListener('change', function() {
+                if (this.value === 'Khác') {
+                    editCustomGroup.classList.remove('d-none');
+                    editCustomInput.setAttribute('required', 'required');
+                    editCustomInput.focus();
+                } else {
+                    editCustomGroup.classList.add('d-none');
+                    editCustomInput.removeAttribute('required');
+                    editCustomInput.value = '';
+                }
+            });
+        }
         
         document.querySelectorAll('.btn-edit-row').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -596,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const itemId = this.getAttribute('data-id');
                 const supplier = this.getAttribute('data-supplier') || '';
                 const plate = this.getAttribute('data-plate') || '';
-                const weight = this.getAttribute('data-weight') || '';
+                const weight = (this.getAttribute('data-weight') || '').trim();
                 const desc = this.getAttribute('data-desc') || '';
                 const buy = this.getAttribute('data-buy') || 0;
                 const sell = this.getAttribute('data-sell') || 0;
@@ -606,13 +727,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 document.getElementById('editSupplier').value = supplier;
                 document.getElementById('editPlate').value = plate;
-                document.getElementById('editWeight').value = weight;
                 document.getElementById('editDesc').value = desc;
                 document.getElementById('editBuyPrice').value = buy;
                 document.getElementById('editSellPrice').value = sell;
                 document.getElementById('editSurcharges').value = surcharge;
                 document.getElementById('editInvoiceType').value = invType;
                 document.getElementById('editInvoiceNumber').value = invNum;
+
+                // Match weight in select dropdown
+                if (editSelect) {
+                    const norm = (s) => (s || '').toLowerCase().replace(/^(xe|phí)\s+/, '').replace(/['"]/g, '').replace(/[\s,._-]/g, '');
+                    let matchedOption = null;
+
+                    if (weight) {
+                        for (let opt of editSelect.options) {
+                            if (!opt.value || opt.value === 'Khác') continue;
+                            if (opt.value.toLowerCase() === weight.toLowerCase() || norm(opt.value) === norm(weight)) {
+                                matchedOption = opt.value;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (matchedOption) {
+                        editSelect.value = matchedOption;
+                        editCustomGroup.classList.add('d-none');
+                        editCustomInput.removeAttribute('required');
+                        editCustomInput.value = '';
+                    } else if (weight) {
+                        editSelect.value = 'Khác';
+                        editCustomGroup.classList.remove('d-none');
+                        editCustomInput.setAttribute('required', 'required');
+                        editCustomInput.value = weight;
+                    } else {
+                        editSelect.value = '';
+                        editCustomGroup.classList.add('d-none');
+                        editCustomInput.removeAttribute('required');
+                        editCustomInput.value = '';
+                    }
+                }
 
                 if (rowType === 'cost') {
                     editForm.action = `/lots/{{ lot.id }}/costs/${itemId}/edit`;

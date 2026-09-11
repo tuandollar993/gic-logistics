@@ -215,7 +215,16 @@ def add_revenue_item(lot_id):
     supplier = request.form.get('supplier', '').strip()
     vehicle_plate = request.form.get('vehicle_plate', '').strip()
     service_description = request.form.get('service_description', '').strip() or 'Khoản mục chi phí & doanh thu'
-    weight_class = request.form.get('weight_class', '').strip()
+    
+    weight_select = request.form.get('weight_class_select', '').strip()
+    weight_custom = request.form.get('weight_class_custom', '').strip()
+    if weight_select == 'Khác':
+        weight_class = weight_custom or 'Khác'
+    elif weight_select:
+        weight_class = weight_select
+    else:
+        weight_class = request.form.get('weight_class', '').strip()
+        
     invoice_number = request.form.get('invoice_number', '').strip()
     invoice_type = request.form.get('invoice_type', '').strip()
     
@@ -265,7 +274,16 @@ def edit_revenue_item(lot_id, item_id):
     
     item.supplier = request.form.get('supplier', item.supplier or '').strip()
     item.vehicle_plate_vn = request.form.get('vehicle_plate', item.vehicle_plate_vn or '').strip()
-    item.weight_class = request.form.get('weight_class', item.weight_class or '').strip()
+    
+    weight_select = request.form.get('weight_class_select', '').strip()
+    weight_custom = request.form.get('weight_class_custom', '').strip()
+    if weight_select == 'Khác':
+        item.weight_class = weight_custom or 'Khác'
+    elif weight_select:
+        item.weight_class = weight_select
+    elif request.form.get('weight_class'):
+        item.weight_class = request.form.get('weight_class', '').strip()
+        
     item.service_description = request.form.get('service_description', item.service_description or '').strip()
     
     try:
@@ -317,7 +335,16 @@ def edit_cost_item(lot_id, cost_id):
     cost.description = request.form.get('service_description', cost.description).strip()
     cost.supplier_name = request.form.get('supplier', cost.supplier_name or '').strip()
     cost.vehicle_plate = request.form.get('vehicle_plate', cost.vehicle_plate or '').strip()
-    cost.cost_type = request.form.get('weight_class', cost.cost_type or '').strip()
+    
+    weight_select = request.form.get('weight_class_select', '').strip()
+    weight_custom = request.form.get('weight_class_custom', '').strip()
+    if weight_select == 'Khác':
+        cost.cost_type = weight_custom or 'Khác'
+    elif weight_select:
+        cost.cost_type = weight_select
+    elif request.form.get('weight_class'):
+        cost.cost_type = request.form.get('weight_class', '').strip()
+        
     cost.invoice_number = request.form.get('invoice_number', cost.invoice_number or '').strip()
     cost.invoice_type = request.form.get('invoice_type', cost.invoice_type or '').strip()
     
