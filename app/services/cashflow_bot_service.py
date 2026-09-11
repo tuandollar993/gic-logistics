@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import html
 import requests
 import unicodedata
 from datetime import datetime
@@ -54,7 +55,15 @@ def send_telegram_message(chat_id, text, reply_markup=None, reply_to_message_id=
         payload['reply_to_message_id'] = reply_to_message_id
     try:
         r = requests.post(url, json=payload, timeout=10)
-        return r.json()
+        res = r.json()
+        if not res.get('ok'):
+            print(f"[CashflowBot] HTML send failed: {res}, retrying with plain text...")
+            payload.pop('parse_mode', None)
+            clean_text = re.sub(r'<[^>]+>', '', text)
+            payload['text'] = clean_text
+            r2 = requests.post(url, json=payload, timeout=10)
+            return r2.json()
+        return res
     except Exception as e:
         print(f"[CashflowBot] Error sending Telegram message: {e}")
         return None
@@ -326,7 +335,75 @@ def append_transaction_to_sheet(data, public_img_url):
     except Exception as e:
         print(f"[CashflowBot] Error writing audit log: {e}")
 
+    # Đồng bộ sang Sổ Lương nếu nhân viên là LƯƠNG và loại CHI
+    if nhan_vien == 'LƯƠNG' and loai == 'CHI':
+        try:
+            append_transaction_to_luong_sheet(token, data, public_img_url, date_str)
+        except Exception as e:
+            print(f"[CashflowBot] Error syncing to Luong sheet: {e}")
+
     return sheet_name, row_a1, month, year
+
+def append_transaction_to_luong_sheet(token, data, public_img_url, date_str):
+    spreadsheet_id = '1u4mYe_3vWDXlNPABZpy9doLmWX06r1dHNSnXXbKbwNA'
+    meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties"
+    m_resp = requests.get(meta_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+    sheets_list = m_resp.json().get('sheets', [])
+    target_sheet = next((s['properties'] for s in sheets_list if s['properties']['title'] == 'Lương'), None)
+    if not target_sheet:
+        return
+    sheet_id = target_sheet['sheetId']
+
+    val_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/Lương!A:B"
+    v_resp = requests.get(val_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+    rows = v_resp.json().get('values', [])
+    
+    tong_index = -1
+    for i, r in enumerate(rows):
+        cA = normalize_string(r[0] if len(r) > 0 else '')
+        cB = normalize_string(r[1] if len(r) > 1 else '')
+        if is_total_label(cA) or is_total_label(cB):
+            tong_index = i
+            break
+            
+    if tong_index == -1:
+        tong_index = len(rows)
+
+    last_filled = tong_index - 1
+    while last_filled >= 0:
+        cA = (rows[last_filled][0] if len(rows[last_filled]) > 0 else '').strip()
+        cB = (rows[last_filled][1] if len(rows[last_filled]) > 1 else '').strip()
+        if cA != '' or cB != '':
+            break
+        last_filled -= 1
+    insert_index = last_filled + 1
+
+    batch_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate"
+    insert_body = {
+        "requests": [{
+            "insertDimension": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "dimension": "ROWS",
+                    "startIndex": insert_index,
+                    "endIndex": insert_index + 1
+                },
+                "inheritFromBefore": True
+            }
+        }]
+    }
+    requests.post(batch_url, json=insert_body, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+    row_a1 = insert_index + 1
+
+    row_data = [""] * 11
+    row_data[0] = date_str
+    row_data[1] = f"{data.get('noi_dung', '')} - {data.get('nguoi_giao_dich', '')}"
+    row_data[3] = float(data.get('so_tien', 0))
+    row_data[5] = float(data.get('so_tien', 0))
+    row_data[10] = public_img_url
+
+    update_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/Lương!A{row_a1}:K{row_a1}?valueInputOption=USER_ENTERED"
+    requests.put(update_url, json={'values': [row_data]}, headers={'Authorization': f'Bearer {token}'}, timeout=10)
 
 def handle_telegram_update(update):
     """
@@ -370,15 +447,15 @@ def handle_telegram_update(update):
                 d = pending['data']
                 text_ok = (
                     f"✅ <b>ĐÃ GHI THÀNH CÔNG VÀO SỔ QUỸ & SUPABASE!</b>\n\n"
-                    f"💳 <b>Loại:</b> {d.get('loai')}\n"
+                    f"💳 <b>Loại:</b> {html.escape(str(d.get('loai') or ''))}\n"
                     f"💰 <b>Số tiền:</b> {format_money_vn(d.get('so_tien'))} VNĐ\n"
-                    f"👤 <b>Giao dịch:</b> {d.get('nguoi_giao_dich')}\n"
-                    f"📂 <b>Sheet:</b> {sheet_name} (Dòng {row_a1})\n"
+                    f"👤 <b>Giao dịch:</b> {html.escape(str(d.get('nguoi_giao_dich') or ''))}\n"
+                    f"📂 <b>Sheet:</b> {html.escape(str(sheet_name))} (Dòng {row_a1})\n"
                     f"📸 <b>Ảnh bill:</b> Đã lưu an toàn lên Supabase"
                 )
                 send_telegram_message(chat_id, text_ok)
             except Exception as e:
-                send_telegram_message(chat_id, f"❌ Lỗi ghi sổ: {e}")
+                send_telegram_message(chat_id, f"❌ Lỗi ghi sổ: {html.escape(str(e))}")
             finally:
                 _pending_confirmations.pop(confirm_id, None)
                 if load_msg and 'result' in load_msg:
@@ -397,9 +474,12 @@ def handle_telegram_update(update):
         chat_id = str(msg['chat']['id'])
         msg_id = msg['message_id']
         text = (msg.get('text') or '').strip()
+        chat_type = msg.get('chat', {}).get('type', 'private')
+        print(f"[CashflowBot] Nhận tin nhắn từ chat_id={chat_id} ({chat_type}), text={text[:50] if text else ''}")
 
-        # Kiểm tra chat id nếu có danh sách giới hạn
-        if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS and str(msg['chat'].get('id')) not in ALLOWED_CHAT_IDS:
+        # Cho phép tất cả tin nhắn riêng tư (1-1) với bot; chỉ lọc nếu là tin nhắn nhóm không nằm trong danh sách
+        if chat_type not in ('private', '') and ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS and str(msg['chat'].get('id')) not in ALLOWED_CHAT_IDS:
+            print(f"[CashflowBot] Bỏ qua tin nhắn từ group chat không nằm trong danh sách: {chat_id}")
             return {'ok': True}
 
         # Nếu là lệnh báo cáo
@@ -410,7 +490,7 @@ def handle_telegram_update(update):
             monthly = CashAdvanceMonthly.query.filter_by(month=m, year=y).first()
             if monthly:
                 report_text = (
-                    f"📊 <b>BÁO CÁO DÒNG TIỀN GIDO ({sheet_name})</b>\n"
+                    f"📊 <b>BÁO CÁO DÒNG TIỀN GIDO ({html.escape(str(sheet_name))})</b>\n"
                     f"📅 Ngày: {now.strftime('%d/%m/%Y %H:%M')}\n\n"
                     f"💰 <b>TỒN QUỸ HIỆN TẠI:</b> {format_money_vn(monthly.closing_balance)} VNĐ\n\n"
                     f"📥 <b>Tổng thu:</b> +{format_money_vn(monthly.total_company_receipts + monthly.total_haiban_receipts + monthly.total_other_receipts)} VNĐ\n"
@@ -423,7 +503,7 @@ def handle_telegram_update(update):
                     f"👉 <i>Xem chi tiết và ảnh biên lai tại Dashboard GIC Logistics</i>"
                 )
             else:
-                report_text = f"📊 Chưa có dữ liệu tổng kết cho {sheet_name}. Vui lòng đồng bộ trên Dashboard."
+                report_text = f"📊 Chưa có dữ liệu tổng kết cho {html.escape(str(sheet_name))}. Vui lòng đồng bộ trên Dashboard."
             send_telegram_message(chat_id, report_text, reply_to_message_id=msg_id)
             return {'ok': True}
 
@@ -484,18 +564,21 @@ def handle_telegram_update(update):
                     'chat_id': chat_id
                 }
 
-                date_label = ai_data.get('ngay_giao_dich') or 'Hôm nay'
+                date_label = html.escape(str(ai_data.get('ngay_giao_dich') or 'Hôm nay'))
                 so_tien_label = format_money_vn(ai_data.get('so_tien', 0))
-                category_label = ai_data.get('nhan_vien') or ai_data.get('nguon_thu') or 'Chi phí ngoài'
+                loai_label = html.escape(str(ai_data.get('loai') or 'CHI'))
+                nguoi_label = html.escape(str(ai_data.get('nguoi_giao_dich') or 'Không rõ'))
+                category_label = html.escape(str(ai_data.get('nhan_vien') or ai_data.get('nguon_thu') or 'Chi phí ngoài'))
+                noi_dung_label = html.escape(str(ai_data.get('noi_dung') or ''))
 
                 summary_text = (
                     f"🔍 <b>AI đã đọc biên lai:</b>\n\n"
                     f"📅 <b>Ngày:</b> {date_label}\n"
-                    f"💳 <b>Loại:</b> {ai_data.get('loai')}\n"
+                    f"💳 <b>Loại:</b> {loai_label}\n"
                     f"💰 <b>Số tiền:</b> {so_tien_label} VNĐ\n"
-                    f"👤 <b>Giao dịch:</b> {ai_data.get('nguoi_giao_dich')}\n"
+                    f"👤 <b>Giao dịch:</b> {nguoi_label}\n"
                     f"🕵️ <b>Phân loại:</b> {category_label}\n"
-                    f"📝 <b>Nội dung:</b> {ai_data.get('noi_dung')}\n\n"
+                    f"📝 <b>Nội dung:</b> {noi_dung_label}\n\n"
                     f"👇 <i>Xác nhận ghi vào Sổ quỹ & Google Sheet?</i>"
                 )
 
@@ -510,7 +593,7 @@ def handle_telegram_update(update):
 
             except Exception as err:
                 print(f"[CashflowBot] Error processing receipt: {err}")
-                send_telegram_message(chat_id, f"❌ Lỗi xử lý hóa đơn: {err}", reply_to_message_id=msg_id)
+                send_telegram_message(chat_id, f"❌ Lỗi xử lý hóa đơn: {html.escape(str(err))}", reply_to_message_id=msg_id)
             finally:
                 if load_msg and 'result' in load_msg:
                     delete_telegram_message(chat_id, load_msg['result']['message_id'])
