@@ -16,6 +16,10 @@
             </div>
         </div>
         <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('quotations.download_standard_excel') }}" class="btn btn-success d-flex align-items-center gap-2 shadow-sm px-3 py-2 fw-semibold" style="height: 38px;">
+                <i class="fa-solid fa-file-excel fa-lg"></i>
+                <span>Tải Báo Giá Chuẩn (.xlsx)</span>
+            </a>
             <button type="button" class="btn-primary-gic" onclick="switchTab('builder-tab')">
                 <i class="fa-solid fa-plus me-1"></i> Lập Báo Giá Mới
             </button>
@@ -446,9 +450,162 @@
         </div>
 
         <!-- ===================================================================
-             TAB 2: BENCHMARK EXPLORER (INSTANT CLIENT FILTER - NO RELOAD)
+             TAB 2: BENCHMARK & TARIFF MATRIX
         ==================================================================== -->
         <div class="tab-pane fade {% if active_tab == 'benchmark' %}show active{% endif %}" id="benchmark-content" role="tabpanel">
+            
+            <!-- SECTION A: MA TRẬN CƯỚC VẬN CHUYỂN CHUẨN HÓA (THEO MẪU BÁO GIÁ THỰC TẾ) -->
+            <div id="transportMatrixSection" class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                    <div>
+                        <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                            <i class="fa-solid fa-table-cells text-primary"></i>
+                            BẢNG MA TRẬN CƯỚC VẬN CHUYỂN ĐƯỜNG BỘ THEO CHỦNG LOẠI XE
+                        </h6>
+                        <div class="text-muted small mt-1">
+                            Chuẩn hóa theo 12 phân hạng tải trọng / kích thước thùng xe và thời hiệu giao hàng. Bấm vào bất kỳ ô giá để chọn báo giá.
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="{{ url_for('quotations.download_standard_excel') }}" class="btn btn-sm btn-outline-success fw-semibold">
+                            <i class="fa-solid fa-file-excel me-1"></i> Xuất File Excel (.xlsx)
+                        </a>
+                        <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="collapse" data-bs-target="#matrixTermsCollapse" aria-expanded="false">
+                            <i class="fa-solid fa-circle-info me-1"></i> Xem Điều Khoản Cước
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Terms Collapse -->
+                <div class="collapse" id="matrixTermsCollapse">
+                    <div class="p-3 bg-light border-bottom small text-secondary">
+                        <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-gavel me-1 text-primary"></i>Điều khoản & Quy định cước vận chuyển chuẩn:</div>
+                        <ul class="mb-0 ps-3" style="line-height: 1.6;">
+                            <li>Giá cước vận chuyển trên chưa bao gồm thuế giá trị gia tăng (VAT 8% hoặc 10%).</li>
+                            <li><strong>Phí lưu ca:</strong> Bắt đầu tính từ 15h00 ngày tiếp theo kể từ khi xe đến điểm nhận/giao hàng.
+                                <em>02 ca đầu: 1.000.000 đ/ngày (xe tải) / 1.500.000 đ/ngày (cont) | Ca 3-5: 1.500.000 đ/ngày | Từ ca thứ 6: 2.000.000 đ/ngày.</em>
+                            </li>
+                            <li>Giá đã bao gồm: Phí cầu đường bộ, Lương lái xe, Chi phí nhiên liệu (dầu diesel).</li>
+                            <li>Giá chưa bao gồm: Phí bến bãi, bốc xếp, phí cân xe, nâng hạ hàng hóa, lệ phí thủ tục xuất nhập cảnh.</li>
+                            <li><strong>Hủy chuyến:</strong> Nếu xe đã điều đến nhà máy hoặc lăn bánh được nửa đường, khách hàng thanh toán 50% cước phí.</li>
+                            <li>Khi giá dầu diesel thị trường có sự biến động +/- 10%, giá cước sẽ được hai bên điều chỉnh lại.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 520px;">
+                        <table class="table table-bordered table-hover align-middle mb-0 text-nowrap" style="font-size: 0.8rem;">
+                            <thead class="table-primary sticky-top text-center" style="font-size: 0.73rem; z-index: 5;">
+                                <tr>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 220px; left: 0; position: sticky; z-index: 6;">起运地<br>(Điểm Đi)</th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 260px;">目的地<br>(Điểm Đến)</th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 100px;">1.9T<br><span class="fw-normal" style="font-size: 0.65rem;">4.3x1.8x1.9m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 100px;">2.5T<br><span class="fw-normal" style="font-size: 0.65rem;">4.2x1.7x1.7m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 100px;">3.5T<br><span class="fw-normal" style="font-size: 0.65rem;">3.1x1.6x1.6m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 100px;">5T<br><span class="fw-normal" style="font-size: 0.65rem;">5.8x2.1x2.1m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 100px;">8T<br><span class="fw-normal" style="font-size: 0.65rem;">7.3x2.3x2.3m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 100px;">10T<br><span class="fw-normal" style="font-size: 0.65rem;">9.5x2.3x2.3m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 95px;">CONT 20<br><span class="fw-normal" style="font-size: 0.65rem;">20ft DC</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 95px;">CONT 40<br><span class="fw-normal" style="font-size: 0.65rem;">40ft HC</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 95px;">CONT 45<br><span class="fw-normal" style="font-size: 0.65rem;">45ft HC</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 110px;">Xe Rào 14M<br><span class="fw-normal" style="font-size: 0.65rem;">高栏车 14m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 110px;">Xe Sàn 14.3M<br><span class="fw-normal" style="font-size: 0.65rem;">平坦车 14.3m</span></th>
+                                    <th class="align-middle bg-primary text-white" style="min-width: 110px;">Fooc Lùn 18M<br><span class="fw-normal" style="font-size: 0.65rem;">超地版 18m</span></th>
+                                    <th class="align-middle bg-primary text-white text-center" style="min-width: 85px;">时效(H)<br>(Lead time)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if transport_matrix and transport_matrix.data %}
+                                    {% for r in transport_matrix.data %}
+                                    <tr>
+                                        <td class="fw-bold text-dark bg-light text-wrap" style="left: 0; position: sticky; z-index: 4; font-size: 0.78rem;">{{ r.diem_di }}</td>
+                                        <td class="text-wrap" style="font-size: 0.78rem;">{{ r.diem_den }}</td>
+                                        
+                                        <!-- 1.9T -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe 1.9 Tấn (4.38x1.85x1.9m)', {{ r.xe_1_9t }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá xe 1.9T: {{ r.xe_1_9t | format_money }}">
+                                            <span class="text-primary fw-semibold">{{ r.xe_1_9t | format_money }}</span>
+                                        </td>
+                                        <!-- 2.5T -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe 2.5 Tấn (4.2x1.7x1.75m)', {{ r.xe_2_5t }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá xe 2.5T: {{ r.xe_2_5t | format_money }}">
+                                            <span class="text-primary fw-semibold">{{ r.xe_2_5t | format_money }}</span>
+                                        </td>
+                                        <!-- 3.5T -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe 3.5 Tấn (3.1x1.6x1.6m)', {{ r.xe_3_5t }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá xe 3.5T: {{ r.xe_3_5t | format_money }}">
+                                            <span class="text-primary fw-semibold">{{ r.xe_3_5t | format_money }}</span>
+                                        </td>
+                                        <!-- 5T -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe 5 Tấn (5.8x2.1x2.1m)', {{ r.xe_5t }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá xe 5T: {{ r.xe_5t | format_money }}">
+                                            <span class="text-primary fw-bold">{{ r.xe_5t | format_money }}</span>
+                                        </td>
+                                        <!-- 8T -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe 8 Tấn (7.3x2.3x2.3m)', {{ r.xe_8t }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá xe 8T: {{ r.xe_8t | format_money }}">
+                                            <span class="text-primary fw-bold">{{ r.xe_8t | format_money }}</span>
+                                        </td>
+                                        <!-- 10T -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe 10 Tấn (9.5x2.35x2.3m)', {{ r.xe_10t }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá xe 10T: {{ r.xe_10t | format_money }}">
+                                            <span class="text-primary fw-bold">{{ r.xe_10t | format_money }}</span>
+                                        </td>
+                                        <!-- CONT 20 -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Container 20 feet (Cont 20)', {{ r.cont_20 }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá Cont 20: {{ r.cont_20 | format_money }}">
+                                            <span class="text-dark fw-bold">{{ r.cont_20 | format_money }}</span>
+                                        </td>
+                                        <!-- CONT 40 -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Container 40 feet (Cont 40)', {{ r.cont_40 }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá Cont 40: {{ r.cont_40 | format_money }}">
+                                            <span class="text-dark fw-bold">{{ r.cont_40 | format_money }}</span>
+                                        </td>
+                                        <!-- CONT 45 -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Container 45 feet (Cont 45)', {{ r.cont_45 }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá Cont 45: {{ r.cont_45 | format_money }}">
+                                            <span class="text-dark fw-bold">{{ r.cont_45 | format_money }}</span>
+                                        </td>
+                                        <!-- Xe rào 14M -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe rào 14M (high-sided truck)', {{ r.xe_rao_14m }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá Xe rào 14M: {{ r.xe_rao_14m | format_money }}">
+                                            <span class="text-success fw-bold">{{ r.xe_rao_14m | format_money }}</span>
+                                        </td>
+                                        <!-- Xe sàn 14.3M -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe sàn 14.3M (flatbed truck)', {{ r.xe_san_14m }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá Xe sàn 14.3M: {{ r.xe_san_14m | format_money }}">
+                                            <span class="text-success fw-bold">{{ r.xe_san_14m | format_money }}</span>
+                                        </td>
+                                        <!-- Fooc lùn 18M -->
+                                        <td class="text-end font-mono tabular-nums matrix-cell cursor-pointer" 
+                                            onclick="selectMatrixCellToQuote('{{ r.diem_di|escape }}', '{{ r.diem_den|escape }}', 'Xe FOOC lùn 18M (chở máy quá khổ)', {{ r.xe_fooc_18m }}, '{{ r.thoi_hieu }}')"
+                                            title="Click để chọn báo giá Xe FOOC 18M: {{ r.xe_fooc_18m | format_money }}">
+                                            <span class="text-danger fw-bold">{{ r.xe_fooc_18m | format_money }}</span>
+                                        </td>
+                                        <!-- Thời hiệu -->
+                                        <td class="text-center font-mono small text-muted fw-bold">{{ r.thoi_hieu }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION B: BẢNG TRA CỨU ĐẦY ĐỦ CÁC HẠNG MỤC LOGISTICS (BỐC XẾP, TỜ KHAI, KIỂM ĐỊNH, PHỤ PHÍ) -->
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white border-bottom py-3">
                     <div class="row g-2 align-items-center justify-content-between">
@@ -721,6 +878,12 @@
 }
 .cursor-pointer { cursor: pointer; }
 .hover-card:hover { transform: translateY(-2px); transition: 0.2s ease; border-color: var(--gic-accent) !important; }
+.matrix-cell:hover {
+    background-color: #EBF8FF !important;
+    outline: 2px solid var(--gic-accent);
+    cursor: pointer;
+}
+
 </style>
 
 <!-- Quotation Builder Client Logic -->
@@ -732,26 +895,34 @@ let activeCategoryFilter = '{{ current_cat or "all" }}';
 const CATEGORY_PRESETS = {
     'Vận chuyển': {
         services: [
-            'Hữu Nghị - Phú Thọ',
-            'Hữu Nghị - Vĩnh Phúc',
-            'Hữu Nghị - Bắc Ninh',
-            'Hữu Nghị - Hải Dương',
-            'Hữu Nghị - Hà Nội',
-            'Tân Thanh - Đồng Nai',
-            'Tân Thanh - Thanh Hóa',
-            'Tân Thanh - Thuận Thành',
-            'Hữu Nghị - Hưng Yên',
-            'Hữu Nghị - Nam Định'
+            'Xuân Cương -> Bắc Ninh (Goertek Quế Võ/Nam Sơn Hạp Linh)',
+            'Tân Thanh -> Bắc Ninh (Goertek Quế Võ/Nam Sơn Hạp Linh)',
+            'Móng Cái -> Bắc Ninh (Goertek Quế Võ/Nam Sơn Hạp Linh)',
+            'Chi Ma -> Bắc Ninh (Goertek Quế Võ/Nam Sơn Hạp Linh)',
+            'Pô Chai - HNQL -> Bắc Ninh (Goertek Quế Võ)',
+            'Hữu Nghị -> Bắc Ninh (KCN Quế Võ / VSIP)',
+            'Hữu Nghị / Tân Thanh -> Thái Nguyên (KCN Yên Bình)',
+            'Hữu Nghị / Tân Thanh -> Bắc Giang (KCN Đình Trám)',
+            'Hữu Nghị / Tân Thanh -> Hà Nội',
+            'Tân Thanh -> Thuận Thành',
+            'Hữu Nghị -> Phú Thọ',
+            'Hữu Nghị -> Vĩnh Phúc',
+            'Hữu Nghị -> Hải Dương',
+            'Hữu Nghị -> Hưng Yên'
         ],
         specs: [
-            'Xe 5 Tấn (5T)',
-            'Xe 8 Tấn (8T)',
-            'Xe 10 Tấn (10T)',
-            'Xe 15 Tấn (15T)',
+            '1.9T (4.38 x 1.85 x 1.9m)',
+            '2.5T (4.2 x 1.7 x 1.75m)',
+            '3.5T (3.1 x 1.6 x 1.6m)',
+            '5T (5.8 x 2.1 x 2.1m)',
+            '8T (7.3 x 2.3 x 2.3m)',
+            '10T (9.5 x 2.35 x 2.3m)',
             'Container 20 feet (Cont 20)',
             'Container 40 feet (Cont 40)',
             'Container 45 feet (Cont 45)',
-            'Xe Fooc / Cont 53'
+            'Xe rào 14M (high-sided truck)',
+            'Xe sàn 14.3M (flatbed truck)',
+            'Xe FOOC lùn 18M (chở máy quá khổ)'
         ],
         unit: 'Chuyến'
     },
@@ -901,6 +1072,17 @@ function clickStatCard(catName) {
 
 // Filter category completely on client side (0ms latency, NO reload, NO tab jump)
 function filterCategoryClient(catName) {
+    activeCategoryFilter = catName;
+
+    // Toggle Transport Matrix visibility: show when 'all' or 'Vận chuyển'
+    const matrixSec = document.getElementById('transportMatrixSection');
+    if (matrixSec) {
+        if (catName === 'all' || catName === 'Vận chuyển') {
+            matrixSec.style.display = '';
+        } else {
+            matrixSec.style.display = 'none';
+        }
+    }
     activeCategoryFilter = catName;
 
     // Update active button state
@@ -1112,6 +1294,14 @@ function addItemToQuote() {
 }
 
 // 1-Click Select from Tab 2 Benchmark Explorer to Quotation
+
+// Chọn trực tiếp từ ô trong Ma Trận Cước Vận Chuyển sang Builder
+function selectMatrixCellToQuote(diemDi, diemDen, vehName, price, leadTime) {
+    const routeName = `${diemDi} -> ${diemDen}`;
+    const basisText = `Cước vận chuyển tuyến cố định theo bảng giá tiêu chuẩn. Thời hiệu: ${leadTime}.`;
+    selectBenchmarkToQuote('Vận chuyển', routeName, vehName, price, 'Chuyến', basisText);
+}
+
 function selectBenchmarkToQuote(cat, name, spec, recPrice, unit, basisText) {
     const cleanUnit = unit || 'Chuyến';
     const priceNum = parseMoneyInput(recPrice);

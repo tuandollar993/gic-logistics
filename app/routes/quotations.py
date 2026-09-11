@@ -1,6 +1,7 @@
+import io
 from datetime import datetime, timezone
 import json
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Quotation
@@ -8,7 +9,12 @@ from app.services.quotation_service import (
     get_all_benchmarks,
     get_benchmarks_filtered,
     find_best_benchmark,
-    get_quick_options
+    get_quick_options,
+    get_transport_matrix
+)
+from app.services.quotation_excel_generator import (
+    generate_standard_quotation_excel,
+    export_quotation_to_excel
 )
 
 quotations_bp = Blueprint('quotations', __name__)
@@ -22,6 +28,7 @@ def index():
     
     benchmarks = get_benchmarks_filtered(category=cat_filter, search=search_query)
     quick_opts = get_quick_options()
+    transport_matrix = get_transport_matrix()
     
     recent_quotes = Quotation.query.filter_by(is_deleted=False).order_by(
         Quotation.id.desc()
@@ -50,6 +57,7 @@ def index():
     return render_template(
         'quotations.html',
         benchmarks=benchmarks,
+        transport_matrix=transport_matrix,
         quick_opts=quick_opts,
         recent_quotes=recent_quotes,
         stats=stats,
@@ -181,3 +189,37 @@ def delete_quote(quote_id):
     db.session.commit()
     flash(f'Đã xóa bảng báo giá {quote.quote_code} thành công!', 'success')
     return redirect(url_for('quotations.index'))
+
+@quotations_bp.route('/download-standard-excel', methods=['GET'])
+@login_required
+def download_standard_excel():
+    """Tải file Excel Báo Giá Logistics Chuẩn Hóa toàn bộ 5 bảng dịch vụ"""
+    wb = generate_standard_quotation_excel()
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    filename = f"Bang_Bao_Gia_Dich_Vu_Logistics_GIC_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return send_file(
+        out,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+@quotations_bp.route('/<int:quote_id>/export-excel', methods=['GET'])
+@login_required
+def export_quote_excel(quote_id):
+    """Xuất báo giá cụ thể của khách hàng sang file Excel chuyên nghiệp"""
+    quote = Quotation.query.filter_by(id=quote_id, is_deleted=False).first_or_404()
+    wb = export_quotation_to_excel(quote)
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    filename = f"Bao_Gia_{quote.quote_code}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return send_file(
+        out,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+

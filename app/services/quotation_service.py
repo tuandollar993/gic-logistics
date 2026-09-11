@@ -1111,3 +1111,13 @@ def get_quick_options():
         'vehicles': sorted(list(vehicles)),
         'categories_count': dict(categories_count)
     }
+
+def get_transport_matrix():
+    """Lấy ma trận cước vận chuyển chuẩn hoá theo tuyến và tải trọng xe"""
+    from app.services.quotation_excel_generator import TRANSPORT_COLUMNS, TRANSPORT_MATRIX_DATA, TRANSPORT_NOTES
+    return {
+        'columns': TRANSPORT_COLUMNS,
+        'data': TRANSPORT_MATRIX_DATA,
+        'notes': TRANSPORT_NOTES
+    }
+

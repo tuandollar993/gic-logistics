@@ -234,3 +234,84 @@ def test_detailed_pricing_matrix(app, seed_quotation_data):
         assert len(bh_items) >= 2
         assert any('0.08%' in b['spec'] or b['recommended_price'] == 0.08 for b in bh_items)
 
+
+def test_transport_matrix_data(app):
+    """Kiểm tra ma trận cước vận chuyển chuẩn hoá theo tuyến và 12 loại tải trọng xe"""
+    from app.services.quotation_service import get_transport_matrix
+    matrix = get_transport_matrix()
+    assert 'columns' in matrix
+    assert 'data' in matrix
+    assert 'notes' in matrix
+    assert len(matrix['columns']) == 15
+    assert len(matrix['data']) >= 10
+    assert len(matrix['notes']) >= 5
+
+    # Kiểm tra cột đầu tiên là điểm đi, cột thứ hai là điểm đến
+    col_keys = [c[0] for c in matrix['columns']]
+    assert 'diem_di' in col_keys
+    assert 'diem_den' in col_keys
+    assert 'xe_5t' in col_keys
+    assert 'cont_40' in col_keys
+    assert 'xe_fooc_18m' in col_keys
+
+
+def test_generate_standard_quotation_excel():
+    """Kiểm tra sinh file Excel Báo Giá Chuẩn đầy đủ 5 sheet"""
+    from app.services.quotation_excel_generator import generate_standard_quotation_excel
+    wb = generate_standard_quotation_excel()
+    assert wb is not None
+    sheet_names = wb.sheetnames
+    assert 'Cước Vận Chuyển' in sheet_names
+    assert 'Bốc Xếp & Nâng Hạ' in sheet_names
+    assert 'Thủ Tục Hải Quan' in sheet_names
+    assert 'Kiểm Định & Quatest' in sheet_names
+    assert 'Bến Bãi & Phụ Phí' in sheet_names
+
+    ws_vc = wb['Cước Vận Chuyển']
+    assert ws_vc.max_row >= 15
+    assert ws_vc.max_column >= 15
+
+
+def test_download_standard_excel_route(auth_client_manager):
+    """Kiểm tra tải file Excel Báo Giá Chuẩn qua endpoint GET /quotations/download-standard-excel"""
+    res = auth_client_manager.get('/quotations/download-standard-excel')
+    assert res.status_code == 200
+    assert 'spreadsheetml' in res.content_type
+    assert len(res.data) > 5000  # Valid excel binary content
+
+
+def test_export_quotation_to_excel_route(app, auth_client_manager, seed_quotation_data):
+    """Kiểm tra xuất file Excel cho một bảng báo giá cụ thể"""
+    with app.app_context():
+        quote = Quotation(
+            quote_code='BG-202609-EXCEL',
+            customer_name='Công ty TNHH Thử Nghiệm Excel',
+            contact_person='Mr. Nam',
+            phone='0912345678',
+            valid_days=15,
+            items_json=json.dumps([
+                {
+                    'category': 'Vận chuyển',
+                    'name': 'Xuân Cương -> Bắc Ninh',
+                    'spec': 'Xe 5 Tấn (5.8x2.1x2.1m)',
+                    'unit': 'Chuyến',
+                    'quantity': 2,
+                    'unit_price': 3450000.0,
+                    'total': 6900000.0
+                }
+            ]),
+            subtotal=6900000.0,
+            vat_percent=10.0,
+            vat_amount=690000.0,
+            total_amount=7590000.0
+        )
+        db.session.add(quote)
+        db.session.commit()
+        qid = quote.id
+
+    res = auth_client_manager.get(f'/quotations/{qid}/export-excel')
+    assert res.status_code == 200
+    assert 'spreadsheetml' in res.content_type
+    assert len(res.data) > 3000
+
+
