@@ -1,0 +1,929 @@
+{% extends "base.html" %}
+
+{% block title %}Đề Xuất Báo Giá - GIC Logistics{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 px-lg-4">
+    <!-- Page Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+        <div>
+            <h4 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-file-invoice-dollar text-primary"></i>
+                Đề Xuất Báo Giá & Cơ Sở Định Giá
+            </h4>
+            <div class="text-muted small mt-1">
+                Dữ liệu tham chiếu chuẩn xác từ lịch sử vận hành thực tế của GIC Logistics cho 6 nhóm dịch vụ
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn-primary-gic" onclick="switchTab('builder-tab')">
+                <i class="fa-solid fa-plus me-1"></i> Tạo Báo Giá Mới
+            </button>
+            <button type="button" class="btn-secondary-gic" onclick="switchTab('benchmark-tab')">
+                <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Tra Cứu Giá Lịch Sử
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="row g-2 g-md-3 mb-4">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Tổng Hạng Mục</div>
+                        <div class="fs-4 fw-bold text-dark font-mono mt-1">{{ stats.total }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-primary bg-opacity-10 text-primary">
+                        <i class="fa-solid fa-database fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Vận chuyển')">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Vận Chuyển</div>
+                        <div class="fs-4 fw-bold text-primary font-mono mt-1">{{ stats.van_chuyen }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-primary bg-opacity-10 text-primary">
+                        <i class="fa-solid fa-truck fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Bốc xếp')">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Bốc Xếp</div>
+                        <div class="fs-4 fw-bold text-secondary font-mono mt-1">{{ stats.boc_xep }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-secondary bg-opacity-10 text-secondary">
+                        <i class="fa-solid fa-boxes-stacked fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Kiểm định')">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Kiểm Định / Quatest</div>
+                        <div class="fs-4 fw-bold text-success font-mono mt-1">{{ stats.kiem_dinh }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-success bg-opacity-10 text-success">
+                        <i class="fa-solid fa-vial fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Tờ khai')">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Tờ Khai HQ</div>
+                        <div class="fs-4 fw-bold text-info font-mono mt-1">{{ stats.to_khai }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-info bg-opacity-10 text-info">
+                        <i class="fa-solid fa-file-lines fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Cửa khẩu')">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Cửa Khẩu / CSHT</div>
+                        <div class="fs-4 fw-bold text-warning font-mono mt-1">{{ stats.cua_khau }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-warning bg-opacity-10 text-warning">
+                        <i class="fa-solid fa-archway fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs nav-tabs-gic mb-4" id="quotationTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="builder-tab" data-bs-toggle="tab" data-bs-target="#builder-content" type="button" role="tab">
+                <i class="fa-solid fa-calculator me-2"></i> Lập Báo Giá Gửi Khách Hàng
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="benchmark-tab" data-bs-toggle="tab" data-bs-target="#benchmark-content" type="button" role="tab">
+                <i class="fa-solid fa-book-bookmark me-2"></i> Tra Cứu Giá Lịch Sử & Cơ Sở Định Giá ({{ benchmarks|length }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-content" type="button" role="tab">
+                <i class="fa-solid fa-clock-rotate-left me-2"></i> Báo Giá Đã Lưu ({{ recent_quotes|length }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="quotationTabsContent">
+        <!-- TAB 1: BUILDER -->
+        <div class="tab-pane fade show active" id="builder-content" role="tabpanel">
+            <div class="row g-4">
+                <!-- Left Column: Form & Item Adder -->
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom py-3">
+                            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-user-tag text-primary"></i>
+                                1. Thông Tin Khách Hàng & Báo Giá
+                            </h6>
+                        </div>
+                        <div class="card-body p-3 p-md-4">
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                                        Tên Khách Hàng / Công Ty <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="quoteCustomer" class="form-control" placeholder="VD: Công ty TNHH Logistics ABC" required oninput="updateLivePreview()">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Người Liên Hệ</label>
+                                    <input type="text" id="quoteContact" class="form-control" placeholder="VD: Mr. Hùng - Trưởng phòng XNK" oninput="updateLivePreview()">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Điện Thoại</label>
+                                    <input type="text" id="quotePhone" class="form-control font-mono" placeholder="VD: 0988.123.456" oninput="updateLivePreview()">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Hiệu Lực Báo Giá</label>
+                                    <div class="input-group">
+                                        <input type="number" id="quoteValidDays" class="form-control font-mono" value="15" min="1" max="90" oninput="updateLivePreview()">
+                                        <span class="input-group-text small text-muted">ngày</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Thuế VAT (%)</label>
+                                    <select id="quoteVatPercent" class="form-select font-mono" onchange="calculateQuoteTotals(); updateLivePreview();">
+                                        <option value="0">0% (Chưa VAT)</option>
+                                        <option value="8">8% (VAT)</option>
+                                        <option value="10" selected>10% (VAT)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Item Selector Box -->
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-cart-plus text-primary"></i>
+                                2. Thêm Hạng Mục Dịch Vụ & Đề Xuất Giá
+                            </h6>
+                            <span class="badge bg-light text-muted border font-sans" style="font-size: 0.7rem;">Gợi ý từ lịch sử</span>
+                        </div>
+                        <div class="card-body p-3 p-md-4">
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                                        Phân Loại Nghiệp Vụ <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="itemCategory" class="form-select" onchange="onCategoryChange()">
+                                        <option value="Vận chuyển">🚛 Vận chuyển (Tuyến đường & Loại xe)</option>
+                                        <option value="Bốc xếp">📦 Bốc xếp (Tại kho / Bến bãi / Sang hàng)</option>
+                                        <option value="Kiểm định">🧪 Kiểm định (Quatest / Kiểm dịch / Giám định)</option>
+                                        <option value="Tờ khai">📄 Tờ khai (DVTK HQ / Thủ tục hải quan)</option>
+                                        <option value="Cửa khẩu">🏛️ Cửa khẩu (Phí CSHT / Bến bãi / Vé xe)</option>
+                                        <option value="Phụ phí">🧾 Phụ phí (Lưu ca / Điểm trả phát sinh)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                                        Tên Dịch Vụ / Tuyến Đường / Diễn Giải <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="itemName" class="form-control" list="routeDatalist" placeholder="Chọn hoặc nhập tên dịch vụ..." oninput="querySuggestedPrice()">
+                                    <datalist id="routeDatalist">
+                                        {% for it in quick_opts.routes[:50] %}
+                                            <option value="{{ it.name }}">{{ it.category }} - {{ it.name }}</option>
+                                        {% endfor %}
+                                    </datalist>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                                        Loại Xe / Quy Cách / Địa Điểm
+                                    </label>
+                                    <input type="text" id="itemSpec" class="form-control" list="specDatalist" placeholder="VD: Cont 45, 10T, Đà Lạt..." oninput="querySuggestedPrice()">
+                                    <datalist id="specDatalist">
+                                        {% for v in quick_opts.vehicles %}
+                                            <option value="{{ v }}">{{ v }}</option>
+                                        {% endfor %}
+                                    </datalist>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Đơn Vị Tính</label>
+                                    <input type="text" id="itemUnit" class="form-control" value="Chuyến" list="unitDatalist">
+                                    <datalist id="unitDatalist">
+                                        <option value="Chuyến">Chuyến</option>
+                                        <option value="Xe">Xe</option>
+                                        <option value="Tờ">Tờ</option>
+                                        <option value="Lô">Lô</option>
+                                        <option value="Lần">Lần</option>
+                                        <option value="Tấn">Tấn</option>
+                                        <option value="Mẫu">Mẫu</option>
+                                    </datalist>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Lượng</label>
+                                    <input type="number" id="itemQty" class="form-control font-mono" value="1" min="1" step="0.5">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
+                                        Đơn Giá Đề Xuất <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" inputmode="numeric" id="itemPrice" class="form-control font-mono fw-bold text-success" placeholder="0">
+                                </div>
+                            </div>
+
+                            <!-- Live Basis Box -->
+                            <div id="pricingBasisCard" class="alert alert-info border-0 shadow-sm mt-3 p-3 d-none mb-0" style="border-radius: var(--radius-md);">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="d-flex gap-2">
+                                        <i class="fa-solid fa-scale-balanced text-primary fs-5 mt-1"></i>
+                                        <div>
+                                            <div class="fw-bold text-dark" style="font-size: 0.85rem;">Cơ Sở Định Giá Lịch Sử:</div>
+                                            <div id="pricingBasisText" class="text-secondary small mt-1" style="line-height: 1.45;"></div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-2 text-nowrap" onclick="applySuggestedPrice()">
+                                        <i class="fa-solid fa-check me-1"></i> Dùng Giá Này
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn-primary-gic" onclick="addItemToQuote()">
+                                    <i class="fa-solid fa-plus me-1"></i> Đưa Vào Báo Giá
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Live Quotation Preview Sheet -->
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm rounded-3 h-100">
+                        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-file-pdf text-danger"></i>
+                                3. Bảng Báo Giá Gửi Khách (Xem Trước)
+                            </h6>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyZaloText()" title="Sao chép văn bản để gửi Zalo hoặc Telegram">
+                                    <i class="fa-solid fa-copy me-1"></i> Copy Zalo
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="printQuotation()" title="In hoặc lưu PDF">
+                                    <i class="fa-solid fa-print me-1"></i> In / PDF
+                                </button>
+                                <button type="button" class="btn btn-sm btn-success" onclick="saveQuotation()">
+                                    <i class="fa-solid fa-floppy-disk me-1"></i> Lưu Lại
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="card-body p-4 bg-light overflow-auto" style="max-height: 680px;">
+                            <!-- Printable Document Paper -->
+                            <div id="quotationSheet" class="bg-white p-4 rounded shadow-sm border" style="min-height: 520px; font-family: inherit;">
+                                <!-- Header of Quote -->
+                                <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
+                                    <div>
+                                        <div class="fw-black fs-5 text-primary font-mono" style="letter-spacing: 0.05em;">GIC LOGISTICS</div>
+                                        <div class="small text-muted">Hệ Thống Dịch Vụ Vận Tải & Khai Báo Hải Quan Chuyên Nghiệp</div>
+                                        <div class="small text-muted font-mono" style="font-size: 0.72rem;">Hotline: 0912.345.678 | Email: contact@giclogistics.vn</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-primary text-white font-mono px-2 py-1" style="font-size: 0.75rem;">BẢNG BÁO GIÁ</span>
+                                        <div class="small text-muted font-mono mt-1" id="previewQuoteDate">Ngày: --/--/2026</div>
+                                        <div class="small text-muted font-mono" id="previewQuoteValid">Hiệu lực: 15 ngày</div>
+                                    </div>
+                                </div>
+
+                                <!-- Customer Info -->
+                                <div class="bg-light p-3 rounded-2 mb-3 border">
+                                    <div class="row g-2" style="font-size: 0.85rem;">
+                                        <div class="col-sm-7">
+                                            <span class="text-muted">Kính gửi:</span> <strong id="previewCustomerName" class="text-dark">---</strong>
+                                        </div>
+                                        <div class="col-sm-5 text-sm-end">
+                                            <span class="text-muted">Người liên hệ:</span> <span id="previewContactPerson" class="fw-semibold">---</span>
+                                        </div>
+                                        <div class="col-sm-7">
+                                            <span class="text-muted">Điện thoại:</span> <span id="previewPhone" class="font-mono">---</span>
+                                        </div>
+                                        <div class="col-sm-5 text-sm-end">
+                                            <span class="text-muted">Đơn vị chào giá:</span> <span class="fw-semibold text-primary">GIC Logistics</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Items Table -->
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-bordered align-middle" style="font-size: 0.82rem;">
+                                        <thead class="table-light text-center">
+                                            <tr>
+                                                <th style="width: 35px;">#</th>
+                                                <th>Nội Dung Dịch Vụ / Tuyến</th>
+                                                <th>Quy Cách / Xe</th>
+                                                <th style="width: 50px;">ĐVT</th>
+                                                <th style="width: 50px;">SL</th>
+                                                <th style="width: 95px;">Đơn Giá</th>
+                                                <th style="width: 105px;">Thành Tiền</th>
+                                                <th class="no-print" style="width: 35px;">Xóa</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="previewItemsBody">
+                                            <tr id="emptyPreviewRow">
+                                                <td colspan="8" class="text-center text-muted py-4">
+                                                    Chưa có dịch vụ nào trong báo giá.<br>
+                                                    Sử dụng biểu mẫu bên trái để thêm các hạng mục vào.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot class="table-light fw-bold">
+                                            <tr>
+                                                <td colspan="6" class="text-end">Cộng tiền dịch vụ:</td>
+                                                <td class="text-end font-mono tabular-nums" id="previewSubtotal">0 ₫</td>
+                                                <td class="no-print"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="6" class="text-end">Tiền thuế VAT (<span id="previewVatRate">10</span>%):</td>
+                                                <td class="text-end font-mono tabular-nums" id="previewVatAmount">0 ₫</td>
+                                                <td class="no-print"></td>
+                                            </tr>
+                                            <tr class="fs-6 text-primary">
+                                                <td colspan="6" class="text-end text-uppercase">TỔNG CỘNG BÁO GIÁ:</td>
+                                                <td class="text-end font-mono fw-black tabular-nums" id="previewTotal">0 ₫</td>
+                                                <td class="no-print"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                <!-- Terms & Notes -->
+                                <div class="p-3 bg-light rounded-2 border" style="font-size: 0.78rem; line-height: 1.5;">
+                                    <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-circle-info text-primary me-1"></i> Điều Khoản & Ghi Chú:</div>
+                                    <ul class="m-0 ps-3 text-muted">
+                                        <li>Báo giá đã bao gồm các chi phí cầu đường, lái xe, cước vận tải tiêu chuẩn (trừ các khoản phát sinh do thời gian chờ / hạ tải ngoài giờ nếu có).</li>
+                                        <li>Đơn giá có hiệu lực trong vòng <span id="previewValidDaysNote">15</span> ngày kể từ ngày lập báo giá.</li>
+                                        <li>Thanh toán: Chuyển khoản trong vòng 15-30 ngày sau khi nhận đầy đủ hóa đơn và biên bản giao nhận.</li>
+                                    </ul>
+                                </div>
+
+                                <!-- Signature Sign-off -->
+                                <div class="row mt-4 pt-2 text-center" style="font-size: 0.82rem;">
+                                    <div class="col-6">
+                                        <div class="fw-bold text-dark text-uppercase">Đại Diện Khách Hàng</div>
+                                        <small class="text-muted">(Ký & ghi rõ họ tên)</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="fw-bold text-primary text-uppercase">Đại Diện GIC Logistics</div>
+                                        <small class="text-muted">(Người lập: {{ current_user.full_name }})</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: BENCHMARK EXPLORER -->
+        <div class="tab-pane fade" id="benchmark-content" role="tabpanel">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white border-bottom py-3">
+                    <div class="row g-2 align-items-center justify-content-between">
+                        <!-- Category Filters -->
+                        <div class="col-md-7">
+                            <div class="d-flex flex-wrap gap-1">
+                                <a href="?category=all" class="btn btn-sm {% if current_cat == 'all' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    Tất cả ({{ stats.total }})
+                                </a>
+                                <a href="?category=Vận chuyển" class="btn btn-sm {% if current_cat == 'Vận chuyển' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    <i class="fa-solid fa-truck me-1"></i> Vận chuyển ({{ stats.van_chuyen }})
+                                </a>
+                                <a href="?category=Bốc xếp" class="btn btn-sm {% if current_cat == 'Bốc xếp' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    <i class="fa-solid fa-boxes-stacked me-1"></i> Bốc xếp ({{ stats.boc_xep }})
+                                </a>
+                                <a href="?category=Kiểm định" class="btn btn-sm {% if current_cat == 'Kiểm định' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    <i class="fa-solid fa-vial me-1"></i> Kiểm định ({{ stats.kiem_dinh }})
+                                </a>
+                                <a href="?category=Tờ khai" class="btn btn-sm {% if current_cat == 'Tờ khai' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    <i class="fa-solid fa-file-lines me-1"></i> Tờ khai ({{ stats.to_khai }})
+                                </a>
+                                <a href="?category=Cửa khẩu" class="btn btn-sm {% if current_cat == 'Cửa khẩu' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    <i class="fa-solid fa-archway me-1"></i> Cửa khẩu ({{ stats.cua_khau }})
+                                </a>
+                                <a href="?category=Phụ phí" class="btn btn-sm {% if current_cat == 'Phụ phí' %}btn-primary{% else %}btn-light border{% endif %}">
+                                    <i class="fa-solid fa-receipt me-1"></i> Phụ phí ({{ stats.phu_phi }})
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Search Box -->
+                        <div class="col-md-5">
+                            <form method="GET" action="{{ url_for('quotations.index') }}" class="input-group input-group-sm">
+                                <input type="hidden" name="category" value="{{ current_cat }}">
+                                <input type="text" name="q" class="form-control" placeholder="Tìm tên tuyến, loại xe, dịch vụ..." value="{{ search_query }}">
+                                <button class="btn btn-primary-gic" type="submit">
+                                    <i class="fa-solid fa-magnifying-glass me-1"></i> Tìm
+                                </button>
+                                {% if search_query %}
+                                <a href="?category={{ current_cat }}" class="btn btn-outline-secondary">Xóa</a>
+                                {% endif %}
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                            <thead class="table-light text-uppercase font-sans" style="font-size: 0.72rem; letter-spacing: 0.04em;">
+                                <tr>
+                                    <th class="text-center" style="width: 40px;">#</th>
+                                    <th style="width: 110px;">Phân Loại</th>
+                                    <th>Dịch Vụ / Tuyến Đường</th>
+                                    <th>Quy Cách / Xe</th>
+                                    <th class="text-center">Số Chuyến</th>
+                                    <th class="text-end">Giá Mua NCC (TB)</th>
+                                    <th class="text-end">Giá Bán Thu Khách (TB)</th>
+                                    <th class="text-center">Biên LN</th>
+                                    <th class="text-end text-success fw-bold">Giá Đề Xuất</th>
+                                    <th>Cơ Sở Lịch Sử Đối Chứng</th>
+                                    <th class="text-center" style="width: 90px;">Báo Giá</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in benchmarks %}
+                                <tr>
+                                    <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                                    <td>
+                                        {% set cat = item.category %}
+                                        {% if cat == 'Cửa khẩu' %}
+                                            <span class="badge bg-warning text-dark border font-sans"><i class="fa-solid fa-archway me-1"></i>Cửa khẩu</span>
+                                        {% elif cat == 'Tờ khai' %}
+                                            <span class="badge bg-info text-dark border font-sans"><i class="fa-solid fa-file-lines me-1"></i>Tờ khai</span>
+                                        {% elif cat == 'Bốc xếp' %}
+                                            <span class="badge bg-secondary text-white border font-sans"><i class="fa-solid fa-boxes-stacked me-1"></i>Bốc xếp</span>
+                                        {% elif cat == 'Kiểm định' %}
+                                            <span class="badge bg-success text-white border font-sans"><i class="fa-solid fa-vial me-1"></i>Kiểm định</span>
+                                        {% elif cat == 'Phụ phí' %}
+                                            <span class="badge bg-light text-dark border font-sans"><i class="fa-solid fa-receipt me-1"></i>Phụ phí</span>
+                                        {% else %}
+                                            <span class="badge bg-primary text-white border font-sans"><i class="fa-solid fa-truck me-1"></i>Vận chuyển</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ item.name }}</div>
+                                    </td>
+                                    <td>
+                                        {% if item.spec %}
+                                            <span class="badge bg-light text-dark border font-mono">{{ item.spec }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center font-mono fw-bold">{{ item.count }}</td>
+                                    <td class="text-end font-mono tabular-nums text-danger">
+                                        {% if item.buy_avg > 0 %}
+                                            {{ item.buy_avg | format_money }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end font-mono tabular-nums text-primary fw-semibold">
+                                        {% if item.sell_avg > 0 %}
+                                            {{ item.sell_avg | format_money }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center font-mono small">
+                                        {% if item.margin_avg != 0 %}
+                                            <span class="{% if item.margin_avg > 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
+                                                {{ item.margin_avg }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end font-mono fw-black text-success tabular-nums" style="font-size: 0.95rem;">
+                                        {{ item.recommended_price | format_money }}
+                                    </td>
+                                    <td>
+                                        <div class="small text-secondary" style="font-size: 0.76rem; max-width: 320px; line-height: 1.35;">
+                                            <i class="fa-solid fa-circle-check text-success me-1"></i>{{ item.basis_text }}
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 text-nowrap" 
+                                            onclick="selectBenchmarkToQuote('{{ item.category }}', '{{ item.name|escape }}', '{{ item.spec|escape }}', {{ item.recommended_price }})"
+                                            title="Đưa hạng mục này vào bảng báo giá">
+                                            <i class="fa-solid fa-plus me-1"></i> Chọn
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="11" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block opacity-50"></i>
+                                        Không tìm thấy dữ liệu giá lịch sử phù hợp với tiêu chí tìm kiếm.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: SAVED QUOTATIONS -->
+        <div class="tab-pane fade" id="history-content" role="tabpanel">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-primary"></i>
+                        Danh Sách Bảng Báo Giá Đã Lưu
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                            <thead class="table-light text-uppercase font-sans" style="font-size: 0.72rem;">
+                                <tr>
+                                    <th class="text-center" style="width: 40px;">#</th>
+                                    <th>Mã Báo Giá</th>
+                                    <th>Khách Hàng</th>
+                                    <th>Người Liên Hệ / SĐT</th>
+                                    <th>Ngày Lập</th>
+                                    <th>Hiệu Lực</th>
+                                    <th class="text-end">Tổng Tiền</th>
+                                    <th>Người Lập</th>
+                                    <th class="text-center" style="width: 140px;">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for q in recent_quotes %}
+                                <tr>
+                                    <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border font-mono fw-bold">{{ q.quote_code }}</span>
+                                    </td>
+                                    <td class="fw-bold text-dark">{{ q.customer_name }}</td>
+                                    <td>
+                                        {{ q.contact_person or '-' }}
+                                        {% if q.phone %}<br><small class="text-muted font-mono">{{ q.phone }}</small>{% endif %}
+                                    </td>
+                                    <td class="font-mono text-muted">{{ q.created_at.strftime('%d/%m/%Y') if q.created_at else '-' }}</td>
+                                    <td>{{ q.valid_days }} ngày</td>
+                                    <td class="text-end font-mono fw-bold text-success tabular-nums">
+                                        {{ q.total_amount | format_money }}
+                                    </td>
+                                    <td>{{ q.creator.full_name if q.creator else '-' }}</td>
+                                    <td class="text-center">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <a href="{{ url_for('quotations.view_quote', quote_id=q.id) }}" class="btn-secondary-gic py-1 px-2 text-primary" title="Xem & In Báo Giá">
+                                                <i class="fa-solid fa-eye me-1"></i> Xem
+                                            </a>
+                                            <form method="POST" action="{{ url_for('quotations.delete_quote', quote_id=q.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa báo giá này?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn-secondary-gic py-1 px-2 text-danger" title="Xóa">
+                                                    <i class="fa-solid fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="9" class="text-center py-5 text-muted">
+                                        Chưa có bảng báo giá nào được lưu.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Styles -->
+<style>
+@media print {
+    body * { visibility: hidden; }
+    #quotationSheet, #quotationSheet * { visibility: visible; }
+    #quotationSheet {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    .no-print { display: none !important; }
+}
+.cursor-pointer { cursor: pointer; }
+.hover-card:hover { transform: translateY(-2px); transition: 0.2s ease; border-color: var(--gic-accent) !important; }
+</style>
+
+<!-- Quotation Builder Client Logic -->
+<script>
+let quotationItems = [];
+
+function switchTab(tabId) {
+    const tabEl = document.getElementById(tabId);
+    if (tabEl) {
+        new bootstrap.Tab(tabEl).show();
+    }
+}
+
+function filterCategory(catName) {
+    switchTab('benchmark-tab');
+    window.location.href = `?category=${encodeURIComponent(catName)}`;
+}
+
+function onCategoryChange() {
+    querySuggestedPrice();
+}
+
+function querySuggestedPrice() {
+    const cat = document.getElementById('itemCategory').value;
+    const name = document.getElementById('itemName').value.trim();
+    const spec = document.getElementById('itemSpec').value.trim();
+
+    if (!name) {
+        document.getElementById('pricingBasisCard').classList.add('d-none');
+        return;
+    }
+
+    fetch(`/quotations/api/suggest?category=${encodeURIComponent(cat)}&name=${encodeURIComponent(name)}&spec=${encodeURIComponent(spec)}`)
+        .then(r => r.json())
+        .then(res => {
+            const basisCard = document.getElementById('pricingBasisCard');
+            const basisText = document.getElementById('pricingBasisText');
+            if (res.success && res.basis_text) {
+                basisText.innerText = res.basis_text;
+                basisCard.classList.remove('d-none');
+                basisCard.setAttribute('data-rec-price', res.recommended_price || 0);
+            } else {
+                basisCard.classList.add('d-none');
+            }
+        })
+        .catch(() => {});
+}
+
+function applySuggestedPrice() {
+    const basisCard = document.getElementById('pricingBasisCard');
+    const recPrice = parseFloat(basisCard.getAttribute('data-rec-price') || 0);
+    if (recPrice > 0) {
+        document.getElementById('itemPrice').value = formatNumberDisplay(recPrice);
+    }
+}
+
+function formatNumberDisplay(num) {
+    return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+}
+
+function parseMoneyInput(val) {
+    if (!val) return 0;
+    return parseFloat(String(val).replace(/[^\d]/g, '')) || 0;
+}
+
+function addItemToQuote() {
+    const cat = document.getElementById('itemCategory').value;
+    const name = document.getElementById('itemName').value.trim();
+    const spec = document.getElementById('itemSpec').value.trim();
+    const unit = document.getElementById('itemUnit').value.trim() || 'Chuyến';
+    const qty = parseFloat(document.getElementById('itemQty').value) || 1;
+    const price = parseMoneyInput(document.getElementById('itemPrice').value);
+    const basisText = document.getElementById('pricingBasisText').innerText || '';
+
+    if (!name) {
+        alert('Vui lòng nhập tên dịch vụ hoặc tuyến đường!');
+        document.getElementById('itemName').focus();
+        return;
+    }
+    if (price <= 0) {
+        alert('Vui lòng nhập đơn giá đề xuất lớn hơn 0!');
+        document.getElementById('itemPrice').focus();
+        return;
+    }
+
+    quotationItems.push({
+        id: Date.now(),
+        category: cat,
+        name: name,
+        spec: spec,
+        unit: unit,
+        quantity: qty,
+        unit_price: price,
+        total: qty * price,
+        basis: basisText
+    });
+
+    // Reset input form
+    document.getElementById('itemName').value = '';
+    document.getElementById('itemSpec').value = '';
+    document.getElementById('itemPrice').value = '';
+    document.getElementById('itemQty').value = '1';
+    document.getElementById('pricingBasisCard').classList.add('d-none');
+
+    renderQuotationPreview();
+}
+
+function removeItemFromQuote(index) {
+    quotationItems.splice(index, 1);
+    renderQuotationPreview();
+}
+
+function selectBenchmarkToQuote(cat, name, spec, recPrice) {
+    switchTab('builder-tab');
+    document.getElementById('itemCategory').value = cat;
+    document.getElementById('itemName').value = name;
+    document.getElementById('itemSpec').value = spec || '';
+    document.getElementById('itemPrice').value = formatNumberDisplay(recPrice);
+    querySuggestedPrice();
+}
+
+function renderQuotationPreview() {
+    const tbody = document.getElementById('previewItemsBody');
+    if (quotationItems.length === 0) {
+        tbody.innerHTML = `
+            <tr id="emptyPreviewRow">
+                <td colspan="8" class="text-center text-muted py-4">
+                    Chưa có dịch vụ nào trong báo giá.<br>
+                    Sử dụng biểu mẫu bên trái để thêm các hạng mục vào.
+                </td>
+            </tr>`;
+    } else {
+        let html = '';
+        quotationItems.forEach((it, idx) => {
+            html += `
+                <tr>
+                    <td class="text-center font-mono text-muted">${idx + 1}</td>
+                    <td>
+                        <strong class="text-dark">${it.name}</strong>
+                        ${it.basis ? `<br><small class="text-muted" style="font-size: 0.68rem;"><i class="fa-solid fa-scale-balanced me-1"></i>${it.basis}</small>` : ''}
+                    </td>
+                    <td>${it.spec ? `<span class="badge bg-light text-dark border font-mono">${it.spec}</span>` : '-'}</td>
+                    <td class="text-center">${it.unit}</td>
+                    <td class="text-center font-mono">${it.quantity}</td>
+                    <td class="text-end font-mono">${formatNumberDisplay(it.unit_price)} ₫</td>
+                    <td class="text-end font-mono fw-bold text-dark">${formatNumberDisplay(it.total)} ₫</td>
+                    <td class="text-center no-print">
+                        <button type="button" class="btn btn-sm text-danger p-0 border-0" onclick="removeItemFromQuote(${idx})" title="Xóa dòng này">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+    calculateQuoteTotals();
+}
+
+function calculateQuoteTotals() {
+    const subtotal = quotationItems.reduce((acc, it) => acc + it.total, 0);
+    const vatRate = parseFloat(document.getElementById('quoteVatPercent').value) || 0;
+    const vatAmount = subtotal * (vatRate / 100);
+    const total = subtotal + vatAmount;
+
+    document.getElementById('previewSubtotal').innerText = formatNumberDisplay(subtotal) + ' ₫';
+    document.getElementById('previewVatRate').innerText = vatRate;
+    document.getElementById('previewVatAmount').innerText = formatNumberDisplay(vatAmount) + ' ₫';
+    document.getElementById('previewTotal').innerText = formatNumberDisplay(total) + ' ₫';
+}
+
+function updateLivePreview() {
+    const cust = document.getElementById('quoteCustomer').value.trim() || '---';
+    const contact = document.getElementById('quoteContact').value.trim() || '---';
+    const phone = document.getElementById('quotePhone').value.trim() || '---';
+    const validDays = document.getElementById('quoteValidDays').value || 15;
+
+    document.getElementById('previewCustomerName').innerText = cust;
+    document.getElementById('previewContactPerson').innerText = contact;
+    document.getElementById('previewPhone').innerText = phone;
+    document.getElementById('previewQuoteValid').innerText = `Hiệu lực: ${validDays} ngày`;
+    document.getElementById('previewValidDaysNote').innerText = validDays;
+
+    const today = new Date();
+    document.getElementById('previewQuoteDate').innerText = `Ngày: ${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth()+1).padStart(2, '0')}/${today.getFullYear()}`;
+}
+
+function printQuotation() {
+    if (quotationItems.length === 0) {
+        alert('Vui lòng thêm ít nhất 1 hạng mục vào báo giá trước khi in!');
+        return;
+    }
+    window.print();
+}
+
+function copyZaloText() {
+    if (quotationItems.length === 0) {
+        alert('Chưa có hạng mục nào để sao chép!');
+        return;
+    }
+    const cust = document.getElementById('quoteCustomer').value.trim() || 'Quý Khách Hàng';
+    const subtotal = quotationItems.reduce((acc, it) => acc + it.total, 0);
+    const vatRate = parseFloat(document.getElementById('quoteVatPercent').value) || 0;
+    const vatAmount = subtotal * (vatRate / 100);
+    const total = subtotal + vatAmount;
+
+    let text = `📦 BẢNG BÁO GIÁ DỊCH VỤ - GIC LOGISTICS\n`;
+    text += `👤 Kính gửi: ${cust}\n`;
+    text += `📅 Ngày: ${new Date().toLocaleDateString('vi-VN')}\n`;
+    text += `------------------------------------\n`;
+    quotationItems.forEach((it, idx) => {
+        text += `${idx + 1}. ${it.name} ${it.spec ? '(' + it.spec + ')' : ''}\n`;
+        text += `   - SL: ${it.quantity} ${it.unit} x ${formatNumberDisplay(it.unit_price)} đ = ${formatNumberDisplay(it.total)} đ\n`;
+    });
+    text += `------------------------------------\n`;
+    text += `💰 Cộng dịch vụ: ${formatNumberDisplay(subtotal)} đ\n`;
+    if (vatRate > 0) {
+        text += `🧾 Thuế VAT (${vatRate}%): ${formatNumberDisplay(vatAmount)} đ\n`;
+    }
+    text += `🎯 TỔNG CỘNG: ${formatNumberDisplay(total)} đ\n\n`;
+    text += `📌 Đơn giá đã bao gồm các chi phí vận hành tiêu chuẩn, hiệu lực trong 15 ngày.\n`;
+    text += `Trân trọng cảm ơn sự hợp tác của Quý khách!`;
+
+    navigator.clipboard.writeText(text).then(() => {
+        alert('✅ Đã sao chép nội dung bảng báo giá vào bộ nhớ tạm! Bạn có thể dán ngay vào Zalo hoặc Telegram để gửi khách.');
+    }).catch(() => {
+        alert('Không thể sao chép tự động. Vui lòng cho phép quyền clipboard.');
+    });
+}
+
+function saveQuotation() {
+    const cust = document.getElementById('quoteCustomer').value.trim();
+    if (!cust) {
+        alert('Vui lòng nhập tên khách hàng trước khi lưu!');
+        document.getElementById('quoteCustomer').focus();
+        return;
+    }
+    if (quotationItems.length === 0) {
+        alert('Vui lòng thêm ít nhất 1 hạng mục dịch vụ!');
+        return;
+    }
+
+    const payload = {
+        customer_name: cust,
+        contact_person: document.getElementById('quoteContact').value.trim(),
+        phone: document.getElementById('quotePhone').value.trim(),
+        valid_days: parseInt(document.getElementById('quoteValidDays').value) || 15,
+        vat_percent: parseFloat(document.getElementById('quoteVatPercent').value) || 0,
+        items: quotationItems,
+        notes: ''
+    };
+
+    fetch('/quotations/api/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert(`✅ Đã lưu thành công Bảng Báo Giá: ${res.quote_code}!`);
+            window.location.href = res.view_url;
+        } else {
+            alert('Lỗi: ' + (res.error || 'Không thể lưu báo giá'));
+        }
+    })
+    .catch(err => {
+        alert('Lỗi kết nối máy chủ: ' + err);
+    });
+}
+
+// Auto format currency inputs
+document.getElementById('itemPrice').addEventListener('input', function(e) {
+    let val = parseMoneyInput(this.value);
+    if (val > 0) {
+        this.value = formatNumberDisplay(val);
+    }
+});
+
+// Initialize Date
+document.addEventListener('DOMContentLoaded', function() {
+    updateLivePreview();
+});
+</script>
+{% endblock %}

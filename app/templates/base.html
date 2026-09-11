@@ -67,6 +67,10 @@
                     <i class="fa-solid fa-layer-group"></i>
                     <span>Quản Lý Lô Hàng</span>
                 </a>
+                <a class="nav-link {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" href="{{ url_for('quotations.index') }}">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                    <span>Đề Xuất Báo Giá</span>
+                </a>
                 <a class="nav-link {% if request.endpoint == 'tasks.tracking' %}active{% endif %}" href="{{ url_for('tasks.tracking') }}">
                     <i class="fa-solid fa-stopwatch"></i>
                     <span>Theo Dõi Deadline CPVH</span>
@@ -93,6 +97,10 @@
                 <a class="nav-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
                     <i class="fa-solid fa-boxes-stacked"></i>
                     <span>Lô Hàng Được Giao</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" href="{{ url_for('quotations.index') }}">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                    <span>Đề Xuất Báo Giá</span>
                 </a>
                 <a class="nav-link {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}" href="{{ url_for('suppliers.index') }}">
                     <i class="fa-solid fa-truck-field"></i>

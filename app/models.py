@@ -742,3 +742,51 @@ class AuditLog(db.Model):
             'ip_address': self.ip_address,
             'created_at': self.created_at.strftime('%d/%m/%Y %H:%M:%S') if self.created_at else ''
         }
+
+
+class Quotation(db.Model):
+    __tablename__ = 'quotations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    quote_code = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    customer_name = db.Column(db.String(255), nullable=False)
+    contact_person = db.Column(db.String(150), nullable=True)
+    phone = db.Column(db.String(50), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    valid_days = db.Column(db.Integer, default=15)
+    items_json = db.Column(db.Text, nullable=False, default='[]')
+    subtotal = db.Column(db.Float, default=0.0)
+    vat_percent = db.Column(db.Float, default=10.0)
+    vat_amount = db.Column(db.Float, default=0.0)
+    total_amount = db.Column(db.Float, default=0.0)
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(50), default='sent')
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+
+    creator = db.relationship('User', foreign_keys=[created_by])
+
+    def to_dict(self):
+        import json
+        try:
+            items = json.loads(self.items_json or '[]')
+        except Exception:
+            items = []
+        return {
+            'id': self.id,
+            'quote_code': self.quote_code,
+            'customer_name': self.customer_name,
+            'contact_person': self.contact_person or '',
+            'phone': self.phone or '',
+            'created_at': self.created_at.strftime('%d/%m/%Y') if self.created_at else '',
+            'valid_days': self.valid_days or 15,
+            'items': items,
+            'subtotal': self.subtotal or 0.0,
+            'vat_percent': self.vat_percent or 10.0,
+            'vat_amount': self.vat_amount or 0.0,
+            'total_amount': self.total_amount or 0.0,
+            'notes': self.notes or '',
+            'status': self.status or 'sent',
+            'creator_name': self.creator.full_name if self.creator else ''
+        }
+
