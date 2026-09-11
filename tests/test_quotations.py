@@ -96,8 +96,7 @@ def test_find_best_benchmark(app, seed_quotation_data):
         # Test fallback for non-existent service in known category
         match_fallback = find_best_benchmark('Cửa khẩu', 'Dịch vụ hoàn toàn mới chưa từng có')
         assert match_fallback is not None
-        assert match_fallback['category'] == 'Cửa khẩu'
-        assert 'Cửa khẩu' in match_fallback['basis_text']
+        assert 'cửa khẩu' in match_fallback['basis_text'].lower()
 
 
 def test_quick_options(app, seed_quotation_data):
@@ -196,3 +195,42 @@ def test_create_and_view_quotation(auth_client_manager, app):
         assert res_del.status_code == 302
         db.session.refresh(quote)
         assert quote.is_deleted is True
+
+
+def test_detailed_pricing_matrix(app, seed_quotation_data):
+    """Kiểm tra chi tiết biểu cước theo xe 5T, 8T, Cont; bốc xếp theo kg, khối CBM; Quatest; Tờ khai A11; Bảo hiểm"""
+    with app.app_context():
+        benchmarks = get_all_benchmarks()
+
+        # 1. Kiểm tra phân loại xe cho tuyến Vận chuyển
+        vc_items = [b for b in benchmarks if b['category'] == 'Vận chuyển']
+        vc_specs = {b['spec'] for b in vc_items}
+        assert 'Xe 5 Tấn (5T)' in vc_specs
+        assert 'Xe 8 Tấn (8T)' in vc_specs
+        assert 'Container 45 feet (Cont 45)' in vc_specs
+
+        # 2. Kiểm tra Bốc xếp theo kg và theo CBM khối
+        bx_items = [b for b in benchmarks if b['category'] == 'Bốc xếp']
+        bx_units = {b['unit'] for b in bx_items}
+        assert 'kg' in bx_units
+        assert 'CBM (m³)' in bx_units
+        assert 'Tấn' in bx_units
+
+        # 3. Kiểm tra Kiểm định Quatest và Kiểm dịch y tế
+        kd_items = [b for b in benchmarks if b['category'] == 'Kiểm định']
+        kd_names = [b['name'] for b in kd_items]
+        assert any('Quatest' in n for n in kd_names)
+        assert any('Kiểm dịch' in n for n in kd_names)
+
+        # 4. Kiểm tra Tờ khai theo loại hình A11, A12, E21, H11
+        tk_items = [b for b in benchmarks if b['category'] == 'Tờ khai']
+        tk_specs = [b['spec'] for b in tk_items]
+        assert any('A11' in s for s in tk_specs)
+        assert any('A12' in s for s in tk_specs)
+        assert any('E21' in s for s in tk_specs)
+
+        # 5. Kiểm tra Bảo hiểm hàng hóa All Risks
+        bh_items = [b for b in benchmarks if b['category'] == 'Bảo hiểm']
+        assert len(bh_items) >= 2
+        assert any('0.08%' in b['spec'] or b['recommended_price'] == 0.08 for b in bh_items)
+

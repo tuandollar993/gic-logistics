@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Đề Xuất Báo Giá - GIC Logistics{% endblock %}
+{% block title %}Đề Xuất Báo Giá & Cơ Sở Định Giá - GIC Logistics{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3 px-lg-4">
@@ -12,39 +12,39 @@
                 Đề Xuất Báo Giá & Cơ Sở Định Giá
             </h4>
             <div class="text-muted small mt-1">
-                Dữ liệu tham chiếu chuẩn xác từ lịch sử vận hành thực tế của GIC Logistics cho 6 nhóm dịch vụ
+                Biểu cước định mức chi tiết & cơ sở đối chứng thực tế từ lịch sử vận hành GIC Logistics
             </div>
         </div>
         <div class="d-flex align-items-center gap-2">
             <button type="button" class="btn-primary-gic" onclick="switchTab('builder-tab')">
-                <i class="fa-solid fa-plus me-1"></i> Tạo Báo Giá Mới
+                <i class="fa-solid fa-plus me-1"></i> Lập Báo Giá Mới
             </button>
             <button type="button" class="btn-secondary-gic" onclick="switchTab('benchmark-tab')">
-                <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Tra Cứu Giá Lịch Sử
+                <i class="fa-solid fa-magnifying-glass-chart me-1"></i> Tra Cứu Giá Lịch Sử & Biểu Cước (<span id="benchmarkHeaderCount">{{ stats.total }}</span>)
             </button>
         </div>
     </div>
 
-    <!-- Quick Stats Cards -->
+    <!-- Quick Stats Cards (7 Nhóm Nghiệp Vụ) -->
     <div class="row g-2 g-md-3 mb-4">
-        <div class="col-6 col-md-4 col-xl-2">
-            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('all')">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Tổng Hạng Mục</div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Tổng Biểu Cước</div>
                         <div class="fs-4 fw-bold text-dark font-mono mt-1">{{ stats.total }}</div>
                     </div>
-                    <div class="rounded-circle p-2 bg-primary bg-opacity-10 text-primary">
+                    <div class="rounded-circle p-2 bg-dark bg-opacity-10 text-dark">
                         <i class="fa-solid fa-database fa-lg"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
-            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Vận chuyển')">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('Vận chuyển')">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Vận Chuyển</div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Vận Chuyển (5T-Cont)</div>
                         <div class="fs-4 fw-bold text-primary font-mono mt-1">{{ stats.van_chuyen }}</div>
                     </div>
                     <div class="rounded-circle p-2 bg-primary bg-opacity-10 text-primary">
@@ -53,11 +53,11 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
-            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Bốc xếp')">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('Bốc xếp')">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Bốc Xếp</div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Bốc Xếp (kg/CBM)</div>
                         <div class="fs-4 fw-bold text-secondary font-mono mt-1">{{ stats.boc_xep }}</div>
                     </div>
                     <div class="rounded-circle p-2 bg-secondary bg-opacity-10 text-secondary">
@@ -66,11 +66,11 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
-            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Kiểm định')">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('Kiểm định')">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Kiểm Định / Quatest</div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Kiểm Định / Quatest</div>
                         <div class="fs-4 fw-bold text-success font-mono mt-1">{{ stats.kiem_dinh }}</div>
                     </div>
                     <div class="rounded-circle p-2 bg-success bg-opacity-10 text-success">
@@ -79,11 +79,11 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
-            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Tờ khai')">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('Tờ khai')">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Tờ Khai HQ</div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Tờ Khai (A11-A12)</div>
                         <div class="fs-4 fw-bold text-info font-mono mt-1">{{ stats.to_khai }}</div>
                     </div>
                     <div class="rounded-circle p-2 bg-info bg-opacity-10 text-info">
@@ -92,12 +92,25 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-xl-2">
-            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="filterCategory('Cửa khẩu')">
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('Bảo hiểm')">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.68rem;">Cửa Khẩu / CSHT</div>
-                        <div class="fs-4 fw-bold text-warning font-mono mt-1">{{ stats.cua_khau }}</div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Bảo Hiểm Hàng Hóa</div>
+                        <div class="fs-4 fw-bold text-danger font-mono mt-1">{{ stats.bao_hiem }}</div>
+                    </div>
+                    <div class="rounded-circle p-2 bg-danger bg-opacity-10 text-danger">
+                        <i class="fa-solid fa-shield-halved fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-xl">
+            <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white cursor-pointer hover-card" onclick="clickStatCard('Cửa khẩu')">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold" style="font-size: 0.65rem;">Cửa Khẩu & Phụ Phí</div>
+                        <div class="fs-4 fw-bold text-warning font-mono mt-1">{{ stats.cua_khau + stats.phu_phi }}</div>
                     </div>
                     <div class="rounded-circle p-2 bg-warning bg-opacity-10 text-warning">
                         <i class="fa-solid fa-archway fa-lg"></i>
@@ -110,17 +123,17 @@
     <!-- Navigation Tabs -->
     <ul class="nav nav-tabs nav-tabs-gic mb-4" id="quotationTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="builder-tab" data-bs-toggle="tab" data-bs-target="#builder-content" type="button" role="tab">
+            <button class="nav-link {% if active_tab == 'builder' %}active{% endif %}" id="builder-tab" data-bs-toggle="tab" data-bs-target="#builder-content" type="button" role="tab">
                 <i class="fa-solid fa-calculator me-2"></i> Lập Báo Giá Gửi Khách Hàng
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="benchmark-tab" data-bs-toggle="tab" data-bs-target="#benchmark-content" type="button" role="tab">
-                <i class="fa-solid fa-book-bookmark me-2"></i> Tra Cứu Giá Lịch Sử & Cơ Sở Định Giá ({{ benchmarks|length }})
+            <button class="nav-link {% if active_tab == 'benchmark' %}active{% endif %}" id="benchmark-tab" data-bs-toggle="tab" data-bs-target="#benchmark-content" type="button" role="tab">
+                <i class="fa-solid fa-book-bookmark me-2"></i> Tra Cứu Giá Lịch Sử & Cơ Sở Định Giá (<span id="benchmarkTabCount">{{ benchmarks|length }}</span>)
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-content" type="button" role="tab">
+            <button class="nav-link {% if active_tab == 'history' %}active{% endif %}" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-content" type="button" role="tab">
                 <i class="fa-solid fa-clock-rotate-left me-2"></i> Báo Giá Đã Lưu ({{ recent_quotes|length }})
             </button>
         </li>
@@ -128,11 +141,14 @@
 
     <!-- Tab Contents -->
     <div class="tab-content" id="quotationTabsContent">
-        <!-- TAB 1: BUILDER -->
-        <div class="tab-pane fade show active" id="builder-content" role="tabpanel">
+        <!-- ===================================================================
+             TAB 1: QUOTATION BUILDER
+        ==================================================================== -->
+        <div class="tab-pane fade {% if active_tab == 'builder' %}show active{% endif %}" id="builder-content" role="tabpanel">
             <div class="row g-4">
                 <!-- Left Column: Form & Item Adder -->
                 <div class="col-lg-6">
+                    <!-- Customer Information Box -->
                     <div class="card border-0 shadow-sm rounded-3 mb-4">
                         <div class="card-header bg-white border-bottom py-3">
                             <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
@@ -150,7 +166,7 @@
                                 </div>
                                 <div class="col-md-5">
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Người Liên Hệ</label>
-                                    <input type="text" id="quoteContact" class="form-control" placeholder="VD: Mr. Hùng - Trưởng phòng XNK" oninput="updateLivePreview()">
+                                    <input type="text" id="quoteContact" class="form-control" placeholder="VD: Mr. Hùng - Phòng XNK" oninput="updateLivePreview()">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Điện Thoại</label>
@@ -175,84 +191,109 @@
                         </div>
                     </div>
 
-                    <!-- Item Selector Box -->
+                    <!-- Smart Item Selector Box -->
                     <div class="card border-0 shadow-sm rounded-3">
                         <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
                             <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
                                 <i class="fa-solid fa-cart-plus text-primary"></i>
-                                2. Thêm Hạng Mục Dịch Vụ & Đề Xuất Giá
+                                2. Thêm Hạng Mục Báo Giá Chi Tiết
                             </h6>
-                            <span class="badge bg-light text-muted border font-sans" style="font-size: 0.7rem;">Gợi ý từ lịch sử</span>
+                            <span class="badge bg-success bg-opacity-10 text-success border font-sans" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-circle-check me-1"></i>Định mức tự động
+                            </span>
                         </div>
                         <div class="card-body p-3 p-md-4">
                             <div class="row g-3">
-                                <div class="col-md-5">
+                                <!-- Category -->
+                                <div class="col-md-6">
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
                                         Phân Loại Nghiệp Vụ <span class="text-danger">*</span>
                                     </label>
-                                    <select id="itemCategory" class="form-select" onchange="onCategoryChange()">
-                                        <option value="Vận chuyển">🚛 Vận chuyển (Tuyến đường & Loại xe)</option>
-                                        <option value="Bốc xếp">📦 Bốc xếp (Tại kho / Bến bãi / Sang hàng)</option>
-                                        <option value="Kiểm định">🧪 Kiểm định (Quatest / Kiểm dịch / Giám định)</option>
-                                        <option value="Tờ khai">📄 Tờ khai (DVTK HQ / Thủ tục hải quan)</option>
-                                        <option value="Cửa khẩu">🏛️ Cửa khẩu (Phí CSHT / Bến bãi / Vé xe)</option>
-                                        <option value="Phụ phí">🧾 Phụ phí (Lưu ca / Điểm trả phát sinh)</option>
+                                    <select id="itemCategory" class="form-select fw-semibold" onchange="onCategoryChange()">
+                                        <option value="Vận chuyển">🚛 Vận chuyển (Tuyến & Loại Xe 5T, 8T, Cont)</option>
+                                        <option value="Bốc xếp">📦 Bốc xếp (kg, Khối CBM, Trọn gói xe, Pallet)</option>
+                                        <option value="Kiểm định">🧪 Kiểm định (Quatest theo mẫu/lô, Kiểm dịch)</option>
+                                        <option value="Tờ khai">📄 Tờ khai HQ (Loại hình A11, A12, E21, H11)</option>
+                                        <option value="Bảo hiểm">🛡️ Bảo hiểm (All Risks ICC A 0.08%, Xe)</option>
+                                        <option value="Cửa khẩu">🏛️ Cửa khẩu (Phí CSHT xe/cont, Vé cổng bãi)</option>
+                                        <option value="Phụ phí">🧾 Phụ phí (Lưu ca quá 24h, Thêm điểm giao)</option>
                                     </select>
                                 </div>
-                                <div class="col-md-7">
+
+                                <!-- Service / Route Name -->
+                                <div class="col-md-6">
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
-                                        Tên Dịch Vụ / Tuyến Đường / Diễn Giải <span class="text-danger">*</span>
+                                        Dịch Vụ / Tuyến Đường <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" id="itemName" class="form-control" list="routeDatalist" placeholder="Chọn hoặc nhập tên dịch vụ..." oninput="querySuggestedPrice()">
-                                    <datalist id="routeDatalist">
-                                        {% for it in quick_opts.routes[:50] %}
-                                            <option value="{{ it.name }}">{{ it.category }} - {{ it.name }}</option>
-                                        {% endfor %}
+                                    <input type="text" id="itemName" class="form-control" list="serviceDatalist" placeholder="Chọn hoặc nhập tên dịch vụ..." oninput="querySuggestedPrice()">
+                                    <datalist id="serviceDatalist">
+                                        <!-- Populated dynamically based on category -->
                                     </datalist>
                                 </div>
-                                <div class="col-md-4">
+
+                                <!-- Specification / Vehicle / Unit Price Mode -->
+                                <div class="col-md-5">
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
-                                        Loại Xe / Quy Cách / Địa Điểm
+                                        Quy Cách / Loại Xe / Phương Án <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" id="itemSpec" class="form-control" list="specDatalist" placeholder="VD: Cont 45, 10T, Đà Lạt..." oninput="querySuggestedPrice()">
+                                    <input type="text" id="itemSpec" class="form-control" list="specDatalist" placeholder="VD: Xe 5T, Theo kg, Quatest mẫu..." oninput="querySuggestedPrice()">
                                     <datalist id="specDatalist">
-                                        {% for v in quick_opts.vehicles %}
-                                            <option value="{{ v }}">{{ v }}</option>
-                                        {% endfor %}
+                                        <!-- Populated dynamically based on category -->
                                     </datalist>
                                 </div>
+
+                                <!-- Unit of Measurement -->
                                 <div class="col-md-3">
-                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Đơn Vị Tính</label>
-                                    <input type="text" id="itemUnit" class="form-control" value="Chuyến" list="unitDatalist">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                                        Đơn Vị Tính <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" id="itemUnit" class="form-control text-center font-sans fw-semibold" value="Chuyến" list="unitDatalist">
                                     <datalist id="unitDatalist">
                                         <option value="Chuyến">Chuyến</option>
-                                        <option value="Xe">Xe</option>
-                                        <option value="Tờ">Tờ</option>
-                                        <option value="Lô">Lô</option>
-                                        <option value="Lần">Lần</option>
+                                        <option value="kg">kg</option>
                                         <option value="Tấn">Tấn</option>
+                                        <option value="CBM (m³)">CBM (m³)</option>
+                                        <option value="Xe">Xe</option>
+                                        <option value="Cont">Cont</option>
+                                        <option value="Pallet">Pallet</option>
                                         <option value="Mẫu">Mẫu</option>
+                                        <option value="Lô hàng">Lô hàng</option>
+                                        <option value="Tờ khai">Tờ khai</option>
+                                        <option value="Tờ khai nhánh">Tờ khai nhánh</option>
+                                        <option value="% Hóa đơn (Min 500k)">% Hóa đơn (Min 500k)</option>
+                                        <option value="Ca/Ngày">Ca/Ngày</option>
+                                        <option value="Điểm">Điểm</option>
                                     </datalist>
                                 </div>
-                                <div class="col-md-2">
-                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Lượng</label>
-                                    <input type="number" id="itemQty" class="form-control font-mono" value="1" min="1" step="0.5">
+
+                                <!-- Quantity -->
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Lượng (SL)</label>
+                                    <input type="number" id="itemQty" class="form-control font-mono text-center" value="1" min="0.1" step="any" oninput="updateLineTotalHint()">
                                 </div>
-                                <div class="col-md-3">
+
+                                <!-- Recommended Unit Price -->
+                                <div class="col-md-6">
                                     <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
-                                        Đơn Giá Đề Xuất <span class="text-danger">*</span>
+                                        Đơn Giá Đề Xuất (VNĐ) <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" inputmode="numeric" id="itemPrice" class="form-control font-mono fw-bold text-success" placeholder="0">
+                                    <input type="text" inputmode="numeric" id="itemPrice" class="form-control font-mono fw-bold text-success" placeholder="0" oninput="updateLineTotalHint()">
+                                </div>
+
+                                <!-- Hint of Line Total -->
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Ước Tính Thành Tiền</label>
+                                    <div id="lineTotalHint" class="form-control-plaintext font-mono fw-bold text-dark fs-6">0 ₫</div>
                                 </div>
                             </div>
 
-                            <!-- Live Basis Box -->
+                            <!-- Live Pricing Basis Card -->
                             <div id="pricingBasisCard" class="alert alert-info border-0 shadow-sm mt-3 p-3 d-none mb-0" style="border-radius: var(--radius-md);">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div class="d-flex gap-2">
                                         <i class="fa-solid fa-scale-balanced text-primary fs-5 mt-1"></i>
                                         <div>
-                                            <div class="fw-bold text-dark" style="font-size: 0.85rem;">Cơ Sở Định Giá Lịch Sử:</div>
+                                            <div class="fw-bold text-dark" style="font-size: 0.85rem;">Cơ Sở Định Giá & Căn Cứ Lịch Sử:</div>
                                             <div id="pricingBasisText" class="text-secondary small mt-1" style="line-height: 1.45;"></div>
                                         </div>
                                     </div>
@@ -262,7 +303,8 @@
                                 </div>
                             </div>
 
-                            <div class="d-flex justify-content-end mt-3">
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <small class="text-muted"><i class="fa-solid fa-lightbulb text-warning me-1"></i>Bạn có thể bấm trực tiếp nút <strong>"+ Chọn"</strong> ở tab Tra Cứu để đưa nhanh vào đây.</small>
                                 <button type="button" class="btn-primary-gic" onclick="addItemToQuote()">
                                     <i class="fa-solid fa-plus me-1"></i> Đưa Vào Báo Giá
                                 </button>
@@ -292,96 +334,101 @@
                             </div>
                         </div>
                         
-                        <div class="card-body p-4 bg-light overflow-auto" style="max-height: 680px;">
+                        <div class="card-body p-3 p-md-4 bg-light overflow-auto" style="max-height: 720px;">
                             <!-- Printable Document Paper -->
                             <div id="quotationSheet" class="bg-white p-4 rounded shadow-sm border" style="min-height: 520px; font-family: inherit;">
                                 <!-- Header of Quote -->
                                 <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
-                                    <div>
-                                        <div class="fw-black fs-5 text-primary font-mono" style="letter-spacing: 0.05em;">GIC LOGISTICS</div>
-                                        <div class="small text-muted">Hệ Thống Dịch Vụ Vận Tải & Khai Báo Hải Quan Chuyên Nghiệp</div>
-                                        <div class="small text-muted font-mono" style="font-size: 0.72rem;">Hotline: 0912.345.678 | Email: contact@giclogistics.vn</div>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div style="width: 44px; height: 44px; background: var(--gic-accent); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                            <i class="fa-solid fa-ship text-white fs-4"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-black fs-5 text-primary font-mono" style="letter-spacing: 0.05em;">GIC LOGISTICS</div>
+                                            <div class="text-muted" style="font-size: 0.72rem;">CÔNG TY TNHH TIẾP VẬN VÀ THƯƠNG MẠI GIC</div>
+                                            <div class="text-muted font-mono" style="font-size: 0.68rem;">Hotline: 0912.345.678 | Website: giclogistics.vn</div>
+                                        </div>
                                     </div>
                                     <div class="text-end">
-                                        <span class="badge bg-primary text-white font-mono px-2 py-1" style="font-size: 0.75rem;">BẢNG BÁO GIÁ</span>
-                                        <div class="small text-muted font-mono mt-1" id="previewQuoteDate">Ngày: --/--/2026</div>
-                                        <div class="small text-muted font-mono" id="previewQuoteValid">Hiệu lực: 15 ngày</div>
+                                        <span class="badge bg-primary text-white font-mono px-2 py-1">BẢNG BÁO GIÁ</span>
+                                        <div id="previewQuoteDate" class="text-muted font-mono mt-1" style="font-size: 0.72rem;">Ngày: --/--/----</div>
+                                        <div id="previewQuoteValid" class="text-muted font-mono" style="font-size: 0.72rem;">Hiệu lực: 15 ngày</div>
                                     </div>
                                 </div>
 
-                                <!-- Customer Info -->
-                                <div class="bg-light p-3 rounded-2 mb-3 border">
-                                    <div class="row g-2" style="font-size: 0.85rem;">
-                                        <div class="col-sm-7">
+                                <!-- Customer Info Preview -->
+                                <div class="bg-light p-2 rounded mb-3 border" style="font-size: 0.8rem;">
+                                    <div class="row g-1">
+                                        <div class="col-7">
                                             <span class="text-muted">Kính gửi:</span> <strong id="previewCustomerName" class="text-dark">---</strong>
                                         </div>
-                                        <div class="col-sm-5 text-sm-end">
-                                            <span class="text-muted">Người liên hệ:</span> <span id="previewContactPerson" class="fw-semibold">---</span>
+                                        <div class="col-5 text-end">
+                                            <span class="text-muted">Liên hệ:</span> <span id="previewContactPerson" class="fw-semibold">---</span>
                                         </div>
-                                        <div class="col-sm-7">
+                                        <div class="col-7">
                                             <span class="text-muted">Điện thoại:</span> <span id="previewPhone" class="font-mono">---</span>
                                         </div>
-                                        <div class="col-sm-5 text-sm-end">
-                                            <span class="text-muted">Đơn vị chào giá:</span> <span class="fw-semibold text-primary">GIC Logistics</span>
+                                        <div class="col-5 text-end">
+                                            <span class="text-muted">Đơn vị lập:</span> <span class="text-primary fw-semibold">{{ current_user.full_name }}</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Items Table -->
+                                <!-- Items Table Preview -->
                                 <div class="table-responsive mb-3">
-                                    <table class="table table-bordered align-middle" style="font-size: 0.82rem;">
-                                        <thead class="table-light text-center">
+                                    <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.78rem;">
+                                        <thead class="table-light text-center" style="font-size: 0.72rem;">
                                             <tr>
-                                                <th style="width: 35px;">#</th>
-                                                <th>Nội Dung Dịch Vụ / Tuyến</th>
+                                                <th style="width: 30px;">#</th>
+                                                <th>Dịch Vụ / Tuyến Đường</th>
                                                 <th>Quy Cách / Xe</th>
-                                                <th style="width: 50px;">ĐVT</th>
-                                                <th style="width: 50px;">SL</th>
-                                                <th style="width: 95px;">Đơn Giá</th>
-                                                <th style="width: 105px;">Thành Tiền</th>
-                                                <th class="no-print" style="width: 35px;">Xóa</th>
+                                                <th style="width: 55px;">ĐVT</th>
+                                                <th style="width: 45px;">SL</th>
+                                                <th class="text-end" style="width: 95px;">Đơn Giá</th>
+                                                <th class="text-end" style="width: 105px;">Thành Tiền</th>
+                                                <th style="width: 30px;" class="no-print"></th>
                                             </tr>
                                         </thead>
                                         <tbody id="previewItemsBody">
                                             <tr id="emptyPreviewRow">
                                                 <td colspan="8" class="text-center text-muted py-4">
                                                     Chưa có dịch vụ nào trong báo giá.<br>
-                                                    Sử dụng biểu mẫu bên trái để thêm các hạng mục vào.
+                                                    Thêm các hạng mục từ cột bên trái hoặc bấm nút <strong>"+ Chọn"</strong> ở tab Tra Cứu.
                                                 </td>
                                             </tr>
                                         </tbody>
-                                        <tfoot class="table-light fw-bold">
+                                        <tfoot class="table-light">
                                             <tr>
-                                                <td colspan="6" class="text-end">Cộng tiền dịch vụ:</td>
-                                                <td class="text-end font-mono tabular-nums" id="previewSubtotal">0 ₫</td>
+                                                <td colspan="6" class="text-end fw-bold">Tổng dịch vụ:</td>
+                                                <td id="previewSubtotal" class="text-end font-mono fw-bold">0 ₫</td>
                                                 <td class="no-print"></td>
                                             </tr>
                                             <tr>
-                                                <td colspan="6" class="text-end">Tiền thuế VAT (<span id="previewVatRate">10</span>%):</td>
-                                                <td class="text-end font-mono tabular-nums" id="previewVatAmount">0 ₫</td>
+                                                <td colspan="6" class="text-end text-muted">Thuế VAT (<span id="previewVatRate">10</span>%):</td>
+                                                <td id="previewVatAmount" class="text-end font-mono text-muted">0 ₫</td>
                                                 <td class="no-print"></td>
                                             </tr>
-                                            <tr class="fs-6 text-primary">
-                                                <td colspan="6" class="text-end text-uppercase">TỔNG CỘNG BÁO GIÁ:</td>
-                                                <td class="text-end font-mono fw-black tabular-nums" id="previewTotal">0 ₫</td>
+                                            <tr class="table-primary fw-bold">
+                                                <td colspan="6" class="text-end text-uppercase">TỔNG THANH TOÁN:</td>
+                                                <td id="previewTotal" class="text-end font-mono fs-6 text-primary fw-black">0 ₫</td>
                                                 <td class="no-print"></td>
                                             </tr>
                                         </tfoot>
                                     </table>
                                 </div>
 
-                                <!-- Terms & Notes -->
-                                <div class="p-3 bg-light rounded-2 border" style="font-size: 0.78rem; line-height: 1.5;">
-                                    <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-circle-info text-primary me-1"></i> Điều Khoản & Ghi Chú:</div>
-                                    <ul class="m-0 ps-3 text-muted">
-                                        <li>Báo giá đã bao gồm các chi phí cầu đường, lái xe, cước vận tải tiêu chuẩn (trừ các khoản phát sinh do thời gian chờ / hạ tải ngoài giờ nếu có).</li>
-                                        <li>Đơn giá có hiệu lực trong vòng <span id="previewValidDaysNote">15</span> ngày kể từ ngày lập báo giá.</li>
-                                        <li>Thanh toán: Chuyển khoản trong vòng 15-30 ngày sau khi nhận đầy đủ hóa đơn và biên bản giao nhận.</li>
+                                <!-- Terms & Conditions -->
+                                <div class="p-2 bg-light rounded border mb-3 text-muted" style="font-size: 0.72rem; line-height: 1.45;">
+                                    <strong>Ghi chú & Điều khoản:</strong>
+                                    <ul class="m-0 ps-3">
+                                        <li>Báo giá có hiệu lực trong vòng <strong id="previewValidDaysNote">15</strong> ngày kể từ ngày lập.</li>
+                                        <li>Đơn giá áp dụng cho tuyến đường và quy cách nêu trên, đã bao gồm các chi phí vận hành tiêu chuẩn.</li>
+                                        <li>Thanh toán theo hợp đồng trong vòng 15-30 ngày kể từ ngày nhận đủ hồ sơ và hóa đơn hợp lệ.</li>
                                     </ul>
                                 </div>
 
                                 <!-- Signature Sign-off -->
-                                <div class="row mt-4 pt-2 text-center" style="font-size: 0.82rem;">
+                                <div class="row mt-3 pt-2 text-center" style="font-size: 0.78rem;">
                                     <div class="col-6">
                                         <div class="fw-bold text-dark text-uppercase">Đại Diện Khách Hàng</div>
                                         <small class="text-muted">(Ký & ghi rõ họ tên)</small>
@@ -398,75 +445,80 @@
             </div>
         </div>
 
-        <!-- TAB 2: BENCHMARK EXPLORER -->
-        <div class="tab-pane fade" id="benchmark-content" role="tabpanel">
+        <!-- ===================================================================
+             TAB 2: BENCHMARK EXPLORER (INSTANT CLIENT FILTER - NO RELOAD)
+        ==================================================================== -->
+        <div class="tab-pane fade {% if active_tab == 'benchmark' %}show active{% endif %}" id="benchmark-content" role="tabpanel">
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white border-bottom py-3">
                     <div class="row g-2 align-items-center justify-content-between">
-                        <!-- Category Filters -->
-                        <div class="col-md-7">
-                            <div class="d-flex flex-wrap gap-1">
-                                <a href="?category=all" class="btn btn-sm {% if current_cat == 'all' %}btn-primary{% else %}btn-light border{% endif %}">
+                        <!-- Category Filter Buttons (Instant Client-side Toggle) -->
+                        <div class="col-lg-8">
+                            <div class="d-flex flex-wrap gap-1" id="benchmarkFilterButtonGroup">
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'all' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="all" onclick="filterCategoryClient('all')">
                                     Tất cả ({{ stats.total }})
-                                </a>
-                                <a href="?category=Vận chuyển" class="btn btn-sm {% if current_cat == 'Vận chuyển' %}btn-primary{% else %}btn-light border{% endif %}">
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Vận chuyển' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Vận chuyển" onclick="filterCategoryClient('Vận chuyển')">
                                     <i class="fa-solid fa-truck me-1"></i> Vận chuyển ({{ stats.van_chuyen }})
-                                </a>
-                                <a href="?category=Bốc xếp" class="btn btn-sm {% if current_cat == 'Bốc xếp' %}btn-primary{% else %}btn-light border{% endif %}">
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Bốc xếp' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Bốc xếp" onclick="filterCategoryClient('Bốc xếp')">
                                     <i class="fa-solid fa-boxes-stacked me-1"></i> Bốc xếp ({{ stats.boc_xep }})
-                                </a>
-                                <a href="?category=Kiểm định" class="btn btn-sm {% if current_cat == 'Kiểm định' %}btn-primary{% else %}btn-light border{% endif %}">
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Kiểm định' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Kiểm định" onclick="filterCategoryClient('Kiểm định')">
                                     <i class="fa-solid fa-vial me-1"></i> Kiểm định ({{ stats.kiem_dinh }})
-                                </a>
-                                <a href="?category=Tờ khai" class="btn btn-sm {% if current_cat == 'Tờ khai' %}btn-primary{% else %}btn-light border{% endif %}">
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Tờ khai' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Tờ khai" onclick="filterCategoryClient('Tờ khai')">
                                     <i class="fa-solid fa-file-lines me-1"></i> Tờ khai ({{ stats.to_khai }})
-                                </a>
-                                <a href="?category=Cửa khẩu" class="btn btn-sm {% if current_cat == 'Cửa khẩu' %}btn-primary{% else %}btn-light border{% endif %}">
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Bảo hiểm' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Bảo hiểm" onclick="filterCategoryClient('Bảo hiểm')">
+                                    <i class="fa-solid fa-shield-halved me-1"></i> Bảo hiểm ({{ stats.bao_hiem }})
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Cửa khẩu' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Cửa khẩu" onclick="filterCategoryClient('Cửa khẩu')">
                                     <i class="fa-solid fa-archway me-1"></i> Cửa khẩu ({{ stats.cua_khau }})
-                                </a>
-                                <a href="?category=Phụ phí" class="btn btn-sm {% if current_cat == 'Phụ phí' %}btn-primary{% else %}btn-light border{% endif %}">
+                                </button>
+                                <button type="button" class="btn btn-sm btn-cat-filter {% if current_cat == 'Phụ phí' %}btn-primary{% else %}btn-light border{% endif %}" data-cat="Phụ phí" onclick="filterCategoryClient('Phụ phí')">
                                     <i class="fa-solid fa-receipt me-1"></i> Phụ phí ({{ stats.phu_phi }})
-                                </a>
+                                </button>
                             </div>
                         </div>
                         
-                        <!-- Search Box -->
-                        <div class="col-md-5">
-                            <form method="GET" action="{{ url_for('quotations.index') }}" class="input-group input-group-sm">
-                                <input type="hidden" name="category" value="{{ current_cat }}">
-                                <input type="text" name="q" class="form-control" placeholder="Tìm tên tuyến, loại xe, dịch vụ..." value="{{ search_query }}">
-                                <button class="btn btn-primary-gic" type="submit">
-                                    <i class="fa-solid fa-magnifying-glass me-1"></i> Tìm
-                                </button>
-                                {% if search_query %}
-                                <a href="?category={{ current_cat }}" class="btn btn-outline-secondary">Xóa</a>
-                                {% endif %}
-                            </form>
+                        <!-- Instant Search Box -->
+                        <div class="col-lg-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                                <input type="text" id="benchmarkSearchInput" class="form-control border-start-0" placeholder="Lọc nhanh theo tên tuyến, loại xe, kg, m³..." value="{{ search_query }}" oninput="applyTableFilters()">
+                                <button class="btn btn-outline-secondary" type="button" onclick="clearBenchmarkSearch()">Xóa</button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 0.84rem;">
                             <thead class="table-light text-uppercase font-sans" style="font-size: 0.72rem; letter-spacing: 0.04em;">
                                 <tr>
                                     <th class="text-center" style="width: 40px;">#</th>
                                     <th style="width: 110px;">Phân Loại</th>
                                     <th>Dịch Vụ / Tuyến Đường</th>
-                                    <th>Quy Cách / Xe</th>
-                                    <th class="text-center">Số Chuyến</th>
-                                    <th class="text-end">Giá Mua NCC (TB)</th>
-                                    <th class="text-end">Giá Bán Thu Khách (TB)</th>
-                                    <th class="text-center">Biên LN</th>
-                                    <th class="text-end text-success fw-bold">Giá Đề Xuất</th>
+                                    <th>Quy Cách / Xe / Phương Án</th>
+                                    <th class="text-center" style="width: 65px;">ĐVT</th>
+                                    <th class="text-center" style="width: 60px;">Số Lần</th>
+                                    <th class="text-end" style="width: 115px;">Giá Vốn NCC</th>
+                                    <th class="text-end" style="width: 115px;">Giá Bán Thực Tế</th>
+                                    <th class="text-center" style="width: 70px;">Biên LN</th>
+                                    <th class="text-end text-success fw-bold" style="width: 125px;">Giá Đề Xuất</th>
                                     <th>Cơ Sở Lịch Sử Đối Chứng</th>
-                                    <th class="text-center" style="width: 90px;">Báo Giá</th>
+                                    <th class="text-center" style="width: 85px;">Báo Giá</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="benchmarkTableBody">
                                 {% for item in benchmarks %}
-                                <tr>
+                                <tr class="benchmark-row" 
+                                    data-category="{{ item.category }}" 
+                                    data-name="{{ item.name|lower }}" 
+                                    data-spec="{{ item.spec|lower }}"
+                                    data-unit="{{ item.unit }}">
                                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
                                     <td>
                                         {% set cat = item.category %}
@@ -478,6 +530,8 @@
                                             <span class="badge bg-secondary text-white border font-sans"><i class="fa-solid fa-boxes-stacked me-1"></i>Bốc xếp</span>
                                         {% elif cat == 'Kiểm định' %}
                                             <span class="badge bg-success text-white border font-sans"><i class="fa-solid fa-vial me-1"></i>Kiểm định</span>
+                                        {% elif cat == 'Bảo hiểm' %}
+                                            <span class="badge bg-danger text-white border font-sans"><i class="fa-solid fa-shield-halved me-1"></i>Bảo hiểm</span>
                                         {% elif cat == 'Phụ phí' %}
                                             <span class="badge bg-light text-dark border font-sans"><i class="fa-solid fa-receipt me-1"></i>Phụ phí</span>
                                         {% else %}
@@ -489,22 +543,31 @@
                                     </td>
                                     <td>
                                         {% if item.spec %}
-                                            <span class="badge bg-light text-dark border font-mono">{{ item.spec }}</span>
+                                            <span class="badge bg-light text-dark border font-mono fw-semibold">{{ item.spec }}</span>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-center font-mono fw-bold">{{ item.count }}</td>
-                                    <td class="text-end font-mono tabular-nums text-danger">
+                                    <td class="text-center font-sans fw-semibold text-secondary small">{{ item.unit }}</td>
+                                    <td class="text-center font-mono fw-bold text-muted">{{ item.count }}</td>
+                                    <td class="text-end font-mono tabular-nums text-danger small">
                                         {% if item.buy_avg > 0 %}
-                                            {{ item.buy_avg | format_money }}
+                                            {% if item.unit.startswith('%') %}
+                                                {{ item.buy_avg }}%
+                                            {% else %}
+                                                {{ item.buy_avg | format_money }}
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-end font-mono tabular-nums text-primary fw-semibold">
+                                    <td class="text-end font-mono tabular-nums text-primary small fw-semibold">
                                         {% if item.sell_avg > 0 %}
-                                            {{ item.sell_avg | format_money }}
+                                            {% if item.unit.startswith('%') %}
+                                                {{ item.sell_avg }}%
+                                            {% else %}
+                                                {{ item.sell_avg | format_money }}
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
@@ -518,30 +581,33 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-end font-mono fw-black text-success tabular-nums" style="font-size: 0.95rem;">
-                                        {{ item.recommended_price | format_money }}
+                                    <td class="text-end font-mono fw-black text-success tabular-nums" style="font-size: 0.92rem;">
+                                        {% if item.unit.startswith('%') %}
+                                            {{ item.recommended_price }}%
+                                        {% else %}
+                                            {{ item.recommended_price | format_money }}
+                                        {% endif %}
                                     </td>
                                     <td>
-                                        <div class="small text-secondary" style="font-size: 0.76rem; max-width: 320px; line-height: 1.35;">
+                                        <div class="small text-secondary" style="font-size: 0.75rem; max-width: 360px; line-height: 1.35;">
                                             <i class="fa-solid fa-circle-check text-success me-1"></i>{{ item.basis_text }}
                                         </div>
                                     </td>
                                     <td class="text-center">
-                                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 text-nowrap" 
-                                            onclick="selectBenchmarkToQuote('{{ item.category }}', '{{ item.name|escape }}', '{{ item.spec|escape }}', {{ item.recommended_price }})"
+                                        <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 text-nowrap fw-semibold" 
+                                            onclick="selectBenchmarkToQuote('{{ item.category }}', '{{ item.name|escape }}', '{{ item.spec|escape }}', {{ item.recommended_price }}, '{{ item.unit }}', '{{ item.basis_text|escape }}')"
                                             title="Đưa hạng mục này vào bảng báo giá">
                                             <i class="fa-solid fa-plus me-1"></i> Chọn
                                         </button>
                                     </td>
                                 </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="11" class="text-center py-5 text-muted">
+                                {% endfor %}
+                                <tr id="benchmarkEmptyRow" style="display: none;">
+                                    <td colspan="12" class="text-center py-5 text-muted">
                                         <i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block opacity-50"></i>
-                                        Không tìm thấy dữ liệu giá lịch sử phù hợp với tiêu chí tìm kiếm.
+                                        Không tìm thấy biểu cước nào phù hợp với bộ lọc hiện tại.
                                     </td>
                                 </tr>
-                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
@@ -549,8 +615,10 @@
             </div>
         </div>
 
-        <!-- TAB 3: SAVED QUOTATIONS -->
-        <div class="tab-pane fade" id="history-content" role="tabpanel">
+        <!-- ===================================================================
+             TAB 3: SAVED QUOTATIONS
+        ==================================================================== -->
+        <div class="tab-pane fade {% if active_tab == 'history' %}show active{% endif %}" id="history-content" role="tabpanel">
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white border-bottom py-3">
                     <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
@@ -622,6 +690,19 @@
     </div>
 </div>
 
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="gicToast" class="toast align-items-center text-bg-dark border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2" id="gicToastBody">
+                <i class="fa-solid fa-circle-check text-success fs-5"></i>
+                <span>Thành công!</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <!-- Print Styles -->
 <style>
 @media print {
@@ -645,6 +726,165 @@
 <!-- Quotation Builder Client Logic -->
 <script>
 let quotationItems = [];
+let activeCategoryFilter = '{{ current_cat or "all" }}';
+
+// Dictionary of Smart Presets for Fast Selector
+const CATEGORY_PRESETS = {
+    'Vận chuyển': {
+        services: [
+            'Hữu Nghị - Phú Thọ',
+            'Hữu Nghị - Vĩnh Phúc',
+            'Hữu Nghị - Bắc Ninh',
+            'Hữu Nghị - Hải Dương',
+            'Hữu Nghị - Hà Nội',
+            'Tân Thanh - Đồng Nai',
+            'Tân Thanh - Thanh Hóa',
+            'Tân Thanh - Thuận Thành',
+            'Hữu Nghị - Hưng Yên',
+            'Hữu Nghị - Nam Định'
+        ],
+        specs: [
+            'Xe 5 Tấn (5T)',
+            'Xe 8 Tấn (8T)',
+            'Xe 10 Tấn (10T)',
+            'Xe 15 Tấn (15T)',
+            'Container 20 feet (Cont 20)',
+            'Container 40 feet (Cont 40)',
+            'Container 45 feet (Cont 45)',
+            'Xe Fooc / Cont 53'
+        ],
+        unit: 'Chuyến'
+    },
+    'Bốc xếp': {
+        services: [
+            'Bốc xếp hàng hóa theo Trọng Lượng (Hàng nặng / Sắt thép / Gạch / Máy)',
+            'Bốc xếp hàng hóa theo Trọng Lượng (Đơn vị Tấn - Lô ≥ 3 Tấn)',
+            'Bốc xếp hàng hóa theo Thể Tích / Khối (Hàng nhẹ cồng kềnh / Thùng Carton)',
+            'Bốc xếp trọn gói theo Xe 5 Tấn (5T)',
+            'Bốc xếp trọn gói theo Xe 8 Tấn (8T)',
+            'Bốc xếp trọn gói theo Xe 15 Tấn (15T)',
+            'Bốc xếp trọn gói Container 40 feet / 45 feet',
+            'Sang hàng Pallet kéo tay (Kèm xe nâng tay)',
+            'Cơ giới sang hàng (Xe nâng hạ hàng nặng)',
+            'Mua phí sang tải cửa khẩu',
+            'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Hà Nội',
+            'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại TP. Hồ Chí Minh',
+            'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Nha Trang',
+            'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Vũng Tàu',
+            'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Đà Nẵng',
+            'Thuê kho & Bốc xếp phân phối tại Đà Lạt'
+        ],
+        specs: [
+            'Đơn giá tính theo kg (Hàng nặng)',
+            'Đơn giá tính theo Tấn (Lô ≥ 3 tấn)',
+            'Đơn giá tính theo CBM / m³ (<250 kg/m³)',
+            'Trọn gói Xe 5T (Sang hàng / Hạ kho)',
+            'Trọn gói Xe 8T (Sang hàng / Hạ kho)',
+            'Trọn gói Xe 15T (Xe tải 3 chân / 4 chân)',
+            'Trọn gói Cont 40 / Cont 45',
+            'Pallet kéo tay tiêu chuẩn (1.0m x 1.2m)',
+            'Xe nâng cơ giới (Forklift sang tải)',
+            'Phí bến bãi sang tải cửa khẩu'
+        ],
+        unit: 'Chuyến'
+    },
+    'Kiểm định': {
+        services: [
+            'Kiểm tra chất lượng Nhà nước (Quatest) - Thiết bị điện / Điện gia dụng',
+            'Kiểm tra chất lượng Nhà nước (Quatest) - Mẫu thử nghiệm phát sinh',
+            'Kiểm tra chất lượng Quatest - Hàng Dệt May / Quần Áo / Phụ Kiện',
+            'Kiểm tra chất lượng Quatest - Đồ chơi trẻ em / Nhựa / Đồ dùng tiếp xúc thực phẩm',
+            'Lấy mẫu kiểm tra chất lượng hiện trường nhanh tại Cửa khẩu',
+            'Phí chuẩn bị hồ sơ đăng ký kiểm tra chất lượng Nhà nước',
+            'Kiểm dịch y tế phương tiện & hàng hóa (Việt Nam)',
+            'Kiểm dịch y tế cửa khẩu Trung Quốc',
+            'Chi phí Hải quan & Giám định đồng bộ dây chuyền máy móc thiết bị',
+            'Phí chuẩn bị hồ sơ giám định đồng bộ',
+            'Chi phí xử lý kiểm định kỹ thuật đồng bộ tại hiện trường'
+        ],
+        specs: [
+            'Thiết bị điện & gia dụng (Lô ≤ 10 Tấn / 1 Container)',
+            'Mẫu phát sinh cùng lô (+1 mẫu thử nghiệm)',
+            'Hàng dệt may thời trang (Theo Lô hàng Keep Rise)',
+            'Hợp quy Đồ chơi trẻ em & Nhựa (QCVN 3:2019/BKHCN)',
+            'Lấy mẫu tại cửa khẩu (VN26040, VN26045, VN26047...)',
+            'Bộ hồ sơ đăng ký Cổng thông tin một cửa Quốc gia (NSW)',
+            'Kiểm dịch y tế cửa khẩu (Hữu Nghị / Tân Thanh)',
+            'Giám định đồng bộ máy móc thiết bị toàn bộ lô hàng'
+        ],
+        unit: 'Mẫu'
+    },
+    'Tờ khai': {
+        services: [
+            'Dịch vụ Tờ khai Hải quan - Loại hình A11 (Nhập tiêu dùng / Kinh doanh)',
+            'Dịch vụ Tờ khai Hải quan - Loại hình A12 (Nhập kinh doanh sản xuất)',
+            'Dịch vụ Tờ khai Hải quan - Loại hình E21 (Nhập nguyên liệu gia công)',
+            'Dịch vụ Tờ khai Hải quan - Loại hình H11 (Hàng phi mậu dịch / Quà biếu / Hàng mẫu)',
+            'Dịch vụ Tờ khai Hải quan - Loại hình G13 (Tạm nhập tái xuất / Miễn thuế)',
+            'Dịch vụ Tờ khai Hải quan - Loại hình A41 (Doanh nghiệp Chế xuất EPE)',
+            'Dịch vụ Tờ khai Hải quan - Lô hàng lẻ / Cont 20 tiêu chuẩn',
+            'Phụ thu Tờ khai nhánh (Từ dòng hàng thứ 5 trở đi)',
+            'Phí tiếp nhận hồ sơ & Xử lý tờ khai quay đầu',
+            'Phí Hải quan giám sát tại bến bãi cửa khẩu'
+        ],
+        specs: [
+            'Loại hình A11 (Nhập kinh doanh thương mại)',
+            'Loại hình A12 (Nhập sản xuất công nghiệp)',
+            'Loại hình E21 (Gia công thương nhân nước ngoài)',
+            'Loại hình H11 (Hàng phi mậu dịch)',
+            'Loại hình G13 (Tạm nhập hàng trưng bày/triển lãm)',
+            'Loại hình A41 (Khu phi thuế quan / DNCX)',
+            'Tờ khai thông thường (Lô lẻ / 1 Cont 20)',
+            'Tờ khai nhánh (>4 dòng hàng theo quy định VNACCS)',
+            'Hồ sơ quay đầu chuyển cửa khẩu',
+            'Hải quan giám sát bãi kiểm hóa'
+        ],
+        unit: 'Tờ khai'
+    },
+    'Bảo hiểm': {
+        services: [
+            'Bảo hiểm Mọi Rủi Ro Hàng Hóa Vận Chuyển (All Risks ICC Clause A)',
+            'Bảo hiểm Trách nhiệm Dân sự & Vật chất Phương tiện Xe vận tải'
+        ],
+        specs: [
+            'Bảo hiểm hàng hóa (0.08% Giá trị Hóa đơn / Invoice)',
+            'Bảo hiểm phương tiện vận chuyển nội địa'
+        ],
+        unit: '% Hóa đơn (Min 500k)'
+    },
+    'Cửa khẩu': {
+        services: [
+            'Phí Cơ Sở Hạ Tầng (CSHT) Cửa khẩu - Xe tải 5 Tấn đến 8 Tấn (8T)',
+            'Phí Cơ Sở Hạ Tầng (CSHT) Cửa khẩu - Xe Container 40 feet / 45 feet',
+            'Vé xe ra vào bến bãi cửa khẩu (Tân Thanh / Hữu Nghị)',
+            'Dấu đầu xe & Tem kiểm soát phương tiện Trung Quốc'
+        ],
+        specs: [
+            'Xe tải thùng 5T - 8T (Theo biên lai UBND tỉnh)',
+            'Xe Container 40 / 45 feet',
+            'Vé cổng phương tiện bến xe cửa khẩu',
+            'Tem xe & Dấu đầu xe TQ'
+        ],
+        unit: 'Xe'
+    },
+    'Phụ phí': {
+        services: [
+            'Phí Lưu Ca Xe tải 5 Tấn - 8 Tấn (Quá 24h tại kho / cửa khẩu)',
+            'Phí Lưu Ca Xe Container 40 feet / 45 feet (Quá 24h)',
+            'Phụ phí phát sinh thêm điểm trả hàng (Nội tỉnh)',
+            'Phụ phí phát sinh thêm điểm trả hàng (Ngoại tỉnh lân cận: Thái Bình, Hải Phòng...)',
+            'Phí Hủy Xe sau khi đã điều xe vào bến đóng hàng'
+        ],
+        specs: [
+            'Xe tải thùng 5T - 8T (>24 giờ)',
+            'Xe Container 40/45 (>24 giờ)',
+            'Điểm trả hàng thứ 2 trong cùng tỉnh/thành',
+            'Điểm trả hàng ngoại tỉnh (Cách tuyến chính >30km)',
+            'Hủy chuyến trong vòng 4 giờ trước giờ đóng'
+        ],
+        unit: 'Ca/Ngày'
+    }
+};
 
 function switchTab(tabId) {
     const tabEl = document.getElementById(tabId);
@@ -653,12 +893,96 @@ function switchTab(tabId) {
     }
 }
 
-function filterCategory(catName) {
+// Click on quick stat card: Switch to Tab 2 and filter instantly without reload
+function clickStatCard(catName) {
     switchTab('benchmark-tab');
-    window.location.href = `?category=${encodeURIComponent(catName)}`;
+    filterCategoryClient(catName);
 }
 
+// Filter category completely on client side (0ms latency, NO reload, NO tab jump)
+function filterCategoryClient(catName) {
+    activeCategoryFilter = catName;
+
+    // Update active button state
+    document.querySelectorAll('#benchmarkFilterButtonGroup .btn-cat-filter').forEach(btn => {
+        if (btn.getAttribute('data-cat') === catName) {
+            btn.classList.add('btn-primary');
+            btn.classList.remove('btn-light');
+        } else {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-light');
+        }
+    });
+
+    applyTableFilters();
+
+    // Silently update browser URL without reload
+    const url = new URL(window.location);
+    if (catName === 'all') {
+        url.searchParams.delete('category');
+    } else {
+        url.searchParams.set('category', catName);
+    }
+    url.searchParams.set('tab', 'benchmark');
+    window.history.replaceState({}, '', url);
+}
+
+function clearBenchmarkSearch() {
+    document.getElementById('benchmarkSearchInput').value = '';
+    applyTableFilters();
+}
+
+function applyTableFilters() {
+    const searchVal = (document.getElementById('benchmarkSearchInput')?.value || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('#benchmarkTableBody tr.benchmark-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const cat = row.getAttribute('data-category') || '';
+        const name = row.getAttribute('data-name') || '';
+        const spec = row.getAttribute('data-spec') || '';
+
+        const matchesCat = (activeCategoryFilter === 'all' || cat === activeCategoryFilter);
+        const matchesSearch = (!searchVal || name.includes(searchVal) || spec.includes(searchVal) || cat.toLowerCase().includes(searchVal));
+
+        if (matchesCat && matchesSearch) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    const emptyRow = document.getElementById('benchmarkEmptyRow');
+    if (emptyRow) {
+        emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+    }
+
+    const countBadge = document.getElementById('benchmarkTabCount');
+    if (countBadge) {
+        countBadge.innerText = visibleCount;
+    }
+}
+
+// Dynamic Preset options when Category changes in Builder
 function onCategoryChange() {
+    const cat = document.getElementById('itemCategory').value;
+    const preset = CATEGORY_PRESETS[cat] || { services: [], specs: [], unit: 'Chuyến' };
+
+    // Update Service Datalist
+    const sDatalist = document.getElementById('serviceDatalist');
+    sDatalist.innerHTML = preset.services.map(s => `<option value="${s}">${s}</option>`).join('');
+
+    // Update Spec Datalist
+    const specDatalist = document.getElementById('specDatalist');
+    specDatalist.innerHTML = preset.specs.map(sp => `<option value="${sp}">${sp}</option>`).join('');
+
+    // Auto set default unit
+    if (preset.unit) {
+        document.getElementById('itemUnit').value = preset.unit;
+    }
+
+    // If there is an active service selected, re-query
     querySuggestedPrice();
 }
 
@@ -669,6 +993,7 @@ function querySuggestedPrice() {
 
     if (!name) {
         document.getElementById('pricingBasisCard').classList.add('d-none');
+        updateLineTotalHint();
         return;
     }
 
@@ -681,11 +1006,16 @@ function querySuggestedPrice() {
                 basisText.innerText = res.basis_text;
                 basisCard.classList.remove('d-none');
                 basisCard.setAttribute('data-rec-price', res.recommended_price || 0);
+                if (res.unit && !document.getElementById('itemUnit').value) {
+                    document.getElementById('itemUnit').value = res.unit;
+                }
             } else {
                 basisCard.classList.add('d-none');
             }
         })
         .catch(() => {});
+
+    updateLineTotalHint();
 }
 
 function applySuggestedPrice() {
@@ -693,6 +1023,21 @@ function applySuggestedPrice() {
     const recPrice = parseFloat(basisCard.getAttribute('data-rec-price') || 0);
     if (recPrice > 0) {
         document.getElementById('itemPrice').value = formatNumberDisplay(recPrice);
+        updateLineTotalHint();
+    }
+}
+
+function updateLineTotalHint() {
+    const qty = parseFloat(document.getElementById('itemQty').value) || 1;
+    const price = parseMoneyInput(document.getElementById('itemPrice').value);
+    const unit = document.getElementById('itemUnit').value.trim();
+    const total = qty * price;
+    const hintEl = document.getElementById('lineTotalHint');
+
+    if (unit.startsWith('%')) {
+        hintEl.innerText = `${price}% x SL ${qty}`;
+    } else {
+        hintEl.innerText = formatNumberDisplay(total) + ' ₫';
     }
 }
 
@@ -702,9 +1047,10 @@ function formatNumberDisplay(num) {
 
 function parseMoneyInput(val) {
     if (!val) return 0;
-    return parseFloat(String(val).replace(/[^\d]/g, '')) || 0;
+    return parseFloat(String(val).replace(/[^\d.]/g, '')) || 0;
 }
 
+// Add Item From Builder Form
 function addItemToQuote() {
     const cat = document.getElementById('itemCategory').value;
     const name = document.getElementById('itemName').value.trim();
@@ -725,6 +1071,8 @@ function addItemToQuote() {
         return;
     }
 
+    const lineTotal = unit.startsWith('%') ? price : (qty * price);
+
     quotationItems.push({
         id: Date.now(),
         category: cat,
@@ -733,7 +1081,7 @@ function addItemToQuote() {
         unit: unit,
         quantity: qty,
         unit_price: price,
-        total: qty * price,
+        total: lineTotal,
         basis: basisText
     });
 
@@ -743,22 +1091,41 @@ function addItemToQuote() {
     document.getElementById('itemPrice').value = '';
     document.getElementById('itemQty').value = '1';
     document.getElementById('pricingBasisCard').classList.add('d-none');
+    updateLineTotalHint();
 
     renderQuotationPreview();
+    showToastNotification(`Đã thêm "${name}" vào bảng báo giá.`);
+}
+
+// 1-Click Select from Tab 2 Benchmark Explorer to Quotation
+function selectBenchmarkToQuote(cat, name, spec, recPrice, unit, basisText) {
+    const cleanUnit = unit || 'Chuyến';
+    const priceNum = parseFloat(recPrice) || 0;
+    const lineTotal = cleanUnit.startsWith('%') ? priceNum : priceNum;
+
+    quotationItems.push({
+        id: Date.now(),
+        category: cat,
+        name: name,
+        spec: spec || '',
+        unit: cleanUnit,
+        quantity: 1,
+        unit_price: priceNum,
+        total: lineTotal,
+        basis: basisText || ''
+    });
+
+    renderQuotationPreview();
+
+    // Switch to Builder tab and scroll to sheet
+    switchTab('builder-tab');
+    document.getElementById('quotationSheet').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToastNotification(`✅ Đã thêm: ${name} (${spec || cleanUnit}) vào báo giá!`);
 }
 
 function removeItemFromQuote(index) {
     quotationItems.splice(index, 1);
     renderQuotationPreview();
-}
-
-function selectBenchmarkToQuote(cat, name, spec, recPrice) {
-    switchTab('builder-tab');
-    document.getElementById('itemCategory').value = cat;
-    document.getElementById('itemName').value = name;
-    document.getElementById('itemSpec').value = spec || '';
-    document.getElementById('itemPrice').value = formatNumberDisplay(recPrice);
-    querySuggestedPrice();
 }
 
 function renderQuotationPreview() {
@@ -768,24 +1135,28 @@ function renderQuotationPreview() {
             <tr id="emptyPreviewRow">
                 <td colspan="8" class="text-center text-muted py-4">
                     Chưa có dịch vụ nào trong báo giá.<br>
-                    Sử dụng biểu mẫu bên trái để thêm các hạng mục vào.
+                    Thêm các hạng mục từ cột bên trái hoặc bấm nút <strong>"+ Chọn"</strong> ở tab Tra Cứu.
                 </td>
             </tr>`;
     } else {
         let html = '';
         quotationItems.forEach((it, idx) => {
+            const isPercent = String(it.unit).startsWith('%');
+            const priceStr = isPercent ? `${it.unit_price}%` : `${formatNumberDisplay(it.unit_price)} ₫`;
+            const totalStr = isPercent ? `${it.total}%` : `${formatNumberDisplay(it.total)} ₫`;
+
             html += `
                 <tr>
                     <td class="text-center font-mono text-muted">${idx + 1}</td>
                     <td>
                         <strong class="text-dark">${it.name}</strong>
-                        ${it.basis ? `<br><small class="text-muted" style="font-size: 0.68rem;"><i class="fa-solid fa-scale-balanced me-1"></i>${it.basis}</small>` : ''}
+                        ${it.basis ? `<br><small class="text-muted" style="font-size: 0.68rem;"><i class="fa-solid fa-scale-balanced me-1 text-primary"></i>${it.basis}</small>` : ''}
                     </td>
                     <td>${it.spec ? `<span class="badge bg-light text-dark border font-mono">${it.spec}</span>` : '-'}</td>
-                    <td class="text-center">${it.unit}</td>
+                    <td class="text-center text-secondary small font-semibold">${it.unit}</td>
                     <td class="text-center font-mono">${it.quantity}</td>
-                    <td class="text-end font-mono">${formatNumberDisplay(it.unit_price)} ₫</td>
-                    <td class="text-end font-mono fw-bold text-dark">${formatNumberDisplay(it.total)} ₫</td>
+                    <td class="text-end font-mono text-success">${priceStr}</td>
+                    <td class="text-end font-mono fw-bold text-dark">${totalStr}</td>
                     <td class="text-center no-print">
                         <button type="button" class="btn btn-sm text-danger p-0 border-0" onclick="removeItemFromQuote(${idx})" title="Xóa dòng này">
                             <i class="fa-solid fa-trash-can"></i>
@@ -799,7 +1170,12 @@ function renderQuotationPreview() {
 }
 
 function calculateQuoteTotals() {
-    const subtotal = quotationItems.reduce((acc, it) => acc + it.total, 0);
+    const subtotal = quotationItems.reduce((acc, it) => {
+        // Skip pure percentage lines from monetary addition
+        if (String(it.unit).startsWith('%')) return acc;
+        return acc + (it.total || 0);
+    }, 0);
+
     const vatRate = parseFloat(document.getElementById('quoteVatPercent').value) || 0;
     const vatAmount = subtotal * (vatRate / 100);
     const total = subtotal + vatAmount;
@@ -840,30 +1216,41 @@ function copyZaloText() {
         return;
     }
     const cust = document.getElementById('quoteCustomer').value.trim() || 'Quý Khách Hàng';
-    const subtotal = quotationItems.reduce((acc, it) => acc + it.total, 0);
+    const subtotal = quotationItems.reduce((acc, it) => {
+        if (String(it.unit).startsWith('%')) return acc;
+        return acc + (it.total || 0);
+    }, 0);
     const vatRate = parseFloat(document.getElementById('quoteVatPercent').value) || 0;
     const vatAmount = subtotal * (vatRate / 100);
     const total = subtotal + vatAmount;
 
     let text = `📦 BẢNG BÁO GIÁ DỊCH VỤ - GIC LOGISTICS\n`;
     text += `👤 Kính gửi: ${cust}\n`;
-    text += `📅 Ngày: ${new Date().toLocaleDateString('vi-VN')}\n`;
+    text += `📅 Ngày lập: ${new Date().toLocaleDateString('vi-VN')}\n`;
     text += `------------------------------------\n`;
     quotationItems.forEach((it, idx) => {
-        text += `${idx + 1}. ${it.name} ${it.spec ? '(' + it.spec + ')' : ''}\n`;
-        text += `   - SL: ${it.quantity} ${it.unit} x ${formatNumberDisplay(it.unit_price)} đ = ${formatNumberDisplay(it.total)} đ\n`;
+        const isPercent = String(it.unit).startsWith('%');
+        text += `${idx + 1}. ${it.name} ${it.spec ? '[' + it.spec + ']' : ''}\n`;
+        if (isPercent) {
+            text += `   - Tỷ lệ: ${it.unit_price}% giá trị hàng hóa\n`;
+        } else {
+            text += `   - SL: ${it.quantity} ${it.unit} x ${formatNumberDisplay(it.unit_price)} đ = ${formatNumberDisplay(it.total)} đ\n`;
+        }
+        if (it.basis) {
+            text += `   ℹ️ Cơ sở: ${it.basis}\n`;
+        }
     });
     text += `------------------------------------\n`;
-    text += `💰 Cộng dịch vụ: ${formatNumberDisplay(subtotal)} đ\n`;
+    text += `💰 Cộng tiền dịch vụ: ${formatNumberDisplay(subtotal)} đ\n`;
     if (vatRate > 0) {
         text += `🧾 Thuế VAT (${vatRate}%): ${formatNumberDisplay(vatAmount)} đ\n`;
     }
     text += `🎯 TỔNG CỘNG: ${formatNumberDisplay(total)} đ\n\n`;
-    text += `📌 Đơn giá đã bao gồm các chi phí vận hành tiêu chuẩn, hiệu lực trong 15 ngày.\n`;
+    text += `📌 Hiệu lực báo giá: ${document.getElementById('quoteValidDays').value || 15} ngày.\n`;
     text += `Trân trọng cảm ơn sự hợp tác của Quý khách!`;
 
     navigator.clipboard.writeText(text).then(() => {
-        alert('✅ Đã sao chép nội dung bảng báo giá vào bộ nhớ tạm! Bạn có thể dán ngay vào Zalo hoặc Telegram để gửi khách.');
+        showToastNotification('✅ Đã sao chép nội dung bảng báo giá vào Clipboard! Bạn có thể dán ngay vào Zalo/Telegram.');
     }).catch(() => {
         alert('Không thể sao chép tự động. Vui lòng cho phép quyền clipboard.');
     });
@@ -913,17 +1300,59 @@ function saveQuotation() {
     });
 }
 
+function showToastNotification(msg) {
+    const toastBody = document.getElementById('gicToastBody');
+    if (toastBody) {
+        toastBody.innerHTML = `<i class="fa-solid fa-circle-check text-success fs-5"></i> <span>${msg}</span>`;
+    }
+    const toastEl = document.getElementById('gicToast');
+    if (toastEl) {
+        new bootstrap.Toast(toastEl, { delay: 3500 }).show();
+    }
+}
+
 // Auto format currency inputs
 document.getElementById('itemPrice').addEventListener('input', function(e) {
     let val = parseMoneyInput(this.value);
     if (val > 0) {
         this.value = formatNumberDisplay(val);
     }
+    updateLineTotalHint();
 });
 
-// Initialize Date
+// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
     updateLivePreview();
+    onCategoryChange();
+
+    // Check URL parameters or hash to activate tab
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam === 'benchmark' || window.location.hash === '#benchmark-content') {
+        switchTab('benchmark-tab');
+    }
+
+    // Save active tab on change
+    const tabElements = document.querySelectorAll('button[data-bs-toggle="tab"]');
+    tabElements.forEach(tabEl => {
+        tabEl.addEventListener('shown.bs.tab', function(event) {
+            const id = event.target.id;
+            const url = new URL(window.location);
+            if (id === 'benchmark-tab') {
+                url.searchParams.set('tab', 'benchmark');
+            } else if (id === 'history-tab') {
+                url.searchParams.set('tab', 'history');
+            } else {
+                url.searchParams.set('tab', 'builder');
+            }
+            window.history.replaceState({}, '', url);
+        });
+    });
+
+    // If there is initial category filter in URL, apply it
+    if (activeCategoryFilter && activeCategoryFilter !== 'all') {
+        filterCategoryClient(activeCategoryFilter);
+    }
 });
 </script>
 {% endblock %}

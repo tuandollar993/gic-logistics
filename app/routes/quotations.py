@@ -36,8 +36,16 @@ def index():
         'kiem_dinh': sum(1 for b in all_b if b['category'] == 'Kiểm định'),
         'to_khai': sum(1 for b in all_b if b['category'] == 'Tờ khai'),
         'cua_khau': sum(1 for b in all_b if b['category'] == 'Cửa khẩu'),
+        'bao_hiem': sum(1 for b in all_b if b['category'] == 'Bảo hiểm'),
         'phu_phi': sum(1 for b in all_b if b['category'] == 'Phụ phí')
     }
+
+    active_tab = request.args.get('tab')
+    if not active_tab:
+        if cat_filter != 'all' or search_query:
+            active_tab = 'benchmark'
+        else:
+            active_tab = 'builder'
 
     return render_template(
         'quotations.html',
@@ -46,7 +54,8 @@ def index():
         recent_quotes=recent_quotes,
         stats=stats,
         current_cat=cat_filter,
-        search_query=search_query
+        search_query=search_query,
+        active_tab=active_tab
     )
 
 @quotations_bp.route('/api/benchmarks', methods=['GET'])
@@ -74,6 +83,7 @@ def api_suggest():
         return jsonify({
             'success': True,
             'match': match,
+            'unit': match.get('unit', 'Chuyến'),
             'recommended_price': match['recommended_price'],
             'basis_text': match['basis_text']
         })
