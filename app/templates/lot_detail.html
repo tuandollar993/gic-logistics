@@ -22,8 +22,8 @@
         <p class="text-muted small m-0">Đối soát doanh thu bán hàng và chi phí vận hành thực tế</p>
     </div>
 
+    {% if current_user.is_manager %}
     <div class="d-flex gap-2">
-        {% if current_user.is_manager %}
         <button type="button" class="btn-secondary-gic" id="btnOpenAssign"
             data-lot-id="{{ lot.id }}"
             data-lot-name="{{ lot.lot_label }}"
@@ -32,16 +32,8 @@
             <i class="fa-solid fa-user-clock text-primary"></i>
             <span>Phân Công & Hạn Chót</span>
         </button>
-        {% endif %}
-        <a href="{{ url_for('costs.entry', lot_id=lot.id) }}" class="btn-secondary-gic">
-            <i class="fa-solid fa-list-check text-secondary"></i>
-            <span>Nhập Nhanh CP Hàng Loạt</span>
-        </a>
-        <button type="button" class="btn-primary-gic" data-bs-toggle="modal" data-bs-target="#unifiedItemModal">
-            <i class="fa-solid fa-circle-plus"></i>
-            <span>Thêm Khoản Mục (Mua / Bán)</span>
-        </button>
     </div>
+    {% endif %}
 </div>
 
 <!-- Header Info & Financial Balance Cards -->

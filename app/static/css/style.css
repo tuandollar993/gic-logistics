@@ -600,24 +600,155 @@ body {
     border-radius: 9999px;
 }
 
-/* Responsive adjustments */
-@media (max-width: 992px) {
+/* ==========================================================================
+   Mobile Bottom Navigation & Mobile Optimizations
+   ========================================================================== */
+
+/* Mobile Topbar */
+.gic-mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1040;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background-color: var(--gic-navy-900);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-sm);
+}
+
+.gic-mobile-topbar .user-avatar {
+    width: 30px;
+    height: 30px;
+    background: var(--gic-navy-700);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #38bdf8;
+    font-size: 0.75rem;
+}
+
+/* Mobile Bottom Navigation Bar */
+.gic-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background-color: #0b1528;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    z-index: 1050;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.gic-bottom-nav .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 6px 2px;
+    transition: all 0.15s ease-in-out;
+    position: relative;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gic-bottom-nav .bottom-nav-item i {
+    font-size: 1.15rem;
+    transition: transform 0.15s ease;
+}
+
+.gic-bottom-nav .bottom-nav-item:active {
+    transform: scale(0.92);
+}
+
+.gic-bottom-nav .bottom-nav-item.active {
+    color: #38bdf8;
+    font-weight: 700;
+}
+
+.gic-bottom-nav .bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background: #38bdf8;
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 0 8px #38bdf8;
+}
+
+.gic-bottom-nav .bottom-nav-item.active i {
+    transform: translateY(-2px);
+    color: #38bdf8;
+}
+
+/* Responsive Overrides on Mobile (< 992px) */
+@media (max-width: 991.98px) {
+    /* Hide desktop sidebar on mobile to free up entire screen */
     .gic-sidebar {
-        width: 72px;
-    }
-    .gic-sidebar .brand-title,
-    .gic-sidebar .brand-sub,
-    .gic-sidebar .user-info-text,
-    .gic-sidebar .nav-section-label,
-    .gic-sidebar .nav-link span {
         display: none !important;
     }
-    .gic-sidebar .nav-link {
-        justify-content: center;
-        padding: 12px;
-        margin: 4px;
+
+    /* Wrap content in full-width vertical layout */
+    .d-flex.min-vh-100 {
+        flex-direction: column !important;
     }
+
+    /* Main content padding for bottom nav & top bar */
     .gic-main-content {
-        padding: 20px;
+        padding: 14px 12px 85px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        overflow-x: hidden;
+    }
+
+    /* KPI Cards & Headers on Mobile */
+    .kpi-card {
+        padding: 14px 16px !important;
+    }
+
+    .kpi-card .kpi-value {
+        font-size: 1.35rem !important;
+    }
+
+    /* Data Table Card on Mobile */
+    .data-table-card {
+        border-radius: var(--radius-sm) !important;
+        margin-bottom: 16px;
+    }
+
+    .table-responsive {
+        border-radius: var(--radius-sm);
+        margin: 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Financial Summary Banner on Lot Detail */
+    .row.g-2.text-center.my-auto .col-sm-3 {
+        width: 50% !important;
+        margin-bottom: 6px;
+    }
+
+    /* Modals on Mobile */
+    .modal-dialog {
+        margin: 12px !important;
     }
 }
+
