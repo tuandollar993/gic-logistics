@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Nhiệm Vụ Của Tôi - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Nhiệm Vụ Của Tôi</h2>
+        <p class="text-muted small m-0 mt-1">Danh sách các lô hàng bạn được phân công điền và đối soát chi phí vận hành</p>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('tasks.my_tasks') }}" class="btn-secondary-gic py-1 px-3 {% if not status_filter %}bg-light border-dark{% endif %}" style="font-size: 0.8rem;">Tất cả</a>
+        <a href="{{ url_for('tasks.my_tasks', status='pending') }}" class="btn-secondary-gic py-1 px-3 {% if status_filter == 'pending' %}bg-light border-warning{% endif %}" style="font-size: 0.8rem;">Đang chờ</a>
+        <a href="{{ url_for('tasks.my_tasks', status='overdue') }}" class="btn-secondary-gic py-1 px-3 {% if status_filter == 'overdue' %}bg-light border-danger text-danger{% endif %}" style="font-size: 0.8rem;">Quá hạn</a>
+        <a href="{{ url_for('tasks.my_tasks', status='completed') }}" class="btn-secondary-gic py-1 px-3 {% if status_filter == 'completed' %}bg-light border-success text-success{% endif %}" style="font-size: 0.8rem;">Đã xong</a>
+    </div>
+</div>
+
+<!-- Task Table Card -->
+<div class="data-table-card mb-4">
+    <div class="table-responsive">
+        <table class="table-custom-clean">
+            <thead>
+                <tr>
+                    <th>Lô Hàng</th>
+                    <th>Khách Hàng / Dự Án</th>
+                    <th>Số Tờ Khai HQ</th>
+                    <th>Kỳ Báo Cáo</th>
+                    <th>Hạn Chót (Deadline)</th>
+                    <th>Thời Gian Còn Lại</th>
+                    <th class="text-center">Chi Phí Đã Điền</th>
+                    <th class="text-center">Trạng Thái</th>
+                    <th class="text-end">Hành Động</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                    <tr>
+                        <td class="fw-bold">
+                            <span class="font-mono text-primary">{{ task.lot.lot_label if task.lot else ('Task #' ~ task.id) }}</span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ task.lot.customer.name if (task.lot and task.lot.customer) else '-' }}</div>
+                            <small class="text-muted">{{ task.lot.company or '' }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border font-mono">{{ task.lot.customs_declaration if task.lot else '-' }}</span>
+                        </td>
+                        <td>
+                            <span class="font-mono text-dark">Tháng {{ "%02d"|format(task.lot.month) }} / {{ task.lot.year }}</span>
+                        </td>
+                        <td>
+                            <span class="font-mono fw-bold {% if task.is_overdue %}text-danger{% else %}text-dark{% endif %}">
+                                {{ task.deadline.strftime('%d/%m/%Y') }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if task.status == 'completed' %}
+                                <span class="badge-state badge-state-done font-mono"><i class="fa-solid fa-check"></i> Đã hoàn thành</span>
+                            {% elif task.days_remaining < 0 %}
+                                <span class="badge-state badge-state-overdue font-mono"><i class="fa-solid fa-triangle-exclamation"></i> Quá hạn {{ task.days_remaining|abs }} ngày!</span>
+                            {% elif task.days_remaining == 0 %}
+                                <span class="badge-state badge-state-overdue font-mono" style="background:#fff7ed; color:#c2410c; border-color:#fed7aa;"><i class="fa-solid fa-hourglass-end"></i> Hôm nay là hạn chót!</span>
+                            {% elif task.days_remaining == 1 %}
+                                <span class="badge-state badge-state-pending font-mono"><i class="fa-regular fa-clock"></i> Còn 1 ngày</span>
+                            {% else %}
+                                <span class="badge-state badge-state-neutral font-mono"><i class="fa-regular fa-calendar"></i> Còn {{ task.days_remaining }} ngày</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center font-mono fw-bold">
+                            <span class="{% if task.lot.operating_costs|length > 0 %}text-success{% else %}text-muted{% endif %}">
+                                {{ task.lot.operating_costs|length }} mục
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if task.status == 'completed' %}
+                                <span class="badge-state badge-state-done">Hoàn thành</span>
+                            {% elif task.is_overdue %}
+                                <span class="badge-state badge-state-overdue">Quá hạn</span>
+                            {% else %}
+                                <span class="badge-state badge-state-pending">Cần điền</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('costs.entry', lot_id=task.lot_id) }}" class="btn-primary-gic py-1 px-3" style="font-size: 0.8rem;">
+                                <i class="fa-solid fa-pencil"></i>
+                                <span>Điền Chi Phí</span>
+                            </a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="fa-regular fa-face-smile fs-1 d-block mb-2 text-success"></i>
+                            Tuyệt vời! Bạn không có nhiệm vụ nào tồn đọng trong danh sách.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Quản Lý Nhân Viên - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Header & Action Bar -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Quản Lý Danh Sách Nhân Viên</h2>
+        <p class="text-muted small m-0 mt-1">Phân quyền, quản lý tài khoản đăng nhập, cài đặt mật khẩu và liên kết Telegram</p>
+    </div>
+
+    <button class="btn-primary-gic d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addUserModal">
+        <i class="fa-solid fa-user-plus"></i>
+        <span>Thêm Nhân Viên Mới</span>
+    </button>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Tổng Nhân Sự</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-users text-primary"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-dark">{{ users|length }}</div>
+            <div class="small text-muted mt-1">Đội ngũ vận hành & quản lý</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Quản Lý (Manager)</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-user-shield text-danger"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-danger">{{ users|selectattr('role', 'equalto', 'manager')|list|length }}</div>
+            <div class="small text-muted mt-1">Toàn quyền hệ thống & giao việc</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Nhân Viên (Staff)</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-user-tag text-info"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-primary">{{ users|selectattr('role', 'equalto', 'staff')|list|length }}</div>
+            <div class="small text-muted mt-1">Điền và kiểm soát chi phí vận hành</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Đang Hoạt Động</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-circle-check text-success"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-success">{{ users|selectattr('is_active')|list|length }} / {{ users|length }}</div>
+            <div class="small text-muted mt-1">Tài khoản có quyền đăng nhập</div>
+        </div>
+    </div>
+</div>
+
+<!-- Users Data Table -->
+<div class="data-table-card mb-4 shadow-sm border rounded-3 bg-white">
+    <div class="table-responsive">
+        <table class="table-custom-clean table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 45px;">#</th>
+                    <th>Họ Và Tên</th>
+                    <th>Tên Đăng Nhập</th>
+                    <th>Vai Trò</th>
+                    <th>Telegram Chat ID</th>
+                    <th>Email</th>
+                    <th>Trạng Thái</th>
+                    <th class="text-end" style="min-width: 200px;">Thao Tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                    <tr>
+                        <td class="font-mono text-muted text-center">{{ loop.index }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" 
+                                     style="width: 32px; height: 32px; font-size: 0.82rem; background: {% if u.role == 'manager' %}#dc2626{% else %}#0284c7{% endif %};">
+                                    {{ u.full_name[:1] }}
+                                </div>
+                                <div>
+                                    <strong class="text-dark d-block">{{ u.full_name }}</strong>
+                                    {% if u.id == current_user.id %}
+                                        <span class="badge bg-secondary" style="font-size: 0.65rem;">Tài khoản hiện tại</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="font-mono badge bg-light text-dark border">{{ u.username }}</span>
+                        </td>
+                        <td>
+                            {% if u.role == 'manager' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.72rem; font-weight: 700;">QUẢN LÝ</span>
+                            {% else %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size: 0.72rem; font-weight: 700;">NHÂN VIÊN</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.telegram_chat_id %}
+                                <span class="font-mono text-success small"><i class="fa-brands fa-telegram me-1"></i>{{ u.telegram_chat_id }}</span>
+                            {% else %}
+                                <span class="text-muted small italic">Chưa liên kết</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ u.email or '-' }}</small>
+                        </td>
+                        <td>
+                            {% if u.is_active %}
+                                <span class="badge-state badge-state-done d-inline-flex align-items-center gap-1">
+                                    <i class="fa-solid fa-circle" style="font-size: 0.45rem;"></i> Hoạt động
+                                </span>
+                            {% else %}
+                                <span class="badge-state badge-state-neutral text-danger bg-danger bg-opacity-10 border border-danger border-opacity-25">
+                                    Vô hiệu hóa
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex align-items-center gap-1">
+                                <!-- Nút Sửa Thông Tin -->
+                                <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-user" style="font-size: 0.78rem;" 
+                                    data-id="{{ u.id }}"
+                                    data-username="{{ u.username }}"
+                                    data-name="{{ u.full_name }}"
+                                    data-role="{{ u.role }}"
+                                    data-email="{{ u.email or '' }}"
+                                    data-telegram="{{ u.telegram_chat_id or '' }}"
+                                    title="Sửa thông tin nhân sự">
+                                    <i class="fa-solid fa-pen-to-square text-primary"></i> Sửa
+                                </button>
+
+                                <!-- Nút Cài Đặt Mật Khẩu -->
+                                <button type="button" class="btn-secondary-gic py-1 px-2 btn-reset-password" style="font-size: 0.78rem;"
+                                    data-id="{{ u.id }}"
+                                    data-username="{{ u.username }}"
+                                    data-name="{{ u.full_name }}"
+                                    title="Cài đặt lại mật khẩu cho tài khoản này">
+                                    <i class="fa-solid fa-key text-warning"></i> Đổi MK
+                                </button>
+
+                                {% if u.id != current_user.id %}
+                                    <!-- Nút Khóa / Mở Khóa -->
+                                    <form method="POST" action="{{ url_for('users.toggle_status', user_id=u.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn {{ 'vô hiệu hóa' if u.is_active else 'kích hoạt lại' }} tài khoản {{ u.username }}?');">
+                                        <button type="submit" class="btn-secondary-gic py-1 px-2" style="font-size: 0.78rem;" title="{{ 'Khóa tài khoản' if u.is_active else 'Kích hoạt tài khoản' }}">
+                                            {% if u.is_active %}
+                                                <i class="fa-solid fa-user-slash text-danger"></i> Khóa
+                                            {% else %}
+                                                <i class="fa-solid fa-user-check text-success"></i> Mở
+                                            {% endif %}
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: Thêm Nhân Viên Mới -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="{{ url_for('users.new_user') }}" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-user-plus text-primary me-2"></i>Thêm Nhân Viên Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Họ Và Tên</label>
+                    <input type="text" name="full_name" class="form-control" placeholder="VD: Nguyễn Ngọc An..." required>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Tên Đăng Nhập</label>
+                        <input type="text" name="username" class="form-control font-mono" placeholder="VD: nv_ngocan" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mật Khẩu Khởi Tạo</label>
+                        <input type="password" name="password" class="form-control" placeholder="Nhập mật khẩu..." required>
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Email</label>
+                        <input type="email" name="email" class="form-control" placeholder="user@gic.vn">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Telegram Chat ID</label>
+                        <input type="text" name="telegram_chat_id" class="form-control font-mono" placeholder="VD: 123456789">
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Vai Trò Phân Quyền</label>
+                    <select name="role" class="form-select">
+                        <option value="staff" selected>Nhân viên vận hành (Chỉ điền chi phí lô được giao)</option>
+                        <option value="manager">Quản lý (Toàn quyền quản trị, giao việc, xem báo cáo, quản lý nhân viên)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-check"></i> Lưu Nhân Viên</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Sửa Thông Tin Nhân Viên -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="editUserForm" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-user-pen text-primary me-2"></i>Cập Nhật Thông Tin Nhân Viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Tài khoản đăng nhập</label>
+                    <input type="text" id="editUsername" class="form-control font-mono bg-light" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Họ Và Tên Thật</label>
+                    <input type="text" name="full_name" id="editFullName" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Vai Trò</label>
+                    <select name="role" id="editRole" class="form-select">
+                        <option value="staff">Nhân viên vận hành</option>
+                        <option value="manager">Quản lý (Toàn quyền)</option>
+                    </select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Email</label>
+                        <input type="email" name="email" id="editEmail" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Telegram Chat ID</label>
+                        <input type="text" name="telegram_chat_id" id="editTelegram" class="form-control font-mono">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-check"></i> Cập Nhật</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Cài Đặt / Đổi Mật Khẩu -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="resetPasswordForm" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-key text-warning me-2"></i>Cài Đặt Mật Khẩu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">
+                    Đặt lại mật khẩu cho tài khoản <strong class="text-dark" id="resetUserTarget"></strong>:
+                </p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mật Khẩu Mới</label>
+                    <input type="password" name="new_password" class="form-control" placeholder="Tối thiểu 4 ký tự..." required minlength="4">
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-lock"></i> Lưu Mật Khẩu</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Edit User Modal
+    document.querySelectorAll('.btn-edit-user').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            const username = this.getAttribute('data-username');
+            const fullName = this.getAttribute('data-name');
+            const role = this.getAttribute('data-role');
+            const email = this.getAttribute('data-email');
+            const telegram = this.getAttribute('data-telegram');
+            
+            document.getElementById('editUserForm').action = `/users/${userId}/edit`;
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editFullName').value = fullName;
+            document.getElementById('editRole').value = role;
+            document.getElementById('editEmail').value = email;
+            document.getElementById('editTelegram').value = telegram;
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        });
+    });
+
+    // Reset Password Modal
+    document.querySelectorAll('.btn-reset-password').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            const username = this.getAttribute('data-username');
+            const fullName = this.getAttribute('data-name');
+            
+            document.getElementById('resetPasswordForm').action = `/users/${userId}/reset-password`;
+            document.getElementById('resetUserTarget').textContent = `${fullName} (${username})`;
+            new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
+        });
+    });
+});
+</script>
+{% endblock %}

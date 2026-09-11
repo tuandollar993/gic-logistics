@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}Quản Lý Lô Hàng - GIC Logistics{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Danh Sách Lô Hàng</h2>
+        <p class="text-muted small m-0 mt-1">Đối soát dữ liệu bán hàng, cước vận chuyển và chi phí vận hành từng lô</p>
+    </div>
+
+    {% if current_user.is_manager %}
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('lots.export_excel', month=selected_month, year=selected_year) }}" 
+           class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
+           title="Xuất Excel danh sách lô và chi phí Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">
+            <i class="fa-solid fa-file-excel text-success" style="font-size: 1.05rem;"></i>
+            <span>Xuất Excel</span>
+        </a>
+        <button class="btn-primary-gic" data-bs-toggle="modal" data-bs-target="#createLotModal">
+            <i class="fa-solid fa-plus"></i>
+            <span>Tạo Lô Mới & Giao Việc</span>
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Filters Bar -->
+<div class="card border-0 shadow-sm rounded-3 p-3 mb-4" style="border: 1px solid var(--gic-border) !important;">
+    <form method="GET" action="{{ url_for('lots.index') }}" class="row g-2 align-items-center">
+        <!-- Month Filter -->
+        <div class="col-md-3">
+            <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Kỳ Báo Cáo:</label>
+            <select name="month_year" class="form-select form-select-sm fw-semibold" onchange="submitFilter(this.value)">
+                {% for y, m in months %}
+                    <option value="{{ m }}-{{ y }}" {% if m == selected_month and y == selected_year %}selected{% endif %}>
+                        Tháng {{ "%02d"|format(m) }} / {{ y }}
+                    </option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="month" id="filterMonth" value="{{ selected_month }}">
+            <input type="hidden" name="year" id="filterYear" value="{{ selected_year }}">
+        </div>
+
+        <!-- Search input -->
+        <div class="col-md-5">
+            <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Tìm kiếm nhanh:</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" name="q" class="form-control border-start-0" placeholder="Số tờ khai HQ, Lô, Khách hàng, Dự án..." value="{{ query }}">
+                <button class="btn btn-secondary-gic py-1" type="submit">Tìm</button>
+            </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="col-md-4">
+            <label class="small text-muted fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Trạng Thái CPVH:</label>
+            <select name="status" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()">
+                <option value="">-- Tất cả trạng thái --</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>✅ Đã hoàn thành điền CPVH</option>
+                <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>✍️ Đang nhập dữ liệu</option>
+                <option value="assigned" {% if status_filter == 'assigned' %}selected{% endif %}>📦 Đã giao việc (Chờ điền)</option>
+                <option value="overdue" {% if status_filter == 'overdue' %}selected{% endif %}>🚨 Quá hạn deadline</option>
+                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>⏳ Chưa phân công</option>
+            </select>
+        </div>
+    </form>
+</div>
+
+<!-- Table Card -->
+<div class="data-table-card mb-4">
+    <div class="table-responsive">
+        <table class="table-custom-clean">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Lô Hàng</th>
+                    <th>Khách Hàng / Dự Án</th>
+                    <th>Số Tờ Khai HQ</th>
+                    <th class="text-end">Doanh Thu (Bán)</th>
+                    <th class="text-end">Giá Mua (Cước)</th>
+                    <th class="text-end">Chi Phí VH</th>
+                    <th class="text-end">Lợi Nhuận</th>
+                    <th>Phụ Trách</th>
+                    <th>Hạn Chót</th>
+                    <th class="text-center">Trạng Thái</th>
+                    <th class="text-center" style="width: 80px;">Chi Tiết</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lot in lots %}
+                    <tr>
+                        <td class="fw-bold">
+                            <a href="{{ url_for('lots.detail', lot_id=lot.id) }}" class="text-primary text-decoration-none font-mono">
+                                {{ lot.lot_label or ('Lô #' ~ lot.id) }}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}</div>
+                            {% if lot.company %}
+                                <div class="text-muted small" style="font-size: 0.78rem;">
+                                    <i class="fa-regular fa-building me-1 text-secondary"></i>{{ lot.company }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border font-mono">{{ lot.customs_declaration or 'Chưa có' }}</span>
+                        </td>
+                        <td class="text-end fw-bold font-mono text-primary tabular-nums">
+                            {{ lot.total_sell_revenue | format_money }}
+                        </td>
+                        <td class="text-end font-mono text-muted tabular-nums">
+                            {{ lot.total_buy_cost | format_money }}
+                        </td>
+                        <td class="text-end font-mono fw-semibold tabular-nums {% if lot.total_operating_cost > 0 %}text-warning text-dark{% else %}text-muted{% endif %}">
+                            {{ lot.total_operating_cost | format_money }}
+                        </td>
+                        <td class="text-end font-mono fw-bold tabular-nums {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ lot.net_profit | format_money }}
+                            <div style="font-size: 0.7rem;" class="fw-normal text-muted font-sans">({{ lot.profit_margin }}%)</div>
+                        </td>
+                        <td>
+                            {% if lot.assignee %}
+                                <div class="d-flex align-items-center gap-1 small text-dark fw-semibold">
+                                    <i class="fa-solid fa-user-pen text-secondary" style="font-size: 0.75rem;"></i> {{ lot.assignee.full_name }}
+                                    {% if current_user.is_manager %}
+                                    <button type="button" class="btn btn-link p-0 text-muted ms-1 btn-open-assign" 
+                                        data-lot-id="{{ lot.id }}"
+                                        data-lot-name="{{ lot.lot_label }}"
+                                        data-assignee="{{ lot.assigned_to or '' }}"
+                                        data-deadline="{{ lot.cost_deadline or '' }}"
+                                        title="Đổi phân công">
+                                        <i class="fa-solid fa-pen" style="font-size: 0.68rem;"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                {% if current_user.is_manager %}
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold btn-open-assign" style="font-size: 0.75rem;"
+                                    data-lot-id="{{ lot.id }}"
+                                    data-lot-name="{{ lot.lot_label }}"
+                                    data-assignee=""
+                                    data-deadline="">
+                                    <i class="fa-solid fa-user-plus me-1"></i> Giao việc
+                                </button>
+                                {% else %}
+                                <span class="badge bg-light text-muted border">Chưa gán</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if lot.cost_deadline %}
+                                <span class="font-mono small {% if lot.status == 'overdue' %}text-danger fw-bold{% else %}text-secondary{% endif %}">
+                                    {{ lot.cost_deadline.strftime('%d/%m/%Y') }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if lot.status == 'completed' %}
+                                <span class="badge-state badge-state-done"><i class="fa-solid fa-check"></i> Hoàn thành</span>
+                            {% elif lot.status == 'overdue' %}
+                                <span class="badge-state badge-state-overdue"><i class="fa-solid fa-triangle-exclamation"></i> Quá hạn</span>
+                            {% elif lot.status == 'in_progress' %}
+                                <span class="badge-state badge-state-pending"><i class="fa-solid fa-pen-nib"></i> Đang điền</span>
+                            {% elif lot.status == 'assigned' %}
+                                <span class="badge-state badge-state-neutral"><i class="fa-regular fa-clock"></i> Chờ điền</span>
+                            {% else %}
+                                <span class="badge-state badge-state-neutral">Chưa gán</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex gap-1 justify-content-center align-items-center">
+                                {% if current_user.is_manager and not lot.assignee %}
+                                <button type="button" class="btn btn-sm btn-outline-primary p-1 px-2 btn-open-assign" title="Phân công ngay"
+                                    data-lot-id="{{ lot.id }}"
+                                    data-lot-name="{{ lot.lot_label }}"
+                                    data-assignee=""
+                                    data-deadline="">
+                                    <i class="fa-solid fa-user-plus"></i>
+                                </button>
+                                {% endif %}
+                                <a href="{{ url_for('lots.detail', lot_id=lot.id) }}" class="btn btn-sm btn-outline-secondary p-1 px-2" title="Xem chi tiết">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center py-5 text-muted">
+                            <i class="fa-regular fa-folder-open fs-2 d-block mb-2 text-secondary"></i>
+                            Không có lô hàng nào phù hợp với bộ lọc tìm kiếm.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: Tạo Lô Mới (Manager) -->
+{% if current_user.is_manager %}
+<div class="modal fade" id="createLotModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="{{ url_for('lots.new_lot') }}" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-plus-circle text-primary me-2"></i>Tạo Lô Hàng Mới & Giao Việc</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Tên Lô Hàng</label>
+                    <input type="text" name="lot_label" class="form-control" placeholder="VD: Lô 1, Lô Chuyến Hải Dương..." required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Khách Hàng</label>
+                    <input type="text" name="customer_name" class="form-control" placeholder="VD: GUANGXI ZHONGYUANDA, Keep Rise, Hải Bân..." required>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Công Ty / Dự Án</label>
+                        <input type="text" name="company" class="form-control" placeholder="VD: Sunluxe, Johnson 2...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Tờ Khai HQ</label>
+                        <input type="text" name="customs_declaration" class="form-control font-mono" placeholder="VD: 108520084630/E11">
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Tháng Báo Cáo</label>
+                        <input type="number" name="month" class="form-control font-mono" min="1" max="12" value="{{ selected_month }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Năm</label>
+                        <input type="number" name="year" class="form-control font-mono" value="{{ selected_year }}" required>
+                    </div>
+                </div>
+                <hr class="my-3">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhân Viên Phụ Trách</label>
+                        <select name="assigned_to" class="form-select">
+                            <option value="">-- Chọn nhân viên --</option>
+                            {% for u in staff_users %}
+                                <option value="{{ u.id }}">{{ u.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Hạn Chót Điền (Deadline)</label>
+                        <input type="date" name="cost_deadline" class="form-control font-mono">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-check"></i> Lưu & Gửi Thông Báo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Giao Việc & Đặt Deadline -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="assignForm" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-user-clock text-primary me-2"></i>Phân Công Nhân Viên & Hạn Chót</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">Lô: <strong id="modalLotName" class="text-primary font-mono fs-6"></strong></p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Chọn Nhân Viên Phụ Trách</label>
+                    <select name="assigned_to" id="modalStaffSelect" class="form-select" required>
+                        <option value="">-- Chọn nhân viên --</option>
+                        {% for u in staff_users %}
+                            <option value="{{ u.id }}">{{ u.full_name }} ({{ u.username }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Hạn Chót Hoàn Thành (Deadline)</label>
+                    <input type="date" name="deadline" id="modalDeadlineInput" class="form-control font-mono" required>
+                    <small class="text-muted d-block mt-2">Hệ thống sẽ tự động gửi Telegram thông báo giao việc và nhắc nhở nhân viên hàng ngày.</small>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-paper-plane"></i> Giao Việc & Nhắc Telegram</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function submitFilter(val) {
+    const [m, y] = val.split('-');
+    document.getElementById('filterMonth').value = m;
+    document.getElementById('filterYear').value = y;
+    document.forms[0].submit();
+}
+
+function openAssignModal(lotId, lotName, currentAssignee, currentDeadline) {
+    document.getElementById('assignForm').action = `/lots/${lotId}/assign`;
+    document.getElementById('modalLotName').innerText = lotName;
+    if (currentAssignee) {
+        document.getElementById('modalStaffSelect').value = currentAssignee;
+    } else {
+        document.getElementById('modalStaffSelect').selectedIndex = 0;
+    }
+    if (currentDeadline) {
+        document.getElementById('modalDeadlineInput').value = currentDeadline;
+    } else {
+        const d = new Date();
+        d.setDate(d.getDate() + 3);
+        document.getElementById('modalDeadlineInput').value = d.toISOString().split('T')[0];
+    }
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-open-assign').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const lotId = this.getAttribute('data-lot-id');
+            const lotName = this.getAttribute('data-lot-name');
+            const assignee = this.getAttribute('data-assignee');
+            const deadline = this.getAttribute('data-deadline');
+            openAssignModal(lotId, lotName, assignee, deadline);
+        });
+    });
+});
+</script>
+{% endblock %}

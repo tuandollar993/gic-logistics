@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Chi Tiết {{ lot.lot_label }} - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <a href="{{ url_for('lots.index', month=lot.month, year=lot.year) }}" class="btn-secondary-gic py-1 px-2" style="font-size: 0.8rem;">
+                <i class="fa-solid fa-arrow-left"></i> Quay lại
+            </a>
+            <h2 class="fw-bold m-0 text-dark font-mono" style="letter-spacing: -0.02em;">{{ lot.lot_label }}</h2>
+            {% if lot.status == 'completed' %}
+                <span class="badge-state badge-state-done"><i class="fa-solid fa-check"></i> Đã điền đủ CPVH</span>
+            {% elif lot.status == 'overdue' %}
+                <span class="badge-state badge-state-overdue"><i class="fa-solid fa-triangle-exclamation"></i> Quá hạn deadline</span>
+            {% else %}
+                <span class="badge-state badge-state-pending"><i class="fa-solid fa-clock"></i> Đang hoàn thiện</span>
+            {% endif %}
+        </div>
+        <p class="text-muted small m-0">Đối soát doanh thu bán hàng và chi phí vận hành thực tế</p>
+    </div>
+
+    <div class="d-flex gap-2">
+        {% if current_user.is_manager %}
+        <button type="button" class="btn-secondary-gic" id="btnOpenAssign"
+            data-lot-id="{{ lot.id }}"
+            data-lot-name="{{ lot.lot_label }}"
+            data-assignee="{{ lot.assigned_to or '' }}"
+            data-deadline="{{ lot.cost_deadline or '' }}">
+            <i class="fa-solid fa-user-clock text-primary"></i>
+            <span>Phân Công & Hạn Chót</span>
+        </button>
+        {% endif %}
+        <a href="{{ url_for('costs.entry', lot_id=lot.id) }}" class="btn-primary-gic">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+            <span>Nhập / Sửa Chi Phí Vận Hành</span>
+        </a>
+    </div>
+</div>
+
+<!-- Header Info & Financial Balance Cards -->
+<div class="row g-3 mb-4">
+    <!-- Lot Info -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="border: 1px solid var(--gic-border) !important;">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <i class="fa-solid fa-circle-info text-primary"></i>
+                <h6 class="fw-bold text-dark m-0">Thông Tin Lô Hàng</h6>
+            </div>
+            <div class="small">
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Khách hàng:</span>
+                    <strong class="text-dark">{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Công ty / Dự án:</span>
+                    <span class="text-dark fw-semibold">{{ lot.company or 'N/A' }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Số tờ khai HQ:</span>
+                    <span class="font-mono fw-bold text-primary">{{ lot.customs_declaration or 'Chưa có' }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Kỳ báo cáo:</span>
+                    <span class="text-dark font-mono">Tháng {{ "%02d"|format(lot.month) }} / {{ lot.year }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Nhân viên phụ trách:</span>
+                    <span class="text-dark fw-bold">{{ lot.assignee.full_name if lot.assignee else 'Chưa phân công' }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2">
+                    <span class="text-muted">Hạn chót (Deadline):</span>
+                    <span class="font-mono {% if lot.status == 'overdue' %}text-danger fw-bold{% else %}text-dark{% endif %}">
+                        {{ lot.cost_deadline.strftime('%d/%m/%Y') if lot.cost_deadline else 'Chưa đặt' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Summary Banner -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="border: 1px solid var(--gic-border) !important;">
+            <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3">
+                <i class="fa-solid fa-scale-balanced text-primary"></i>
+                <h6 class="fw-bold text-dark m-0">Cân Đối Tài Chính Lô Hàng</h6>
+            </div>
+            <div class="row g-2 text-center my-auto">
+                <div class="col-sm-3">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">1. Doanh Thu (Bán)</small>
+                        <h5 class="fw-bold text-primary font-mono m-0 mt-1 tabular-nums">{{ lot.total_sell_revenue | format_money }}</h5>
+                        <small class="text-muted font-mono" style="font-size: 0.68rem;">Chưa VAT</small>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">2. Giá Mua (Cước)</small>
+                        <h5 class="fw-bold text-secondary font-mono m-0 mt-1 tabular-nums">{{ lot.total_buy_cost | format_money }}</h5>
+                        <small class="text-muted font-mono" style="font-size: 0.68rem;">Đã có VAT</small>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">3. Chi Phí Vận Hành</small>
+                        <h5 class="fw-bold text-warning text-dark font-mono m-0 mt-1 tabular-nums">{{ lot.total_operating_cost | format_money }}</h5>
+                        <small class="text-muted font-mono" style="font-size: 0.68rem;">{{ lot.operating_costs|length }} mục thực tế</small>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="p-3 rounded-3 border" style="background-color: var(--gic-success-surface); border-color: var(--gic-success-border) !important;">
+                        <small class="d-block fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em; color: var(--gic-success-text);">4. Lợi Nhuận Ròng</small>
+                        <h5 class="fw-bold font-mono m-0 mt-1 tabular-nums {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ lot.net_profit | format_money }}
+                        </h5>
+                        <small class="fw-bold font-mono text-success" style="font-size: 0.72rem;">(Biên: {{ lot.profit_margin }}%)</small>
+                    </div>
+                </div>
+            </div>
+            <div class="small text-muted text-center mt-3 font-mono" style="font-size: 0.75rem;">
+                * Lợi nhuận ròng = Doanh thu bán ra (1) - Giá mua cước (2) - Chi phí vận hành thực tế (3)
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 1: Doanh Thu Bán Hàng (Từ Báo Cáo Bán Hàng) -->
+<div class="data-table-card mb-4">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-truck-moving text-primary"></i>
+            <h6 class="fw-bold m-0 text-dark">Chi Tiết Dịch Vụ & Doanh Thu Bán Ra (Từ Báo Cáo Bán Hàng)</h6>
+        </div>
+        <span class="badge bg-light text-dark border font-mono">{{ lot.revenue_items|length }} chuyến / dịch vụ</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table-custom-clean">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">#</th>
+                    <th>Nhà Cung Cấp</th>
+                    <th>Biển Số Xe (VN / CN)</th>
+                    <th>Trọng Tải</th>
+                    <th>Dịch Vụ / Lộ Trình</th>
+                    <th class="text-end">Giá Bán (Chưa VAT)</th>
+                    <th class="text-end">Phụ Phí</th>
+                    <th class="text-end fw-bold">Tổng Thu</th>
+                    <th class="text-end text-muted">Giá Mua (Có VAT)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in lot.revenue_items %}
+                    <tr>
+                        <td class="font-mono text-muted">{{ loop.index }}</td>
+                        <td class="fw-bold text-dark">{{ item.supplier or '-' }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border font-mono">{{ item.vehicle_plate_vn or item.vehicle_plate_cn or '-' }}</span>
+                        </td>
+                        <td>{{ item.weight_class or '-' }}</td>
+                        <td>{{ item.service_description or '-' }}</td>
+                        <td class="text-end font-mono text-primary fw-semibold tabular-nums">{{ item.sell_price | format_money }}</td>
+                        <td class="text-end font-mono text-muted tabular-nums">
+                            {{ (item.total_sell_price - item.sell_price) | format_money }}
+                        </td>
+                        <td class="text-end font-mono fw-bold text-success tabular-nums">{{ item.total_sell_price | format_money }}</td>
+                        <td class="text-end font-mono text-secondary tabular-nums">{{ item.total_buy_price | format_money }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">Chưa có dữ liệu chuyến hoặc dịch vụ bán hàng.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Section 2: Chi Phí Vận Hành Thực Tế (Từ Bảng Tổng Hợp Chi Phí Vận Hành) -->
+<div class="data-table-card">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-receipt text-warning"></i>
+            <h6 class="fw-bold m-0 text-dark">Chi Phí Vận Hành Thực Tế (Đối Soát & Chứng Từ Hóa Đơn)</h6>
+        </div>
+        <span class="badge {% if lot.operating_costs %}badge-state-done{% else %}badge-state-pending{% endif %}">
+            {{ lot.operating_costs|length }} khoản chi phí
+        </span>
+    </div>
+    <div class="table-responsive">
+        <table class="table-custom-clean">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">#</th>
+                    <th>Loại Chi Phí</th>
+                    <th>Nội Dung Chi Tiết</th>
+                    <th>BKS</th>
+                    <th class="text-center">SL Xe</th>
+                    <th class="text-end">Đơn Giá</th>
+                    <th class="text-end fw-bold">Tổng Tiền</th>
+                    <th>Chứng Từ / Hóa Đơn</th>
+                    <th>Nhà Cung Cấp</th>
+                    <th>Người Điền</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cost in lot.operating_costs %}
+                    <tr>
+                        <td class="font-mono text-muted">{{ loop.index }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ cost.cost_type or '-' }}</span></td>
+                        <td class="fw-bold text-dark">{{ cost.description }}</td>
+                        <td class="font-mono">{{ cost.vehicle_plate or '-' }}</td>
+                        <td class="text-center font-mono">{{ cost.vehicle_count }}</td>
+                        <td class="text-end font-mono tabular-nums">{{ cost.unit_price | format_money }}</td>
+                        <td class="text-end font-mono fw-bold text-danger tabular-nums">{{ cost.total_amount | format_money }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ cost.invoice_type or '' }} {{ cost.invoice_number or '' }}</div>
+                            <small class="text-muted font-mono">{{ cost.document_date.strftime('%d/%m/%Y') if cost.document_date else '' }}</small>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ cost.supplier_name or '-' }}</div>
+                            <small class="text-muted font-mono">{{ cost.supplier_tax_code or '' }}</small>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ cost.pic or (cost.filler.full_name if cost.filler else '-') }}</small>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="fa-solid fa-circle-exclamation text-warning me-1"></i>
+                            Chưa có khoản chi phí vận hành nào được đối soát cho lô này.
+                            <a href="{{ url_for('costs.entry', lot_id=lot.id) }}" class="ms-2 btn btn-sm btn-outline-primary">Điền chi phí ngay</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if current_user.is_manager %}
+<!-- Modal: Giao Việc & Đặt Deadline -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="assignForm" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-user-clock text-primary me-2"></i>Phân Công Nhân Viên & Hạn Chót</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">Lô: <strong id="modalLotName" class="text-primary font-mono fs-6"></strong></p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Chọn Nhân Viên Phụ Trách</label>
+                    <select name="assigned_to" id="modalStaffSelect" class="form-select" required>
+                        <option value="">-- Chọn nhân viên --</option>
+                        {% for u in staff_users %}
+                            <option value="{{ u.id }}" {% if lot.assigned_to == u.id %}selected{% endif %}>{{ u.full_name }} ({{ u.username }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Hạn Chót Hoàn Thành (Deadline)</label>
+                    <input type="date" name="deadline" id="modalDeadlineInput" class="form-control font-mono" required value="{{ lot.cost_deadline or '' }}">
+                    <small class="text-muted d-block mt-2">Hệ thống sẽ tự động gửi Telegram thông báo giao việc và nhắc nhở nhân viên hàng ngày.</small>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-paper-plane"></i> Giao Việc & Nhắc Telegram</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openAssignModal(lotId, lotName, currentAssignee, currentDeadline) {
+    document.getElementById('assignForm').action = `/lots/${lotId}/assign`;
+    document.getElementById('modalLotName').innerText = lotName;
+    if (currentAssignee) {
+        document.getElementById('modalStaffSelect').value = currentAssignee;
+    }
+    if (currentDeadline) {
+        document.getElementById('modalDeadlineInput').value = currentDeadline;
+    } else {
+        const d = new Date();
+        d.setDate(d.getDate() + 3);
+        document.getElementById('modalDeadlineInput').value = d.toISOString().split('T')[0];
+    }
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('btnOpenAssign');
+    if (btn) {
+        btn.addEventListener('click', function() {
+            const lotId = this.getAttribute('data-lot-id');
+            const lotName = this.getAttribute('data-lot-name');
+            const assignee = this.getAttribute('data-assignee');
+            const deadline = this.getAttribute('data-deadline');
+            openAssignModal(lotId, lotName, assignee, deadline);
+        });
+    }
+});
+</script>
+{% endblock %}

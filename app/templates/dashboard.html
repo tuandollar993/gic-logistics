@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Báo Cáo Doanh Thu - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Header & Filter Bar -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Báo Cáo Doanh Thu & Vận Hành</h2>
+        <p class="text-muted small m-0 mt-1">Phân tích tài chính, chi phí thực tế và tiến độ target lũy kế</p>
+    </div>
+
+    <!-- Month & Year Filter Selector & Actions -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="filter-bar-container">
+            <i class="fa-regular fa-calendar-check text-primary"></i>
+            <span class="small fw-bold text-secondary text-uppercase" style="letter-spacing: 0.05em; font-size: 0.72rem;">Kỳ Báo Cáo:</span>
+            <select class="form-select form-select-sm fw-bold border-0 bg-transparent text-primary p-0 ps-1" style="width: 145px; cursor: pointer; box-shadow: none;" onchange="changeMonth(this.value)">
+                {% for y, m in months %}
+                    <option value="{{ m }}-{{ y }}" {% if m == selected_month and y == selected_year %}selected{% endif %}>
+                        Tháng {{ "%02d"|format(m) }} / {{ y }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if current_user.is_manager %}
+        <a href="{{ url_for('lots.export_excel', month=selected_month, year=selected_year) }}" 
+           class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
+           style="padding: 0.45rem 0.9rem; font-size: 0.85rem;"
+           title="Tải báo cáo kinh doanh Excel Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">
+            <i class="fa-solid fa-file-excel text-success" style="font-size: 1rem;"></i>
+            <span class="fw-semibold">Xuất Excel</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 5 KPI Matrix Cards -->
+<div class="row g-3 mb-4">
+    <!-- 1. Doanh Thu -->
+    <div class="col-xl col-md-6">
+        <div class="kpi-card kpi-theme-revenue h-100">
+            <div class="kpi-header">
+                <span class="kpi-meta-label">Doanh Thu Bán Ra</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-arrow-up-right-from-square"></i></div>
+            </div>
+            <div class="kpi-value-stat text-primary">{{ kpi.revenue | format_compact_money }}</div>
+            <div class="kpi-sub-context">
+                {% if kpi.rev_growth is not none %}
+                    {% if kpi.rev_growth > 0 %}
+                        <span class="delta-pill delta-positive"><i class="fa-solid fa-arrow-trend-up"></i> +{{ kpi.rev_growth }}%</span>
+                    {% elif kpi.rev_growth < 0 %}
+                        <span class="delta-pill delta-negative"><i class="fa-solid fa-arrow-trend-down"></i> {{ kpi.rev_growth }}%</span>
+                    {% else %}
+                        <span class="delta-pill delta-neutral">0.0%</span>
+                    {% endif %}
+                    <span>so với T{{ selected_month - 1 if selected_month > 1 else 12 }}</span>
+                {% else %}
+                    <span class="delta-pill delta-neutral text-muted" style="font-size: 0.72rem;">N/A - chưa có dữ liệu tháng trước</span>
+                {% endif %}
+            </div>
+            <div class="kpi-caption-note font-mono">Giá bán chưa VAT</div>
+        </div>
+    </div>
+
+    <!-- 2. Tổng Chi Phí -->
+    <div class="col-xl col-md-6">
+        <div class="kpi-card kpi-theme-cost h-100">
+            <div class="kpi-header">
+                <span class="kpi-meta-label">Tổng Chi Phí</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-receipt"></i></div>
+            </div>
+            <div class="kpi-value-stat">{{ kpi.total_cost | format_compact_money }}</div>
+            <div class="kpi-sub-context">
+                <span>Cước mua: <strong>{{ kpi.buy_cost | format_compact_money }}</strong></span>
+                <span>•</span>
+                <span>CPVH: <strong>{{ kpi.operating_cost | format_compact_money }}</strong></span>
+            </div>
+            <div class="kpi-caption-note font-mono">Cước có VAT + CPVH đối soát</div>
+        </div>
+    </div>
+
+    <!-- 3. Lợi Nhuận Ròng -->
+    <div class="col-xl col-md-6">
+        <div class="kpi-card kpi-theme-profit h-100">
+            <div class="kpi-header">
+                <span class="kpi-meta-label">Lợi Nhuận Ròng</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-sack-dollar"></i></div>
+            </div>
+            <div class="kpi-value-stat text-success">{{ kpi.net_profit | format_compact_money }}</div>
+            <div class="kpi-sub-context">
+                <span class="delta-pill delta-positive font-mono">Tỷ suất: {{ kpi.profit_margin }}%</span>
+                <span>trên tổng DT</span>
+            </div>
+            <div class="kpi-caption-note font-mono">Doanh thu - Cước - Chi phí VH</div>
+        </div>
+    </div>
+
+    <!-- 4. Target Mục Tiêu -->
+    <div class="col-xl col-md-6">
+        <div class="kpi-card kpi-theme-target h-100">
+            <div class="kpi-header">
+                <span class="kpi-meta-label">{{ kpi.target_label }}</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-bullseye"></i></div>
+            </div>
+            {% if kpi.has_target %}
+                <div class="kpi-value-stat" style="color: #6d28d9;">{{ kpi.target | format_compact_money }}</div>
+                <div>
+                    <div class="d-flex justify-content-between align-items-center small mb-1">
+                        <span class="text-muted" style="font-size: 0.75rem;">Tiến độ đạt:</span>
+                        <strong class="font-mono text-dark">{{ kpi.achievement_pct }}%</strong>
+                    </div>
+                    <div class="progress-minimal">
+                        <div class="progress-bar {% if kpi.achievement_pct >= 100 %}bg-success{% else %}bg-primary{% endif %}" style="width: {{ [kpi.achievement_pct, 100]|min }}%;"></div>
+                    </div>
+                </div>
+                <div class="kpi-caption-note font-mono">Kế hoạch chỉ tiêu tháng</div>
+            {% else %}
+                <div class="kpi-value-stat text-muted fs-5 mt-2">Chưa có target</div>
+                <div class="kpi-caption-note text-muted mt-2">Chưa thiết lập chỉ tiêu kỳ này</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 5. Tiến Độ Điền CPVH -->
+    <div class="col-xl col-md-6">
+        <div class="kpi-card kpi-theme-deadline h-100">
+            <div class="kpi-header">
+                <span class="kpi-meta-label">Tiến Độ Điền CPVH</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            </div>
+            <div class="kpi-value-stat">{{ kpi.lots_completed }} <span class="fs-6 text-muted fw-normal">/ {{ kpi.lot_count }} lô bán hàng</span></div>
+            <div>
+                <div class="d-flex justify-content-between align-items-center small mb-1">
+                    <span class="text-muted" style="font-size: 0.75rem;">Đã hoàn thành:</span>
+                    <strong class="font-mono text-dark">{{ kpi.cost_completion_pct }}%</strong>
+                </div>
+                <div class="progress-minimal">
+                    <div class="progress-bar {% if kpi.cost_completion_pct == 100 %}bg-success{% else %}bg-warning{% endif %}" style="width: {{ kpi.cost_completion_pct }}%;"></div>
+                </div>
+            </div>
+            <div class="kpi-caption-note d-flex justify-content-between pt-1 text-muted" style="font-size: 0.72rem;">
+                <span>Chưa có: <strong>{{ kpi.lots_none }}</strong></span>
+                <span>Chưa đủ: <strong>{{ kpi.lots_partial }}</strong></span>
+                <span>Xong: <strong>{{ kpi.lots_completed }}</strong></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Chart 1: Doanh thu vs Chi phí vs Target theo tháng -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3 p-4 h-100" style="border: 1px solid var(--gic-border) !important;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="fw-bold m-0 text-dark">Diễn Biến Doanh Thu, Chi Phí & Kế Hoạch Target</h6>
+                    <small class="text-muted">Tổng hợp 12 tháng năm {{ selected_year }} (Đơn vị: Triệu VNĐ)</small>
+                </div>
+                <div class="d-flex gap-3 small text-muted font-mono" style="font-size: 0.75rem;">
+                    <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #0284c7;"></span>Doanh Thu</span>
+                    <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #d97706;"></span>Chi Phí</span>
+                    <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #dc2626;"></span>Target</span>
+                </div>
+            </div>
+            <div style="height: 310px; position: relative;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 2: Cơ cấu doanh thu theo khách hàng -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-3 p-4 h-100" style="border: 1px solid var(--gic-border) !important;">
+            <h6 class="fw-bold m-0 text-dark">Cơ Cấu Khách Hàng Trọng Điểm</h6>
+            <small class="text-muted d-block mb-3">Tỷ trọng đóng góp doanh thu kỳ T{{ selected_month }}/{{ selected_year }}</small>
+            
+            <div style="height: 190px; position: relative;" class="mb-3">
+                <canvas id="customerChart"></canvas>
+            </div>
+            
+            <div id="customerLegend" class="small overflow-auto" style="max-height: 130px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Executive Commentary Panel (Nhận xét tự động để gửi Sếp) -->
+<div class="executive-summary-panel mb-4">
+    <div class="panel-header">
+        <div class="d-flex align-items-center gap-2">
+            <div class="comment-icon-indicator" style="background: rgba(2, 132, 199, 0.1); color: var(--gic-accent);">
+                <i class="fa-solid fa-signature"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold m-0 text-dark">Nhận Xét & Đánh Giá Tự Động Kỳ Báo Cáo T{{ selected_month }}/{{ selected_year }}</h6>
+                <small class="text-muted">Tổng hợp chuyên sâu từ số liệu đối soát doanh thu và chi phí thực tế</small>
+            </div>
+        </div>
+        <button class="btn-secondary-gic" onclick="copyCommentary()">
+            <i class="fa-regular fa-copy"></i>
+            <span>Sao Chép Báo Cáo</span>
+        </button>
+    </div>
+
+    <div class="panel-body" id="commentaryContent">
+        {% for c in comments %}
+            <div class="editorial-comment-row editorial-{{ c.type }}">
+                <div class="comment-icon-indicator">
+                    {% if c.icon == 'trending-up' %}<i class="fa-solid fa-arrow-trend-up"></i>{% endif %}
+                    {% if c.icon == 'trending-down' %}<i class="fa-solid fa-arrow-trend-down"></i>{% endif %}
+                    {% if c.icon == 'award' %}<i class="fa-solid fa-medal"></i>{% endif %}
+                    {% if c.icon == 'target' %}<i class="fa-solid fa-bullseye"></i>{% endif %}
+                    {% if c.icon == 'alert-triangle' %}<i class="fa-solid fa-triangle-exclamation"></i>{% endif %}
+                    {% if c.icon == 'users' %}<i class="fa-solid fa-user-group"></i>{% endif %}
+                    {% if c.icon == 'pie-chart' %}<i class="fa-solid fa-chart-pie"></i>{% endif %}
+                    {% if c.icon == 'dollar-sign' %}<i class="fa-solid fa-hand-holding-dollar"></i>{% endif %}
+                    {% if c.icon == 'check-circle' %}<i class="fa-solid fa-circle-check"></i>{% endif %}
+                    {% if c.icon == 'percent' %}<i class="fa-solid fa-percent"></i>{% endif %}
+                    {% if c.icon == 'bell-ring' %}<i class="fa-solid fa-bell"></i>{% endif %}
+                    {% if c.icon == 'clock' %}<i class="fa-regular fa-clock"></i>{% endif %}
+                    {% if c.icon == 'check-check' %}<i class="fa-solid fa-square-check"></i>{% endif %}
+                </div>
+                <div class="flex-grow-1">
+                    <div class="comment-heading">{{ c.title }}</div>
+                    <div class="comment-text">{{ c.content }}</div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Navigation Footer Strip -->
+<div class="d-flex justify-content-between align-items-center p-3 bg-white rounded-3 border shadow-sm">
+    <div>
+        <strong class="text-dark">Chi tiết danh sách {{ kpi.lot_count }} lô hàng tháng {{ selected_month }}/{{ selected_year }}</strong>
+        <p class="text-muted small m-0">Kiểm tra chi tiết từng chuyến xe, tờ khai hải quan và phiếu chi vận hành</p>
+    </div>
+    <a href="{{ url_for('lots.index', month=selected_month, year=selected_year) }}" class="btn-primary-gic">
+        <span>Xem Danh Sách Lô Hàng</span>
+        <i class="fa-solid fa-arrow-right"></i>
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function changeMonth(val) {
+    const [month, year] = val.split('-');
+    window.location.href = `{{ url_for('dashboard.index') }}?month=${month}&year=${year}`;
+}
+
+function copyCommentary() {
+    let text = "BÁO CÁO DOANH THU & VẬN HÀNH GIC (Tháng {{ selected_month }}/{{ selected_year }}):\n\n";
+    document.querySelectorAll('#commentaryContent .editorial-comment-row').forEach(item => {
+        const title = item.querySelector('.comment-heading').innerText;
+        const body = item.querySelector('.comment-text').innerText;
+        text += `• ${title}: ${body}\n`;
+    });
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Đã sao chép toàn bộ nhận xét vào clipboard!");
+    });
+}
+
+// Render Charts via AJAX
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Trend Chart
+    fetch(`{{ url_for('dashboard.api_trend') }}?year={{ selected_year }}`)
+        .then(res => res.json())
+        .then(data => {
+            const labels = data.map(d => d.month);
+            const revenues = data.map(d => d.revenue / 1000000);
+            const costs = data.map(d => d.total_cost / 1000000);
+            const targets = data.map(d => d.target / 1000000);
+
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            new Chart(ctx, {
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Doanh Thu',
+                            data: revenues,
+                            backgroundColor: '#0284c7',
+                            borderRadius: 4,
+                            barPercentage: 0.65,
+                            order: 2
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Tổng Chi Phí',
+                            data: costs,
+                            backgroundColor: '#f59e0b',
+                            borderRadius: 4,
+                            barPercentage: 0.65,
+                            order: 3
+                        },
+                        {
+                            type: 'line',
+                            label: 'Target Mục Tiêu',
+                            data: targets,
+                            borderColor: '#dc2626',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            pointRadius: 3,
+                            pointBackgroundColor: '#dc2626',
+                            fill: false,
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0b192c',
+                            padding: 10,
+                            titleFont: { family: 'Plus Jakarta Sans', size: 12, weight: 'bold' },
+                            bodyFont: { family: 'JetBrains Mono', size: 12 },
+                            cornerRadius: 6,
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('vi-VN', {maximumFractionDigits: 1})} Tr ₫`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { family: 'Plus Jakarta Sans', weight: '600', size: 11 }, color: '#64748b' }
+                        },
+                        y: {
+                            border: { dash: [4, 4] },
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                font: { family: 'JetBrains Mono', size: 11 },
+                                color: '#64748b',
+                                callback: val => val.toLocaleString() + 'M'
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+    // 2. Customer Breakdown Doughnut Chart
+    fetch(`{{ url_for('dashboard.api_customers') }}?month={{ selected_month }}&year={{ selected_year }}`)
+        .then(res => res.json())
+        .then(customers => {
+            if (!customers || customers.length === 0) return;
+            const labels = customers.map(c => c.name);
+            const data = customers.map(c => c.share);
+            
+            const palette = ['#0284c7', '#059669', '#d97706', '#7c3aed', '#e11d48', '#64748b'];
+
+            const ctx = document.getElementById('customerChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: palette.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '72%'
+                }
+            });
+
+            // Render legend
+            const legendDiv = document.getElementById('customerLegend');
+            legendDiv.innerHTML = customers.map((c, i) => `
+                <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-light">
+                    <span class="text-truncate text-dark" style="max-width: 190px; font-weight: 500;">
+                        <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: ${palette[i % palette.length]};"></span>
+                        ${c.name}
+                    </span>
+                    <strong class="font-mono text-dark">${c.share}%</strong>
+                </div>
+            `).join('');
+        });
+});
+</script>
+{% endblock %}

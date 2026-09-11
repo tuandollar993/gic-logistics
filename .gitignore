@@ -1,0 +1,19 @@
+# Environment variables (chứa mật khẩu và token, không push lên git)
+.env
+.env.local
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
+
+# Local SQLite databases & backups
+data/*.db
+data/uploads/*
+!data/uploads/.gitkeep
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Danh Sách Nhà Cung Cấp - GIC Logistics{% endblock %}
+
+{% block content %}
+<!-- Top Header & Actions -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Danh Sách Nhà Cung Cấp (NCC)</h2>
+        <p class="text-muted small m-0 mt-1">Thông tin chi tiết đối tác, mã số thuế, mã nhà cung cấp và địa chỉ trích xuất từ Bảng CPVH</p>
+    </div>
+
+    {% if current_user.is_manager %}
+    <button class="btn-primary-gic d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addSupplierModal">
+        <i class="fa-solid fa-plus"></i>
+        <span>Thêm Nhà Cung Cấp</span>
+    </button>
+    {% endif %}
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Tổng Nhà Cung Cấp</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-truck-field text-primary"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-dark">{{ total_count }}</div>
+            <div class="small text-muted mt-1">Đơn vị vận tải, bến bãi, hải quan</div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Đã Có MST / CCCD</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-id-card text-success"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-success">{{ has_tax_count }}</div>
+            <div class="small text-muted mt-1">Sẵn sàng xuất hóa đơn / đối soát thuế</div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card p-3 h-100 bg-white shadow-sm border rounded-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Đã Có Mã NCC Hệ Thống</span>
+                <div class="kpi-icon-pill"><i class="fa-solid fa-barcode text-info"></i></div>
+            </div>
+            <div class="fs-4 fw-bold text-info">{{ has_code_count }}</div>
+            <div class="small text-muted mt-1">Định danh mã chuẩn theo ký hiệu Excel</div>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Table Card -->
+<div class="data-table-card mb-4 shadow-sm border rounded-3 bg-white">
+    <!-- Filter bar -->
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-3 bg-light bg-opacity-50">
+        <form method="GET" action="{{ url_for('suppliers.index') }}" class="d-flex align-items-center gap-2" style="max-width: 480px; width: 100%;">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" name="q" value="{{ query }}" class="form-control border-start-0 ps-0" placeholder="Tìm theo tên NCC, MST/CCCD, Mã NCC, địa chỉ...">
+                {% if query %}
+                    <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline-secondary" title="Xóa tìm kiếm"><i class="fa-solid fa-xmark"></i></a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary btn-sm px-3 fw-semibold">Tìm Kiếm</button>
+            </div>
+        </form>
+        <div class="text-muted small">
+            Hiển thị <strong class="text-dark">{{ suppliers|length }}</strong> / {{ total_count }} đối tác
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+        <table class="table-custom-clean table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 45px;" class="text-center">STT</th>
+                    <th style="width: 180px;">Mã Số Thuế / CCCD</th>
+                    <th style="width: 160px;">Mã Nhà Cung Cấp</th>
+                    <th>Tên Nhà Cung Cấp</th>
+                    <th>Địa Chỉ</th>
+                    {% if current_user.is_manager %}
+                    <th class="text-end" style="width: 130px;">Thao Tác</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if suppliers and suppliers|length > 0 %}
+                    {% for s in suppliers %}
+                        <tr>
+                            <td class="font-mono text-muted text-center">{{ loop.index }}</td>
+                            <td>
+                                {% if s.tax_code %}
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="font-mono fw-semibold text-dark">{{ s.tax_code }}</span>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-muted btn-copy" data-copy="{{ s.tax_code }}" title="Sao chép MST">
+                                            <i class="fa-regular fa-copy" style="font-size: 0.75rem;"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted small italic">Chưa có MST</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if s.supplier_code %}
+                                    <span class="font-mono badge bg-light text-primary border" style="font-size: 0.78rem;">
+                                        {{ s.supplier_code }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted small italic">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong class="text-dark">{{ s.name }}</strong>
+                            </td>
+                            <td>
+                                <small class="text-muted d-block" style="max-width: 420px;">{{ s.address or '-' }}</small>
+                            </td>
+                            {% if current_user.is_manager %}
+                            <td class="text-end">
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-supplier" style="font-size: 0.78rem;"
+                                        data-id="{{ s.id }}"
+                                        data-tax="{{ s.tax_code or '' }}"
+                                        data-code="{{ s.supplier_code or '' }}"
+                                        data-name="{{ s.name }}"
+                                        data-addr="{{ s.address or '' }}"
+                                        title="Sửa thông tin NCC">
+                                        <i class="fa-solid fa-pen-to-square text-primary"></i> Sửa
+                                    </button>
+                                    <form method="POST" action="{{ url_for('suppliers.delete_supplier', supplier_id=s.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa NCC: {{ s.name }}?');">
+                                        <button type="submit" class="btn-secondary-gic py-1 px-2 text-danger" style="font-size: 0.78rem;" title="Xóa NCC">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{% if current_user.is_manager %}6{% else %}5{% endif %}" class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-box-open fs-2 mb-2 d-block text-secondary"></i>
+                            <p class="m-0">Không tìm thấy nhà cung cấp nào phù hợp với từ khóa "<strong>{{ query }}</strong>"</p>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if current_user.is_manager %}
+<!-- Modal: Thêm Nhà Cung Cấp Mới -->
+<div class="modal fade" id="addSupplierModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="{{ url_for('suppliers.new_supplier') }}" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-truck-ramp-box text-primary me-2"></i>Thêm Nhà Cung Cấp Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Tên Nhà Cung Cấp (*)</label>
+                    <input type="text" name="name" class="form-control" placeholder="VD: CÔNG TY CỔ PHẦN GIAO NHẬN VẬN TẢI..." required>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Số Thuế / CCCD</label>
+                        <input type="text" name="tax_code" class="form-control font-mono" placeholder="VD: 0311907295">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Nhà Cung Cấp</label>
+                        <input type="text" name="supplier_code" class="form-control font-mono" placeholder="VD: C-0311907295">
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Địa Chỉ Trụ Sở</label>
+                    <textarea name="address" class="form-control" rows="2" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-check"></i> Lưu Nhà Cung Cấp</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Sửa Thông Tin Nhà Cung Cấp -->
+<div class="modal fade" id="editSupplierModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="editSupplierForm" class="modal-content border-0 shadow-lg rounded-3">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>Cập Nhật Nhà Cung Cấp</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Tên Nhà Cung Cấp (*)</label>
+                    <input type="text" name="name" id="editName" class="form-control" required>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Số Thuế / CCCD</label>
+                        <input type="text" name="tax_code" id="editTaxCode" class="form-control font-mono">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Nhà Cung Cấp</label>
+                        <input type="text" name="supplier_code" id="editSupplierCode" class="form-control font-mono">
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Địa Chỉ Trụ Sở</label>
+                    <textarea name="address" id="editAddress" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic"><i class="fa-solid fa-check"></i> Cập Nhật</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Copy to clipboard
+    document.querySelectorAll('.btn-copy').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const text = this.getAttribute('data-copy');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    const icon = this.querySelector('i');
+                    icon.classList.remove('fa-regular', 'fa-copy');
+                    icon.classList.add('fa-solid', 'fa-check', 'text-success');
+                    setTimeout(() => {
+                        icon.classList.remove('fa-solid', 'fa-check', 'text-success');
+                        icon.classList.add('fa-regular', 'fa-copy');
+                    }, 1500);
+                });
+            }
+        });
+    });
+
+    {% if current_user.is_manager %}
+    // Edit supplier modal (Manager only)
+    document.querySelectorAll('.btn-edit-supplier').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const suppId = this.getAttribute('data-id');
+            const tax = this.getAttribute('data-tax');
+            const code = this.getAttribute('data-code');
+            const name = this.getAttribute('data-name');
+            const addr = this.getAttribute('data-addr');
+            
+            const form = document.getElementById('editSupplierForm');
+            if (form) {
+                form.action = `/suppliers/${suppId}/edit`;
+                document.getElementById('editName').value = name;
+                document.getElementById('editTaxCode').value = tax;
+                document.getElementById('editSupplierCode').value = code;
+                document.getElementById('editAddress').value = addr;
+                new bootstrap.Modal(document.getElementById('editSupplierModal')).show();
+            }
+        });
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GIC Logistics - Điều Hành Báo Cáo & Vận Hành{% endblock %}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Impeccable Design System Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="d-flex min-vh-100">
+        <!-- Modern Executive Sidebar -->
+        <aside class="gic-sidebar">
+            <div class="brand-header">
+                <div class="brand-icon-wrapper">
+                    <i class="fa-solid fa-ship"></i>
+                </div>
+                <div>
+                    <h1 class="brand-title">GIC LOGISTICS</h1>
+                    <p class="brand-sub">Hệ Thống Điều Hành & Báo Cáo</p>
+                </div>
+            </div>
+            
+            <!-- User Status Tile -->
+            <div class="user-profile-tile">
+                <div class="user-avatar">
+                    {{ current_user.full_name[:1] if current_user.is_authenticated else 'G' }}
+                </div>
+                <div class="user-info-text overflow-hidden">
+                    <div class="text-white fw-bold text-truncate" style="font-size: 0.88rem;">
+                        {{ current_user.full_name if current_user.is_authenticated else 'Khách' }}
+                    </div>
+                    <div class="d-flex align-items-center gap-1 mt-1">
+                        <span class="badge {% if current_user.is_authenticated and current_user.is_manager %}bg-primary{% else %}bg-secondary{% endif %}" style="font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em;">
+                            {{ current_user.role.upper() if current_user.is_authenticated else 'GUEST' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nav Items -->
+            <nav class="nav flex-column mt-2 flex-grow-1">
+                <div class="nav-section-label">Báo Cáo & Quản Trị</div>
+
+                {% if current_user.is_authenticated and current_user.is_manager %}
+                <a class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}" href="{{ url_for('dashboard.index') }}">
+                    <i class="fa-solid fa-chart-simple"></i>
+                    <span>Dashboard Doanh Thu</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>Quản Lý Lô Hàng</span>
+                </a>
+                <a class="nav-link {% if request.endpoint == 'tasks.tracking' %}active{% endif %}" href="{{ url_for('tasks.tracking') }}">
+                    <i class="fa-solid fa-stopwatch"></i>
+                    <span>Theo Dõi Deadline CPVH</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}" href="{{ url_for('suppliers.index') }}">
+                    <i class="fa-solid fa-truck-field"></i>
+                    <span>Thông Tin NCC</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'users' in request.endpoint %}active{% endif %}" href="{{ url_for('users.index') }}">
+                    <i class="fa-solid fa-users-gear"></i>
+                    <span>Quản Lý Nhân Viên</span>
+                </a>
+                {% endif %}
+
+                {% if current_user.is_authenticated and not current_user.is_manager %}
+                <a class="nav-link {% if request.endpoint == 'tasks.my_tasks' %}active{% endif %}" href="{{ url_for('tasks.my_tasks') }}">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Nhiệm Vụ Của Tôi</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>Lô Hàng Được Giao</span>
+                </a>
+                <a class="nav-link {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}" href="{{ url_for('suppliers.index') }}">
+                    <i class="fa-solid fa-truck-field"></i>
+                    <span>Thông Tin NCC</span>
+                </a>
+                <a class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}" href="{{ url_for('dashboard.index') }}">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Xem Báo Cáo Chung</span>
+                </a>
+                {% endif %}
+
+                <div class="mt-auto p-3">
+                    <a href="{{ url_for('auth.logout') }}" class="nav-link text-danger bg-danger bg-opacity-10 border border-danger border-opacity-25" style="margin: 0;">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span>Đăng xuất</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="gic-main-content">
+            <!-- Flash Alerts -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="mb-4">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show border-0 shadow-sm" role="alert" style="border-radius: var(--radius-md); font-size: 0.9rem;">
+                                {% if category == 'success' %}<i class="fa-solid fa-circle-check me-2 text-success"></i>{% endif %}
+                                {% if category == 'danger' %}<i class="fa-solid fa-circle-exclamation me-2 text-danger"></i>{% endif %}
+                                {% if category == 'warning' %}<i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i>{% endif %}
+                                {% if category == 'info' %}<i class="fa-solid fa-circle-info me-2 text-info"></i>{% endif %}
+                                <span style="white-space: pre-line; font-weight: 500;">{{ message }}</span>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
