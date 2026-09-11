@@ -119,8 +119,15 @@ def api_save():
     # Tính toán tổng tiền
     subtotal = 0.0
     for it in items:
-        qty = float(it.get('quantity') or 1)
-        price = float(it.get('unit_price') or 0)
+        try:
+            qty = float(it.get('quantity') or 1)
+            raw_p = it.get('unit_price') or 0
+            if isinstance(raw_p, str):
+                raw_p = raw_p.replace(',', '').replace(' ', '').replace('%', '')
+            price = float(raw_p)
+        except (ValueError, TypeError):
+            qty = 1.0
+            price = 0.0
         total = qty * price
         it['total'] = total
         subtotal += total
@@ -178,7 +185,17 @@ def view_quote(quote_id):
     except Exception:
         pass
 
-    return render_template('quotation_view.html', quote=quote, items=items)
+    matrix_routes = []
+    aux_services = []
+    for it in items:
+        if it.get('type') == 'route_matrix' or ('xe_1_9t' in it or 'xe_5t' in it or 'cont_45' in it):
+            matrix_routes.append(it)
+        elif it.get('category') == 'Vận chuyển':
+            matrix_routes.append(it)
+        else:
+            aux_services.append(it)
+
+    return render_template('quotation_view.html', quote=quote, items=items, matrix_routes=matrix_routes, aux_services=aux_services)
 
 @quotations_bp.route('/<int:quote_id>/delete', methods=['POST'])
 @login_required

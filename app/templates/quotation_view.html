@@ -3,7 +3,7 @@
 {% block title %}Báo Giá {{ quote.quote_code }} - GIC Logistics{% endblock %}
 
 {% block content %}
-<div class="container py-3 px-lg-4">
+<div class="container-fluid py-3 px-lg-4" style="max-width: 1200px;">
     <!-- Top Action Bar -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4 no-print">
         <div class="d-flex align-items-center gap-2">
@@ -11,7 +11,7 @@
                 <i class="fa-solid fa-arrow-left me-1"></i> Quay lại
             </a>
             <h5 class="fw-bold text-dark m-0">
-                Chi Tiết Báo Giá: <span class="text-primary font-mono">{{ quote.quote_code }}</span>
+                Bảng Báo Giá: <span class="text-primary font-mono">{{ quote.quote_code }}</span>
             </h5>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -28,12 +28,12 @@
     </div>
 
     <!-- Printable Quotation Sheet -->
-    <div class="card border-0 shadow-sm rounded-3 p-4 p-md-5 bg-white mx-auto" id="printableQuote" style="max-width: 850px;">
+    <div class="card border-0 shadow-sm rounded-3 p-4 p-md-5 bg-white mx-auto" id="printableQuote">
         <!-- Header / Letterhead -->
         <div class="d-flex justify-content-between align-items-start border-bottom pb-4 mb-4">
             <div class="d-flex align-items-center gap-3">
-                <div style="width: 48px; height: 48px; background: var(--gic-accent); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                    <i class="fa-solid fa-ship text-white fs-4"></i>
+                <div style="width: 52px; height: 52px; background: var(--gic-accent); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-ship text-white fs-3"></i>
                 </div>
                 <div>
                     <div class="fw-black fs-4 text-primary font-mono" style="letter-spacing: 0.05em;">GIC LOGISTICS</div>
@@ -42,7 +42,7 @@
                 </div>
             </div>
             <div class="text-end">
-                <span class="badge bg-primary text-white font-mono px-3 py-2 fs-6">BẢNG BÁO GIÁ</span>
+                <span class="badge bg-primary text-white font-mono px-3 py-2 fs-6">BẢNG BÁO GIÁ DỊCH VỤ</span>
                 <div class="text-muted font-mono small mt-2">Mã: <strong>{{ quote.quote_code }}</strong></div>
                 <div class="text-muted font-mono small">Ngày lập: {{ quote.created_at.strftime('%d/%m/%Y') if quote.created_at else '-' }}</div>
                 <div class="text-muted font-mono small">Hiệu lực: {{ quote.valid_days }} ngày</div>
@@ -53,7 +53,7 @@
         <div class="bg-light p-3 rounded-2 mb-4 border">
             <div class="row g-2" style="font-size: 0.88rem;">
                 <div class="col-sm-7">
-                    <span class="text-muted">Kính gửi Quý khách:</span> <strong class="text-dark">{{ quote.customer_name }}</strong>
+                    <span class="text-muted">Kính gửi Quý khách:</span> <strong class="text-dark fs-6">{{ quote.customer_name }}</strong>
                 </div>
                 <div class="col-sm-5 text-sm-end">
                     <span class="text-muted">Người liên hệ:</span> <span class="fw-semibold">{{ quote.contact_person or '-' }}</span>
@@ -68,91 +68,185 @@
         </div>
 
         <div class="mb-3 text-muted small">
-            GIC Logistics xin trân trọng gửi tới Quý khách hàng bảng báo giá dịch vụ chi tiết như sau:
+            GIC Logistics xin trân trọng gửi tới Quý khách hàng bảng báo giá cước vận tải đường bộ và biểu phí dịch vụ logistics chi tiết như sau:
         </div>
 
-        <!-- Items Table -->
-        <div class="table-responsive mb-4">
-            <table class="table table-bordered align-middle" style="font-size: 0.85rem;">
-                <thead class="table-light text-center">
-                    <tr>
-                        <th style="width: 40px;">STT</th>
-                        <th>Nội Dung Dịch Vụ / Tuyến Đường</th>
-                        <th>Quy Cách / Xe</th>
-                        <th style="width: 60px;">ĐVT</th>
-                        <th style="width: 50px;">SL</th>
-                        <th class="text-end" style="width: 120px;">Đơn Giá (VNĐ)</th>
-                        <th class="text-end" style="width: 130px;">Thành Tiền (VNĐ)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for it in items %}
-                    <tr>
-                        <td class="text-center font-mono text-muted">{{ loop.index }}</td>
-                        <td>
-                            <strong class="text-dark">{{ it.name }}</strong>
-                        </td>
-                        <td>
-                            {% if it.spec %}
-                                <span class="badge bg-light text-dark border font-mono">{{ it.spec }}</span>
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">{{ it.unit or 'Chuyến' }}</td>
-                        <td class="text-center font-mono fw-bold">{{ it.quantity }}</td>
-                        <td class="text-end font-mono tabular-nums">{{ it.unit_price | format_money }}</td>
-                        <td class="text-end font-mono fw-bold text-dark tabular-nums">{{ it.total | format_money }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">Không có hạng mục nào.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <td colspan="6" class="text-end fw-bold">Cộng tiền dịch vụ:</td>
-                        <td class="text-end font-mono fw-bold tabular-nums">{{ quote.subtotal | format_money }}</td>
-                    </tr>
-                    {% if quote.vat_percent and quote.vat_percent > 0 %}
-                    <tr>
-                        <td colspan="6" class="text-end text-muted">Thuế giá trị gia tăng VAT ({{ quote.vat_percent }}%):</td>
-                        <td class="text-end font-mono tabular-nums text-muted">{{ quote.vat_amount | format_money }}</td>
-                    </tr>
-                    {% endif %}
-                    <tr class="fs-6 table-primary">
-                        <td colspan="6" class="text-end fw-black text-uppercase">TỔNG CỘNG THANH TOÁN:</td>
-                        <td class="text-end font-mono fw-black text-primary tabular-nums fs-6">{{ quote.total_amount | format_money }}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
+        <!-- ===================================================================
+             PHẦN I: BẢNG MA TRẬN CƯỚC VẬN CHUYỂN NỘI ĐỊA (NẾU CÓ)
+        ==================================================================== -->
+        {% if matrix_routes %}
+        <div class="mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="fw-bold text-dark m-0 text-uppercase d-flex align-items-center gap-2" style="font-size: 0.9rem;">
+                    <i class="fa-solid fa-table-cells text-primary"></i>
+                    I. Bảng Ma Trận Cước Vận Chuyển Đường Bộ Theo Chủng Loại Xe (Road Freight Matrix)
+                </h6>
+                <span class="badge bg-light text-muted border font-sans small">Đơn vị: VNĐ / Chuyến (Chưa VAT)</span>
+            </div>
 
-        <!-- Terms & Conditions -->
-        <div class="p-3 bg-light rounded-2 border mb-4" style="font-size: 0.78rem; line-height: 1.55;">
-            <div class="fw-bold text-dark mb-1"><i class="fa-solid fa-circle-info text-primary me-1"></i> GHI CHÚ & ĐIỀU KHOẢN:</div>
-            <ul class="m-0 ps-3 text-muted">
-                <li>Đơn giá trên áp dụng cho dịch vụ tiêu chuẩn theo tuyến đường và quy cách nêu trên.</li>
-                <li>Thời hạn hiệu lực: Báo giá có hiệu lực trong vòng <strong>{{ quote.valid_days }} ngày</strong> kể từ ngày lập.</li>
-                <li>Điều kiện thanh toán: Chuyển khoản trong vòng 15-30 ngày kể từ ngày nhận đủ hồ sơ thanh toán hợp lệ (Hóa đơn GTGT, Biên bản bàn giao).</li>
+            <div class="table-responsive border rounded-2">
+                <table class="table table-bordered table-sm align-middle mb-0 text-nowrap" style="font-size: 0.76rem;">
+                    <thead class="table-primary text-center align-middle" style="font-size: 0.7rem;">
+                        <tr>
+                            <th style="width: 35px;" rowspan="2">STT</th>
+                            <th style="min-width: 150px;" rowspan="2">起运地<br>(Điểm Đi)</th>
+                            <th style="min-width: 170px;" rowspan="2">目的地<br>(Điểm Đến)</th>
+                            <th colspan="3" class="bg-primary text-white border-bottom">Xe Tải Nhỏ</th>
+                            <th colspan="3" class="bg-primary text-white border-bottom">Xe Tải Trung</th>
+                            <th colspan="3" class="bg-primary text-white border-bottom">Container Tiêu Chuẩn</th>
+                            <th colspan="3" class="bg-primary text-white border-bottom">Xe Chuyên Dụng / Quá Khổ</th>
+                            <th style="min-width: 75px;" rowspan="2">时效(H)<br>(Lead time)</th>
+                        </tr>
+                        <tr>
+                            <th style="min-width: 78px;">1.9T<br><span class="fw-normal" style="font-size: 0.62rem;">4.3x1.8m</span></th>
+                            <th style="min-width: 78px;">2.5T<br><span class="fw-normal" style="font-size: 0.62rem;">4.2x1.7m</span></th>
+                            <th style="min-width: 78px;">3.5T<br><span class="fw-normal" style="font-size: 0.62rem;">3.1x1.6m</span></th>
+                            <th style="min-width: 82px;">5T<br><span class="fw-normal" style="font-size: 0.62rem;">5.8x2.1m</span></th>
+                            <th style="min-width: 82px;">8T<br><span class="fw-normal" style="font-size: 0.62rem;">7.3x2.3m</span></th>
+                            <th style="min-width: 82px;">10T<br><span class="fw-normal" style="font-size: 0.62rem;">9.5x2.3m</span></th>
+                            <th style="min-width: 80px;">CONT 20<br><span class="fw-normal" style="font-size: 0.62rem;">20ft DC</span></th>
+                            <th style="min-width: 80px;">CONT 40<br><span class="fw-normal" style="font-size: 0.62rem;">40ft HC</span></th>
+                            <th style="min-width: 80px;">CONT 45<br><span class="fw-normal" style="font-size: 0.62rem;">45ft HC</span></th>
+                            <th style="min-width: 85px;">Xe Rào 14M<br><span class="fw-normal" style="font-size: 0.62rem;">高栏车</span></th>
+                            <th style="min-width: 85px;">Xe Sàn 14.3M<br><span class="fw-normal" style="font-size: 0.62rem;">平坦车</span></th>
+                            <th style="min-width: 85px;">Fooc 18M<br><span class="fw-normal" style="font-size: 0.62rem;">超地版</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in matrix_routes %}
+                        <tr>
+                            <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                            <td class="fw-bold text-dark text-wrap" style="max-width: 170px;">{{ r.diem_di or r.name or '-' }}</td>
+                            <td class="text-wrap" style="max-width: 180px;">{{ r.diem_den or (r.name.split(' - ')[1] if ' - ' in (r.name or '') else '') or '-' }}</td>
+                            
+                            <td class="text-end font-mono tabular-nums">{{ (r.xe_1_9t or (r.unit_price if '1.9' in (r.spec or '') else 0)) | format_money if (r.xe_1_9t or ('1.9' in (r.spec or ''))) else '-' }}</td>
+                            <td class="text-end font-mono tabular-nums">{{ (r.xe_2_5t or (r.unit_price if '2.5' in (r.spec or '') else 0)) | format_money if (r.xe_2_5t or ('2.5' in (r.spec or ''))) else '-' }}</td>
+                            <td class="text-end font-mono tabular-nums">{{ (r.xe_3_5t or (r.unit_price if '3.5' in (r.spec or '') else 0)) | format_money if (r.xe_3_5t or ('3.5' in (r.spec or ''))) else '-' }}</td>
+                            
+                            <td class="text-end font-mono fw-bold tabular-nums text-primary">{{ (r.xe_5t or (r.unit_price if '5T' in (r.spec or '') or '5' in (r.spec or '') else 0)) | format_money if (r.xe_5t or ('5' in (r.spec or ''))) else '-' }}</td>
+                            <td class="text-end font-mono fw-bold tabular-nums text-primary">{{ (r.xe_8t or (r.unit_price if '8T' in (r.spec or '') or '8' in (r.spec or '') else 0)) | format_money if (r.xe_8t or ('8' in (r.spec or ''))) else '-' }}</td>
+                            <td class="text-end font-mono fw-bold tabular-nums text-primary">{{ (r.xe_10t or (r.unit_price if '10T' in (r.spec or '') or '10' in (r.spec or '') else 0)) | format_money if (r.xe_10t or ('10' in (r.spec or ''))) else '-' }}</td>
+                            
+                            <td class="text-end font-mono tabular-nums fw-semibold">{{ (r.cont_20 or (r.unit_price if '20' in (r.spec or '') else 0)) | format_money if (r.cont_20 or ('20' in (r.spec or ''))) else '-' }}</td>
+                            <td class="text-end font-mono tabular-nums fw-semibold">{{ (r.cont_40 or (r.unit_price if '40' in (r.spec or '') else 0)) | format_money if (r.cont_40 or ('40' in (r.spec or ''))) else '-' }}</td>
+                            <td class="text-end font-mono tabular-nums fw-bold text-dark">{{ (r.cont_45 or (r.unit_price if '45' in (r.spec or '') else 0)) | format_money if (r.cont_45 or ('45' in (r.spec or ''))) else '-' }}</td>
+                            
+                            <td class="text-end font-mono tabular-nums text-success fw-semibold">{{ (r.xe_rao_14m or (r.unit_price if 'rào' in (r.spec or '').lower() else 0)) | format_money if (r.xe_rao_14m or ('rào' in (r.spec or '').lower())) else '-' }}</td>
+                            <td class="text-end font-mono tabular-nums text-success fw-semibold">{{ (r.xe_san_14m or (r.unit_price if 'sàn' in (r.spec or '').lower() else 0)) | format_money if (r.xe_san_14m or ('sàn' in (r.spec or '').lower())) else '-' }}</td>
+                            <td class="text-end font-mono tabular-nums text-danger fw-bold">{{ (r.xe_fooc_18m or (r.unit_price if 'fooc' in (r.spec or '').lower() else 0)) | format_money if (r.xe_fooc_18m or ('fooc' in (r.spec or '').lower())) else '-' }}</td>
+                            
+                            <td class="text-center font-mono small text-muted">{{ r.thoi_hieu or '16h D+1' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ===================================================================
+             PHẦN II: BIỂU PHÍ DỊCH VỤ PHỤ TRỢ (BỐC XẾP, TỜ KHAI, KIỂM ĐỊNH, PHỤ PHÍ)
+        ==================================================================== -->
+        {% if aux_services %}
+        <div class="mb-4">
+            <h6 class="fw-bold text-dark mb-2 text-uppercase d-flex align-items-center gap-2" style="font-size: 0.9rem;">
+                <i class="fa-solid fa-boxes-stacked text-primary"></i>
+                II. Biểu Phí Dịch Vụ Phụ Trợ & Thủ Tục Hải Quan (Auxiliary Logistics Services Tariff)
+            </h6>
+            <div class="table-responsive border rounded-2">
+                <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.8rem;">
+                    <thead class="table-light text-center" style="font-size: 0.74rem;">
+                        <tr>
+                            <th style="width: 35px;">STT</th>
+                            <th style="width: 100px;">Phân Loại</th>
+                            <th>Nội Dung Dịch Vụ</th>
+                            <th>Quy Cách / Tiêu Chuẩn Áp Dụng</th>
+                            <th style="width: 85px;">ĐVT</th>
+                            <th class="text-end" style="width: 150px;">Đơn Giá Báo Khách (VNĐ)</th>
+                            <th style="min-width: 180px;">Ghi Chú & Điều Kiện Áp Dụng</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in aux_services %}
+                        <tr>
+                            <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-dark border font-sans">{{ it.category or 'Phụ trợ' }}</span>
+                            </td>
+                            <td>
+                                <strong class="text-dark">{{ it.name }}</strong>
+                            </td>
+                            <td>
+                                {% if it.spec %}
+                                    <span class="text-secondary">{{ it.spec }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center font-sans fw-semibold text-secondary">{{ it.unit or 'Lượt' }}</td>
+                            <td class="text-end font-mono fw-bold text-success tabular-nums fs-6">
+                                {% if (it.unit or '').startswith('%') %}
+                                    {{ it.unit_price }}%
+                                {% else %}
+                                    {{ it.unit_price | format_money }}
+                                {% endif %}
+                            </td>
+                            <td class="small text-muted" style="line-height: 1.35;">{{ it.notes or it.basis or 'Áp dụng theo quy định hiện hành' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Fallback if no categorized items -->
+        {% if not matrix_routes and not aux_services %}
+        <div class="alert alert-light border text-center py-4 text-muted">
+            Không có dịch vụ nào trong bảng báo giá này.
+        </div>
+        {% endif %}
+
+        <!-- ===================================================================
+             PHẦN III: ĐIỀU KHOẢN CƯỚC & QUY ĐỊNH LƯU CA BẬC THANG
+        ==================================================================== -->
+        <div class="p-3 bg-light rounded-2 border mb-4" style="font-size: 0.78rem; line-height: 1.6;">
+            <div class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-gavel text-primary"></i>
+                III. ĐIỀU KHOẢN & QUY ĐỊNH THƯƠNG MẠI TIÊU CHUẨN:
+            </div>
+            <ul class="m-0 ps-3 text-secondary">
+                <li><strong>Thuế giá trị gia tăng:</strong> Đơn giá trên chưa bao gồm thuế GTGT (VAT 8% hoặc 10% theo quy định pháp luật).</li>
+                <li><strong>Quy định phí lưu ca bậc thang:</strong> Thời gian tính lưu ca bắt đầu từ 15h00 ngày tiếp theo kể từ khi xe đến điểm nhận/giao hàng:
+                    <br>&bull; <em>02 ca đầu tiên: 1.000.000 đ/ngày (xe tải) &mdash; 1.500.000 đ/ngày (xe container).</em>
+                    <br>&bull; <em>Từ ca thứ 03 đến ca thứ 05: 1.500.000 đ/ngày (xe tải) &mdash; 2.000.000 đ/ngày (xe container).</em>
+                    <br>&bull; <em>Từ ca thứ 06 trở đi: 2.000.000 đ/ngày cho mọi loại phương tiện.</em>
+                </li>
+                <li><strong>Chi phí đã bao gồm:</strong> Phí cầu đường (BOT), lương lái xe và chi phí nhiên liệu dầu diesel theo cung đường thỏa thuận.</li>
+                <li><strong>Chi phí chưa bao gồm:</strong> Phí bến bãi, bốc xếp, hạ hàng, nâng hạ container, phí kiểm tra chất lượng nếu không ghi nhận cụ thể ở Phần II.</li>
+                <li><strong>Quy định hủy chuyến:</strong> Trường hợp khách hàng đã yêu cầu điều xe và xe đã đến kho đóng hàng hoặc lăn bánh được nửa đường nhưng bị hủy, khách hàng thanh toán 50% cước phí chuyến xe.</li>
+                <li><strong>Biến động giá dầu diesel:</strong> Đơn giá căn cứ theo giá dầu DO thị trường tại thời điểm báo giá. Khi giá dầu biến động vượt quá 10%, hai bên sẽ cùng hiệp thương điều chỉnh lại đơn giá cước.</li>
+                <li><strong>Thời hạn hiệu lực:</strong> Báo giá có hiệu lực trong vòng <strong>{{ quote.valid_days }} ngày</strong> kể từ ngày phát hành.</li>
+                <li><strong>Điều kiện thanh toán:</strong> Chuyển khoản trong vòng 15 &mdash; 30 ngày kể từ ngày nhận đủ hồ sơ thanh toán hợp lệ (Hóa đơn GTGT, Phiếu giao nhận).</li>
                 {% if quote.notes %}
                     <li class="text-dark fw-semibold mt-1">Ghi chú riêng: {{ quote.notes }}</li>
                 {% endif %}
             </ul>
         </div>
 
-        <!-- Signatures -->
+        <!-- ===================================================================
+             PHẦN IV: ĐẠI DIỆN HAI BÊN KÝ XÁC NHẬN
+        ==================================================================== -->
         <div class="row pt-3 text-center" style="font-size: 0.85rem;">
             <div class="col-6">
                 <div class="fw-bold text-dark text-uppercase">XÁC NHẬN CỦA KHÁCH HÀNG</div>
                 <small class="text-muted">(Ký, đóng dấu và ghi rõ họ tên)</small>
-                <div style="height: 70px;"></div>
+                <div style="height: 75px;"></div>
             </div>
             <div class="col-6">
                 <div class="fw-bold text-primary text-uppercase">ĐẠI DIỆN GIC LOGISTICS</div>
                 <small class="text-muted">(Ký, đóng dấu và ghi rõ họ tên)</small>
-                <div style="height: 70px;"></div>
+                <div style="height: 75px;"></div>
                 <div class="fw-bold text-dark">{{ quote.creator.full_name if quote.creator else 'GIC Logistics' }}</div>
             </div>
         </div>
@@ -179,22 +273,34 @@
 
 <script>
 function copyZaloText() {
-    let text = `📦 BẢNG BÁO GIÁ DỊCH VỤ - GIC LOGISTICS (Số: {{ quote.quote_code }})\n`;
-    text += `👤 Kính gửi: {{ quote.customer_name }}\n`;
-    text += `📅 Ngày lập: {{ quote.created_at.strftime('%d/%m/%Y') if quote.created_at else '' }}\n`;
+    let text = `📦 BẢNG BÁO GIÁ DỊCH VỤ LOGISTICS - GIC (Số: {{ quote.quote_code }})\n`;
+    text += `👤 Kính gửi Quý khách: {{ quote.customer_name }}\n`;
+    text += `📅 Ngày lập: {{ quote.created_at.strftime('%d/%m/%Y') if quote.created_at else '' }} | Hiệu lực: {{ quote.valid_days }} ngày\n`;
     text += `------------------------------------\n`;
-    {% for it in items %}
-    text += `{{ loop.index }}. {{ it.name }} {% if it.spec %}({{ it.spec }}){% endif %}\n`;
-    text += `   - SL: {{ it.quantity }} {{ it.unit or 'Chuyến' }} x {{ it.unit_price | format_money }} = {{ it.total | format_money }}\n`;
+    
+    {% if matrix_routes %}
+    text += `I. CƯỚC VẬN CHUYỂN ĐƯỜNG BỘ:\n`;
+    {% for r in matrix_routes %}
+    text += `{{ loop.index }}. {{ r.diem_di or r.name }} -> {{ r.diem_den or '' }}:\n`;
+    text += `   - 5T: {{ (r.xe_5t or r.unit_price or 0) | format_money }} | 8T: {{ (r.xe_8t or 0) | format_money }} | Cont 45: {{ (r.cont_45 or 0) | format_money }}\n`;
+    text += `   - Thời hiệu: {{ r.thoi_hieu or '16h D+1' }}\n`;
     {% endfor %}
     text += `------------------------------------\n`;
-    text += `💰 Cộng tiền: {{ quote.subtotal | format_money }}\n`;
-    {% if quote.vat_percent and quote.vat_percent > 0 %}
-    text += `🧾 Thuế VAT ({{ quote.vat_percent }}%): {{ quote.vat_amount | format_money }}\n`;
     {% endif %}
-    text += `🎯 TỔNG CỘNG: {{ quote.total_amount | format_money }}\n\n`;
-    text += `📌 Báo giá có hiệu lực trong {{ quote.valid_days }} ngày.\n`;
-    text += `Trân trọng cảm ơn sự hợp tác của Quý khách!`;
+
+    {% if aux_services %}
+    text += `II. BIỂU PHÍ DỊCH VỤ PHỤ TRỢ:\n`;
+    {% for it in aux_services %}
+    text += `{{ loop.index }}. {{ it.name }}: {{ it.unit_price | format_money }} / {{ it.unit or 'Lượt' }} {% if it.spec %}({{ it.spec }}){% endif %}\n`;
+    {% endfor %}
+    text += `------------------------------------\n`;
+    {% endif %}
+
+    text += `📌 ĐIỀU KHOẢN CƯỚC:\n`;
+    text += `• Giá cước chưa bao gồm thuế VAT (8% hoặc 10%).\n`;
+    text += `• Phí lưu ca: Xe tải 1.000.000 đ/ngày; Container 1.500.000 đ/ngày.\n`;
+    text += `• Hủy chuyến: 50% cước khi phương tiện đã điều động hoặc lăn bánh.\n`;
+    text += `Trân trọng cảm ơn sự hợp tác của Quý khách hàng!`;
 
     navigator.clipboard.writeText(text).then(() => {
         alert('✅ Đã sao chép nội dung bảng báo giá vào clipboard! Bạn có thể dán ngay vào Zalo/Telegram để gửi khách.');

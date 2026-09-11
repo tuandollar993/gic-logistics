@@ -583,6 +583,7 @@ def generate_standard_quotation_excel():
 def export_quotation_to_excel(quote):
     """
     Xuất một Bảng Báo Giá cụ thể của khách hàng sang file Excel chuyên nghiệp nhận diện GIC Logistics
+    Định dạng BẢNG MA TRẬN CƯỚC VẬN CHUYỂN & BIỂU PHÍ DỊCH VỤ PHỤ TRỢ (Không dùng format hóa đơn bán lẻ)
     """
     import json
     items = []
@@ -593,130 +594,184 @@ def export_quotation_to_excel(quote):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = f"BaoGia_{quote.quote_code}"
+    ws.title = "BaoGia_GIC"
     ws.views.sheetView[0].showGridLines = True
 
+    matrix_routes = []
+    aux_services = []
+    for it in items:
+        if it.get('type') == 'route_matrix' or ('xe_1_9t' in it or 'xe_5t' in it or 'cont_45' in it):
+            matrix_routes.append(it)
+        elif it.get('category') == 'Vận chuyển':
+            matrix_routes.append(it)
+        else:
+            aux_services.append(it)
+
     # 1. Company Header
-    write_company_header(ws, f"BẢNG BÁO GIÁ DỊCH VỤ LOGISTICS - {quote.quote_code}", max_col=7)
+    write_company_header(ws, f"BẢNG BÁO GIÁ DỊCH VỤ LOGISTICS - {quote.quote_code}", max_col=15)
 
-    # 2. Customer Info Box (Row 6 - 9)
-    ws.merge_cells("A6:D6")
+    # 2. Customer Info Box (Row 6 - 8)
+    ws.merge_cells("A6:E6")
     ws.cell(6, 1, f"Kính gửi Quý khách: {quote.customer_name}").font = Font(name=FONT_FAMILY, size=11, bold=True)
-    ws.merge_cells("E6:G6")
-    ws.cell(6, 5, f"Mã báo giá: {quote.quote_code}").font = Font(name=FONT_FAMILY, size=11, bold=True)
-
-    ws.merge_cells("A7:D7")
-    ws.cell(7, 1, f"Người liên hệ: {quote.contact_person or '-'}").font = Font(name=FONT_FAMILY, size=10)
-    ws.merge_cells("E7:G7")
+    ws.merge_cells("F6:I6")
+    ws.cell(6, 6, f"Mã báo giá: {quote.quote_code}").font = Font(name=FONT_FAMILY, size=11, bold=True)
+    ws.merge_cells("J6:O6")
     created_str = quote.created_at.strftime('%d/%m/%Y') if quote.created_at else '-'
-    ws.cell(7, 5, f"Ngày lập: {created_str}").font = Font(name=FONT_FAMILY, size=10)
+    ws.cell(6, 10, f"Ngày lập: {created_str} | Hiệu lực: {quote.valid_days or 15} ngày").font = Font(name=FONT_FAMILY, size=10)
 
-    ws.merge_cells("A8:D8")
-    ws.cell(8, 1, f"Số điện thoại: {quote.phone or '-'}").font = Font(name=FONT_FAMILY, size=10)
-    ws.merge_cells("E8:G8")
-    ws.cell(8, 5, f"Thời hạn hiệu lực: {quote.valid_days or 15} ngày").font = Font(name=FONT_FAMILY, size=10)
+    ws.merge_cells("A7:E7")
+    ws.cell(7, 1, f"Người liên hệ: {quote.contact_person or '-'}").font = Font(name=FONT_FAMILY, size=10)
+    ws.merge_cells("F7:I7")
+    ws.cell(7, 6, f"Số điện thoại: {quote.phone or '-'}").font = Font(name=FONT_FAMILY, size=10)
+    ws.merge_cells("J7:O7")
+    creator_name = quote.creator.full_name if quote.creator else 'GIC Logistics'
+    ws.cell(7, 10, f"Đơn vị lập: {creator_name}").font = Font(name=FONT_FAMILY, size=10)
 
-    # 3. Table Headers (Row 10)
-    headers = [
-        ("STT", 6),
-        ("Nội Dung Dịch Vụ / Tuyến Đường", 38),
-        ("Quy Cách / Loại Xe", 25),
-        ("ĐVT", 10),
-        ("SL", 8),
-        ("Đơn Giá (VNĐ)", 16),
-        ("Thành Tiền (VNĐ)", 18)
-    ]
-    ws.row_dimensions[10].height = 26
-    for c_i, h in enumerate(headers, start=1):
-        cell = ws.cell(10, c_i, h[0])
-        set_cell_style(cell, font_size=11, bold=True, align="center", bg_color=COLOR_HEADER_BG, text_color=COLOR_HEADER_FG, border=header_border)
-        ws_col_letter = get_column_letter(c_i)
-        ws.column_dimensions[ws_col_letter].width = h[1]
+    current_r = 10
 
-    # 4. Item Rows
-    current_r = 11
-    for idx, it in enumerate(items, start=1):
-        bg = COLOR_ZEBRA_BG if idx % 2 == 0 else "FFFFFF"
-        ws.row_dimensions[current_r].height = 24
+    # 3. Phần I: Ma Trận Cước Vận Chuyển (nếu có)
+    if matrix_routes:
+        ws.cell(current_r, 1, "I. BẢNG MA TRẬN CƯỚC VẬN CHUYỂN ĐƯỜNG BỘ THEO CHỦNG LOẠI XE (VNĐ/CHUYẾN - CHƯA VAT)").font = Font(name=FONT_FAMILY, size=11, bold=True, color="1F497D")
+        current_r += 1
 
-        qty = float(it.get('quantity') or 1)
-        price = float(it.get('unit_price') or 0)
-        total = qty * price
+        headers = [
+            ("STT", 6),
+            ("起运地 (Điểm Đi)", 28),
+            ("目的地 (Điểm Đến)", 32),
+            ("1.9T", 14),
+            ("2.5T", 14),
+            ("3.5T", 14),
+            ("5T", 15),
+            ("8T", 15),
+            ("10T", 15),
+            ("CONT 20", 14),
+            ("CONT 40", 14),
+            ("CONT 45", 15),
+            ("Xe Rào 14M", 16),
+            ("Xe Sàn 14.3M", 16),
+            ("Fooc 18M", 16),
+            ("时效(H)", 12)
+        ]
+        ws.row_dimensions[current_r].height = 28
+        for c_i, h in enumerate(headers, start=1):
+            cell = ws.cell(current_r, c_i, h[0])
+            set_cell_style(cell, font_size=10, bold=True, align="center", bg_color=COLOR_HEADER_BG, text_color=COLOR_HEADER_FG, border=header_border)
+            ws.column_dimensions[get_column_letter(c_i)].width = h[1]
 
-        ws.cell(current_r, 1, idx)
-        set_cell_style(ws.cell(current_r, 1), font_size=10, align="center", bg_color=bg)
+        current_r += 1
+        for idx, r in enumerate(matrix_routes, start=1):
+            bg = COLOR_ZEBRA_BG if idx % 2 == 0 else "FFFFFF"
+            ws.row_dimensions[current_r].height = 24
+            ws.cell(current_r, 1, idx)
+            set_cell_style(ws.cell(current_r, 1), font_size=9, align="center", bg_color=bg)
 
-        ws.cell(current_r, 2, it.get('name', ''))
-        set_cell_style(ws.cell(current_r, 2), font_size=10, bold=True, bg_color=bg)
+            diem_di = r.get('diem_di') or r.get('name', '')
+            diem_den = r.get('diem_den') or ''
+            if not diem_den and ' - ' in diem_di:
+                parts = diem_di.split(' - ')
+                diem_di = parts[0]
+                diem_den = parts[1]
 
-        ws.cell(current_r, 3, it.get('spec', '-'))
-        set_cell_style(ws.cell(current_r, 3), font_size=10, bg_color=bg)
+            ws.cell(current_r, 2, diem_di)
+            set_cell_style(ws.cell(current_r, 2), font_size=9, bold=True, bg_color=bg)
+            ws.cell(current_r, 3, diem_den)
+            set_cell_style(ws.cell(current_r, 3), font_size=9, bg_color=bg)
 
-        ws.cell(current_r, 4, it.get('unit', 'Chuyến'))
-        set_cell_style(ws.cell(current_r, 4), font_size=10, align="center", bg_color=bg)
+            price_keys = ['xe_1_9t', 'xe_2_5t', 'xe_3_5t', 'xe_5t', 'xe_8t', 'xe_10t', 'cont_20', 'cont_40', 'cont_45', 'xe_rao_14m', 'xe_san_14m', 'xe_fooc_18m']
+            for k_i, k in enumerate(price_keys, start=4):
+                val = r.get(k) or 0
+                if not val and k == 'cont_45' and r.get('unit_price'):
+                    val = r.get('unit_price')
+                cell = ws.cell(current_r, k_i, val if val > 0 else '-')
+                if val > 0:
+                    set_cell_style(cell, font_size=9, align="right", bg_color=bg, num_format="#,##0")
+                else:
+                    set_cell_style(cell, font_size=9, align="center", bg_color=bg)
 
-        ws.cell(current_r, 5, qty)
-        set_cell_style(ws.cell(current_r, 5), font_size=10, align="center", bg_color=bg)
-
-        ws.cell(current_r, 6, price)
-        set_cell_style(ws.cell(current_r, 6), font_size=10, align="right", bg_color=bg, num_format="#,##0")
-
-        ws.cell(current_r, 7, total)
-        set_cell_style(ws.cell(current_r, 7), font_size=10, align="right", bold=True, bg_color=bg, num_format="#,##0")
+            cell_lead = ws.cell(current_r, 16, r.get('thoi_hieu') or '16h D+1')
+            set_cell_style(cell_lead, font_size=9, align="center", bg_color=bg)
+            current_r += 1
 
         current_r += 1
 
-    # 5. Summary (Subtotal, VAT, Total)
-    ws.merge_cells(start_row=current_r, start_column=1, end_row=current_r, end_column=6)
-    c_sub_label = ws.cell(current_r, 1, "Tổng cộng cước dịch vụ (chưa VAT):")
-    set_cell_style(c_sub_label, font_size=10, bold=True, align="right", bg_color="F2F2F2")
-    c_sub_val = ws.cell(current_r, 7, quote.subtotal or 0)
-    set_cell_style(c_sub_val, font_size=10, bold=True, align="right", bg_color="F2F2F2", num_format="#,##0")
-    current_r += 1
+    # 4. Phần II: Biểu Phí Dịch Vụ Phụ Trợ (nếu có)
+    if aux_services:
+        ws.cell(current_r, 1, "II. BIỂU PHÍ DỊCH VỤ PHỤ TRỢ, BỐC XẾP & HẢI QUAN").font = Font(name=FONT_FAMILY, size=11, bold=True, color="1F497D")
+        current_r += 1
 
-    ws.merge_cells(start_row=current_r, start_column=1, end_row=current_r, end_column=6)
-    c_vat_label = ws.cell(current_r, 1, f"Thuế GTGT ({quote.vat_percent or 10.0:.0f}%):")
-    set_cell_style(c_vat_label, font_size=10, align="right", bg_color="F2F2F2")
-    c_vat_val = ws.cell(current_r, 7, quote.vat_amount or 0)
-    set_cell_style(c_vat_val, font_size=10, align="right", bg_color="F2F2F2", num_format="#,##0")
-    current_r += 1
+        aux_headers = [
+            ("STT", 6),
+            ("Phân Loại", 14),
+            ("Nội Dung Dịch Vụ", 38),
+            ("Quy Cách / Tiêu Chuẩn Áp Dụng", 30),
+            ("ĐVT", 12),
+            ("Đơn Giá Báo Khách (VNĐ)", 20),
+            ("Ghi Chú & Điều Kiện Áp Dụng", 40)
+        ]
+        ws.row_dimensions[current_r].height = 26
+        for c_i, h in enumerate(aux_headers, start=1):
+            cell = ws.cell(current_r, c_i, h[0])
+            set_cell_style(cell, font_size=10, bold=True, align="center", bg_color=COLOR_HEADER_BG, text_color=COLOR_HEADER_FG, border=header_border)
 
-    ws.merge_cells(start_row=current_r, start_column=1, end_row=current_r, end_column=6)
-    c_tot_label = ws.cell(current_r, 1, "TỔNG GIÁ TRỊ THANH TOÁN (ĐÃ VAT):")
-    set_cell_style(c_tot_label, font_size=11, bold=True, align="right", bg_color=COLOR_SUBHEADER_BG, text_color="1F497D")
-    c_tot_val = ws.cell(current_r, 7, quote.total_amount or 0)
-    set_cell_style(c_tot_val, font_size=11, bold=True, align="right", bg_color=COLOR_SUBHEADER_BG, text_color="1F497D", num_format="#,##0")
-    current_r += 1
+        current_r += 1
+        for idx, it in enumerate(aux_services, start=1):
+            bg = COLOR_ZEBRA_BG if idx % 2 == 0 else "FFFFFF"
+            ws.row_dimensions[current_r].height = 22
 
-    # 6. Notes & Terms
-    current_r += 1
-    ws.cell(current_r, 1, "Ghi chú & Điều khoản chung:").font = Font(name=FONT_FAMILY, size=11, bold=True)
+            ws.cell(current_r, 1, idx)
+            set_cell_style(ws.cell(current_r, 1), font_size=9, align="center", bg_color=bg)
+            ws.cell(current_r, 2, it.get('category', 'Phụ trợ'))
+            set_cell_style(ws.cell(current_r, 2), font_size=9, align="center", bg_color=bg)
+            ws.cell(current_r, 3, it.get('name', ''))
+            set_cell_style(ws.cell(current_r, 3), font_size=9, bold=True, bg_color=bg)
+            ws.cell(current_r, 4, it.get('spec', '-'))
+            set_cell_style(ws.cell(current_r, 4), font_size=9, bg_color=bg)
+            ws.cell(current_r, 5, it.get('unit', 'Lượt'))
+            set_cell_style(ws.cell(current_r, 5), font_size=9, align="center", bg_color=bg)
+
+            p_val = it.get('unit_price') or 0
+            cell_p = ws.cell(current_r, 6, p_val)
+            if str(it.get('unit', '')).startswith('%'):
+                set_cell_style(cell_p, font_size=9, align="right", bold=True, bg_color=bg)
+            else:
+                set_cell_style(cell_p, font_size=9, align="right", bold=True, bg_color=bg, num_format="#,##0")
+
+            ws.cell(current_r, 7, it.get('notes') or it.get('basis', ''))
+            set_cell_style(ws.cell(current_r, 7), font_size=9, italic=True, bg_color=bg)
+            current_r += 1
+
+        current_r += 1
+
+    # 5. Ghi chú & Điều khoản
+    ws.cell(current_r, 1, "III. ĐIỀU KHOẢN & QUY ĐỊNH THƯƠNG MẠI TIÊU CHUẨN:").font = Font(name=FONT_FAMILY, size=11, bold=True)
     current_r += 1
 
     terms = [
-        "- Báo giá có hiệu lực trong vòng " + str(quote.valid_days or 15) + " ngày kể từ ngày ban hành.",
-        "- Giá cước đã bao gồm chi phí nhiên liệu, cầu đường, lương tài xế theo đúng lộ trình thỏa thuận.",
-        "- Phí lưu ca xe tính từ 15h00 ngày tiếp theo kể từ khi xe đến điểm nhận/giao (Xe tải: 1.000.000 đ/ngày; Container: 1.500.000 đ/ngày).",
-        "- Giá chưa bao gồm phí bốc xếp, nâng hạ, chi phí kiểm tra chất lượng nếu không được liệt kê cụ thể trong bảng trên.",
-        "- Trường hợp giá dầu diesel biến động trên 10%, hai bên sẽ hiệp thương điều chỉnh lại cước phù hợp thực tế."
+        "- Đơn giá trên chưa bao gồm thuế GTGT (VAT 8% hoặc 10% theo quy định pháp luật).",
+        "- Phí lưu ca xe tính từ 15h00 ngày tiếp theo kể từ khi xe đến điểm nhận/giao: 02 ca đầu 1.000.000 đ/ngày (xe tải) / 1.500.000 đ/ngày (cont); Ca 3-5: 1.500.000 đ/ngày (xe tải) / 2.000.000 đ/ngày (cont); Từ ca 6: 2.000.000 đ/ngày.",
+        "- Giá cước đã bao gồm chi phí nhiên liệu, cầu đường (BOT), lương lái xe theo đúng lộ trình thỏa thuận.",
+        "- Hủy chuyến: Khách hàng thanh toán 50% cước phí nếu xe đã điều động đến nhà máy hoặc lăn bánh.",
+        "- Biến động giá dầu diesel DO: Khi giá dầu biến động vượt quá 10%, hai bên sẽ cùng hiệp thương điều chỉnh lại cước.",
+        "- Thời hạn hiệu lực: Báo giá có hiệu lực trong vòng " + str(quote.valid_days or 15) + " ngày kể từ ngày ban hành.",
+        "- Điều kiện thanh toán: Chuyển khoản trong vòng 15-30 ngày kể từ ngày nhận đủ hồ sơ thanh toán hợp lệ."
     ]
     if quote.notes:
         terms.insert(0, f"- Ghi chú riêng: {quote.notes}")
 
     for t in terms:
-        ws.merge_cells(start_row=current_r, start_column=1, end_row=current_r, end_column=7)
+        ws.merge_cells(start_row=current_r, start_column=1, end_row=current_r, end_column=15)
         c_term = ws.cell(current_r, 1, t)
         set_cell_style(c_term, font_size=9, italic=True, border=None)
         current_r += 1
 
-    # 7. Signatures
+    # 6. Signatures
     current_r += 2
-    ws.merge_cells(start_row=current_r, start_column=1, end_row=current_r, end_column=3)
-    ws.cell(current_r, 1, "ĐẠI DIỆN KHÁCH HÀNG\n(Ký & Ghi rõ họ tên)").alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.cell(current_r, 1).font = Font(name=FONT_FAMILY, size=10, bold=True)
+    ws.merge_cells(start_row=current_r, start_column=2, end_row=current_r, end_column=5)
+    ws.cell(current_r, 2, "ĐẠI DIỆN KHÁCH HÀNG\n(Ký & Ghi rõ họ tên)").alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.cell(current_r, 2).font = Font(name=FONT_FAMILY, size=10, bold=True)
 
-    ws.merge_cells(start_row=current_r, start_column=5, end_row=current_r, end_column=7)
-    ws.cell(current_r, 5, "ĐẠI DIỆN GIC LOGISTICS\n(Người lập báo giá)").alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.cell(current_r, 5).font = Font(name=FONT_FAMILY, size=10, bold=True)
+    ws.merge_cells(start_row=current_r, start_column=11, end_row=current_r, end_column=14)
+    ws.cell(current_r, 11, "ĐẠI DIỆN GIC LOGISTICS\n(Người lập báo giá)").alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.cell(current_r, 11).font = Font(name=FONT_FAMILY, size=10, bold=True)
 
     return wb

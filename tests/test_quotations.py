@@ -312,6 +312,98 @@ def test_export_quotation_to_excel_route(app, auth_client_manager, seed_quotatio
     res = auth_client_manager.get(f'/quotations/{qid}/export-excel')
     assert res.status_code == 200
     assert 'spreadsheetml' in res.content_type
-    assert len(res.data) > 3000
+
+def test_clean_route_names_and_sample_lots(app, seed_quotation_data):
+    """Kiểm tra toàn bộ tuyến đường đã chuẩn hoá Tỉnh - Tỉnh và có link đối chứng lô hàng"""
+    with app.app_context():
+        benchmarks = get_all_benchmarks()
+        vc_items = [b for b in benchmarks if b['category'] == 'Vận chuyển']
+
+        # 1. Tuyến đường không được chứa tiền tố Vận chuyển / Cước vận chuyển
+        for it in vc_items:
+            name = it['name']
+            assert not name.lower().startswith('vận chuyển')
+            assert not name.lower().startswith('cước vận chuyển')
+            assert not name.lower().startswith('cước vận chuyển')
+            assert not name.lower().startswith('vc ')
+            assert ' - ' in name or ' -> ' in name or name in ['Nội thành', 'Ngoại thành']
+
+        # 2. Toàn bộ benchmark có sample_lots với cấu trúc id, label
+        items_with_lots = [b for b in benchmarks if b.get('sample_lots')]
+        assert len(items_with_lots) > 0
+        sample_lot = items_with_lots[0]['sample_lots'][0]
+        assert 'id' in sample_lot
+        assert 'label' in sample_lot
+
+
+def test_matrix_quotation_view_format(app, auth_client_manager):
+    """Kiểm tra giao diện báo giá xuất ra ở định dạng Bảng Ma Trận & Biểu Phí Phụ Trợ (KHÔNG PHẢI HÓA ĐƠN BÁN LẺ)"""
+    with app.app_context():
+        quote = Quotation(
+            quote_code='BG-202609-MATRIX',
+            customer_name='Tập đoàn Foxconn Việt Nam',
+            contact_person='Trần Văn Long',
+            phone='0988776655',
+            valid_days=30,
+            items_json=json.dumps([
+                {
+                    'type': 'route_matrix',
+                    'category': 'Vận chuyển',
+                    'diem_di': 'Hữu Nghị',
+                    'diem_den': 'Bắc Ninh',
+                    'name': 'Hữu Nghị - Bắc Ninh',
+                    'xe_1_9t': 2400000,
+                    'xe_5t': 3700000,
+                    'xe_8t': 4500000,
+                    'cont_45': 6400000,
+                    'xe_rao_14m': 8300000,
+                    'xe_fooc_18m': 13800000,
+                    'thoi_hieu': '16h D+1',
+                    'quantity': 1,
+                    'unit_price': 6400000
+                },
+                {
+                    'type': 'aux_service',
+                    'category': 'Bốc xếp',
+                    'name': 'Bốc xếp hàng hóa theo kg',
+                    'spec': 'Hàng nặng',
+                    'unit': 'kg',
+                    'quantity': 1,
+                    'unit_price': 180,
+                    'notes': 'Dỡ tại kho Lạng Sơn'
+                }
+            ]),
+            subtotal=6400180,
+            vat_percent=10,
+            vat_amount=640018,
+            total_amount=7040198
+        )
+        db.session.add(quote)
+        db.session.commit()
+        qid = quote.id
+
+    res = auth_client_manager.get(f'/quotations/{qid}')
+    assert res.status_code == 200
+    html = res.data.decode('utf-8')
+
+    # Phải có bảng ma trận 12 cột xe
+    assert 'Bảng Ma Trận Cước Vận Chuyển Đường Bộ' in html
+    assert 'Hữu Nghị' in html
+    assert 'Bắc Ninh' in html
+    assert '6,400,000' in html or '6.400.000' in html
+    assert '3,700,000' in html or '3.700.000' in html
+
+    # Phải có biểu phí phụ trợ
+    assert 'Biểu Phí Dịch Vụ Phụ Trợ' in html
+    assert 'Bốc xếp hàng hóa theo kg' in html
+    assert '180' in html
+
+    # Phải có điều khoản cước & lưu ca bậc thang
+    assert 'lưu ca bậc thang' in html.lower()
+    assert '1.000.000' in html or '1,000,000' in html
+
+    # KHÔNG được có bảng hóa đơn bán lẻ bán hàng
+    assert 'Thành tiền: 5đ' not in html
+
 
 

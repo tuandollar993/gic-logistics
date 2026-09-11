@@ -5,6 +5,37 @@ from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models import RevenueItem, OperatingCost
 
+def clean_route_name(name):
+    """Chuẩn hóa tên tuyến đường thành định dạng chuẩn 'Tỉnh - Tỉnh' (loại bỏ Vận chuyển, cước vận chuyển, VC, v.v.)"""
+    if not name:
+        return ''
+    s = unicodedata.normalize('NFC', name.strip())
+    # Thay thế các ký tự xuống dòng và khoảng trắng liên tiếp bằng 1 dấu cách
+    s = re.sub(r'\s+', ' ', s).strip()
+    # Loại bỏ tiền tố: Cước vận chuyển, Cước vận chuyển, Vận chuyển, VC, v.v.
+    s = re.sub(r'^(cước\s+vận\s+chuyển|cuoc\s+van\s+chuyen|vận\s+chuyển|van\s+chuyen|vc\s+cont\s+\d+ft\s+từ|vc\s+xe\s+tải\s+từ|vc)\s*[-:–]*\s*', '', s, flags=re.IGNORECASE).strip()
+    # Loại bỏ tiền tố phương tiện nếu còn: cont 20ft từ, xe tải từ
+    s = re.sub(r'^(cont\s+\d+ft\s+từ|xe\s+tải\s+từ)\s+', '', s, flags=re.IGNORECASE).strip()
+    # Loại bỏ biển số xe phía sau nếu có: BSX 15H06462
+    s = re.sub(r'\s+BSX\s+[A-Z0-9\.]+$', '', s, flags=re.IGNORECASE).strip()
+    # Chuẩn hóa khoảng trắng quanh dấu gạch ngang
+    s = re.sub(r'\s*[-–—]\s*', ' - ', s).strip()
+    # Chuẩn hóa một số tên địa danh viết hoa chuẩn
+    s = re.sub(r'\bHà nội\b', 'Hà Nội', s)
+    s = re.sub(r'\bHải phòng\b', 'Hải Phòng', s)
+    s = re.sub(r'\bBắc ninh\b', 'Bắc Ninh', s)
+    s = re.sub(r'\bVĩnh phúc\b', 'Vĩnh Phúc', s)
+    s = re.sub(r'\bPhú thọ\b', 'Phú Thọ', s)
+    s = re.sub(r'\bHưng yên\b', 'Hưng Yên', s)
+    s = re.sub(r'\bHải dương\b', 'Hải Dương', s)
+    s = re.sub(r'\bThanh hóa\b', 'Thanh Hóa', s)
+    s = re.sub(r'\bThái bình\b', 'Thái Bình', s)
+    s = re.sub(r'\bĐà nẵng\b', 'Đà Nẵng', s)
+    s = re.sub(r'\bĐồng nai\b', 'Đồng Nai', s)
+    if s:
+        s = s[0].upper() + s[1:]
+    return s
+
 def normalize_text_key(text):
     """Chuẩn hóa chuỗi tiếng Việt để so khớp (bỏ dấu, chữ thường, xóa khoảng trắng thừa)"""
     if not text:
@@ -50,18 +81,21 @@ def get_all_benchmarks():
         'margins': [],
         'count': 0,
         'latest_lot': '',
+        'latest_lot_id': None,
         'latest_month': 0,
         'latest_year': 0,
-        'recorded_specs': defaultdict(lambda: {'buys': [], 'sells': []})
+        'sample_lots': [],
+        'recorded_specs': defaultdict(lambda: {'buys': [], 'sells': [], 'sample_lots': []})
     })
 
     for item in rev_items:
         if item.category != 'Vận chuyển':
             continue
         route_name = (item.display_description or item.service_description or 'Tuyến vận chuyển').strip()
-        # Chuẩn hóa tên tuyến (loại bỏ tiền tố Cước vận chuyển nếu có)
-        clean_route = re.sub(r'^(cước vận chuyển|cuoc van chuyen)\s+', '', route_name, flags=re.IGNORECASE).strip()
-        clean_route = clean_route[0].upper() + clean_route[1:] if clean_route else route_name
+        # Chuẩn hóa tên tuyến triệt để theo định dạng chuẩn Tỉnh - Tỉnh (loại bỏ Vận chuyển, cước vận chuyển, VC)
+        clean_route = clean_route_name(route_name)
+        if not clean_route or clean_route.lower() in ('hàng hóa', 'hàng hoá', 'dịch vụ', 'tuyến vận chuyển') or len(clean_route) < 3:
+            continue
         spec_raw = (item.weight_class or '').strip()
 
         st = route_stats[clean_route]
@@ -104,9 +138,19 @@ def get_all_benchmarks():
         if item.lot:
             m = item.lot.month or 0
             y = item.lot.year or 2026
+            lot_info = {
+                'id': item.lot.id,
+                'label': item.lot.lot_label or f"Lô {item.lot.id}",
+                'month': m,
+                'year': y
+            }
+            if not any(l['id'] == lot_info['id'] for l in st['sample_lots']):
+                st['sample_lots'].append(lot_info)
+
             if (y > st['latest_year']) or (y == st['latest_year'] and m >= st['latest_month']):
                 st['latest_year'] = y
                 st['latest_month'] = m
+                st['latest_lot_id'] = item.lot.id
                 st['latest_lot'] = f"{item.lot.lot_label} (Tháng {m:02d}/{y})"
 
     # Tạo các dòng cước cho từng loại xe với mỗi tuyến vận chuyển
@@ -160,6 +204,8 @@ def get_all_benchmarks():
                 'margin_avg': round(margin_p, 1),
                 'recommended_price': rec_price,
                 'latest_lot': st['latest_lot'],
+                'latest_lot_id': st['latest_lot_id'],
+                'sample_lots': st['sample_lots'][:4],
                 'basis_text': basis_text
             })
 
@@ -1020,6 +1066,14 @@ def get_all_benchmarks():
         }
     ]
     results.extend(phuphi_benchmarks)
+
+    # Gán thông tin sample_lots cho các dịch vụ phụ trợ từ LOTS_MAP
+    lots_lookup = {'Bốc xếp hàng hóa theo Trọng Lượng (Hàng nặng / Sắt thép / Gạch / Máy)': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}, {'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Bốc xếp hàng hóa theo Trọng Lượng (Đơn vị Tấn - Lô ≥ 3 Tấn)': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}, {'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Bốc xếp hàng hóa theo Thể Tích / Khối (Hàng nhẹ cồng kềnh / Thùng Carton)': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}], 'Bốc xếp trọn gói theo Xe 5 Tấn (5T)': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}, {'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Bốc xếp trọn gói theo Xe 8 Tấn (8T)': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}], 'Bốc xếp trọn gói theo Xe 15 Tấn (15T)': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}], 'Bốc xếp trọn gói Container 40 feet / 45 feet': [{'id': 367, 'label': 'Lô 1', 'month': 8, 'year': 2026}, {'id': 368, 'label': 'Lô 2', 'month': 8, 'year': 2026}], 'Sang hàng Pallet kéo tay (Kèm xe nâng tay)': [{'id': 414, 'label': 'Lô CP 4.0', 'month': 9, 'year': 2026}, {'id': 368, 'label': 'Lô 2', 'month': 8, 'year': 2026}, {'id': 367, 'label': 'Lô 1', 'month': 8, 'year': 2026}], 'Cơ giới sang hàng (Xe nâng hạ hàng nặng)': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}, {'id': 414, 'label': 'Lô CP 4.0', 'month': 9, 'year': 2026}], 'Mua phí sang tải cửa khẩu': [{'id': 407, 'label': 'Lô CP 5.0', 'month': 7, 'year': 2026}, {'id': 406, 'label': 'Lô CP 4.0', 'month': 7, 'year': 2026}], 'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Hà Nội': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}, {'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại TP. Hồ Chí Minh': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Nha Trang': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}], 'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Vũng Tàu': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Bốc xếp & Giao hàng chuỗi Keep / Keep Rise tại Đà Nẵng': [{'id': 404, 'label': 'Lô CP 2.0', 'month': 7, 'year': 2026}], 'Thuê kho & Bốc xếp phân phối tại Đà Lạt': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Kiểm tra chất lượng Nhà nước (Quatest) - Thiết bị điện / Điện gia dụng': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}, {'id': 370, 'label': 'Lô 4', 'month': 8, 'year': 2026}], 'Kiểm tra chất lượng Nhà nước (Quatest) - Mẫu thử nghiệm phát sinh': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Kiểm tra chất lượng Quatest - Hàng Dệt May / Quần Áo / Phụ Kiện': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Kiểm tra chất lượng Quatest - Đồ chơi trẻ em / Nhựa / Đồ dùng tiếp xúc thực phẩm': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Lấy mẫu kiểm tra chất lượng hiện trường nhanh tại Cửa khẩu': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Phí chuẩn bị hồ sơ đăng ký kiểm tra chất lượng Nhà nước': [{'id': 211, 'label': 'Lô 42', 'month': 12, 'year': 2025}], 'Kiểm dịch y tế phương tiện & hàng hóa (Việt Nam)': [{'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}, {'id': 408, 'label': 'Lô CP 1.0', 'month': 8, 'year': 2026}], 'Kiểm dịch y tế cửa khẩu Trung Quốc': [{'id': 405, 'label': 'Lô CP 3.0', 'month': 7, 'year': 2026}], 'Chi phí Hải quan & Giám định đồng bộ dây chuyền máy móc thiết bị': [{'id': 209, 'label': 'Lô 40', 'month': 12, 'year': 2025}], 'Phí chuẩn bị hồ sơ giám định đồng bộ': [{'id': 210, 'label': 'Lô 41', 'month': 12, 'year': 2025}], 'Chi phí xử lý kiểm định kỹ thuật đồng bộ tại hiện trường': [{'id': 212, 'label': 'Lô 43', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Loại hình A11 (Nhập tiêu dùng / Kinh doanh)': [{'id': 185, 'label': 'Lô 16', 'month': 12, 'year': 2025}, {'id': 186, 'label': 'Lô 17', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Loại hình A12 (Nhập kinh doanh sản xuất)': [{'id': 178, 'label': 'Lô 9', 'month': 12, 'year': 2025}, {'id': 184, 'label': 'Lô 15', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Loại hình E21 (Nhập nguyên liệu gia công)': [{'id': 179, 'label': 'Lô 10', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Loại hình H11 (Hàng phi mậu dịch / Quà biếu / Hàng mẫu)': [{'id': 171, 'label': 'Lô 2', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Loại hình G13 (Tạm nhập tái xuất / Miễn thuế)': [{'id': 177, 'label': 'Lô 8', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Loại hình A41 (Doanh nghiệp Chế xuất EPE)': [{'id': 208, 'label': 'Lô 39', 'month': 12, 'year': 2025}, {'id': 170, 'label': 'Lô 1.0', 'month': 12, 'year': 2025}], 'Dịch vụ Tờ khai Hải quan - Lô hàng lẻ / Cont 20 tiêu chuẩn': [{'id': 173, 'label': 'Lô 4', 'month': 12, 'year': 2025}, {'id': 229, 'label': 'Lô 2', 'month': 1, 'year': 2026}], 'Phụ thu Tờ khai nhánh (Từ dòng hàng thứ 5 trở đi)': [{'id': 178, 'label': 'Lô 9', 'month': 12, 'year': 2025}], 'Phí tiếp nhận hồ sơ & Xử lý tờ khai quay đầu': [{'id': 180, 'label': 'Lô 11', 'month': 12, 'year': 2025}], 'Phí Hải quan giám sát tại bến bãi cửa khẩu': [{'id': 191, 'label': 'Lô 22', 'month': 12, 'year': 2025}], 'Bảo hiểm Mọi Rủi Ro Hàng Hóa Vận Chuyển (All Risks ICC Clause A)': [{'id': 405, 'label': 'Lô CP 3.0', 'month': 7, 'year': 2026}], 'Bảo hiểm Trách nhiệm Dân sự & Vật chất Phương tiện Xe vận tải': [{'id': 405, 'label': 'Lô CP 3.0', 'month': 7, 'year': 2026}], 'Phí Cơ Sở Hạ Tầng (CSHT) Cửa khẩu - Xe tải 5 Tấn đến 8 Tấn (8T)': [{'id': 367, 'label': 'Lô 1', 'month': 8, 'year': 2026}, {'id': 368, 'label': 'Lô 2', 'month': 8, 'year': 2026}], 'Phí Cơ Sở Hạ Tầng (CSHT) Cửa khẩu - Xe Container 40 feet / 45 feet': [{'id': 415, 'label': 'Lô CP 5.0', 'month': 9, 'year': 2026}, {'id': 410, 'label': 'Lô CP 5.0', 'month': 8, 'year': 2026}], 'Vé xe ra vào bến bãi cửa khẩu (Tân Thanh / Hữu Nghị)': [{'id': 408, 'label': 'Lô CP 1.0', 'month': 8, 'year': 2026}, {'id': 368, 'label': 'Lô 2', 'month': 8, 'year': 2026}], 'Dấu đầu xe & Tem kiểm soát phương tiện Trung Quốc': [{'id': 367, 'label': 'Lô 1', 'month': 8, 'year': 2026}, {'id': 368, 'label': 'Lô 2', 'month': 8, 'year': 2026}, {'id': 405, 'label': 'Lô CP 3.0', 'month': 7, 'year': 2026}], 'Phí Lưu Ca Xe tải 5 Tấn - 8 Tấn (Quá 24h tại kho / cửa khẩu)': [{'id': 403, 'label': 'Lô CP 1.0', 'month': 7, 'year': 2026}], 'Phí Lưu Ca Xe Container 40 feet / 45 feet (Quá 24h)': [{'id': 403, 'label': 'Lô CP 1.0', 'month': 7, 'year': 2026}], 'Phụ phí phát sinh thêm điểm trả hàng (Nội tỉnh)': [{'id': 369, 'label': 'Lô 3', 'month': 8, 'year': 2026}], 'Phụ phí phát sinh thêm điểm trả hàng (Ngoại tỉnh lân cận: Thái Bình, Hải Phòng...)': [{'id': 201, 'label': 'Lô 32', 'month': 12, 'year': 2025}, {'id': 202, 'label': 'Lô 33', 'month': 12, 'year': 2025}, {'id': 333, 'label': 'Lô 12', 'month': 5, 'year': 2026}], 'Phí Hủy Xe sau khi đã điều xe vào bến đóng hàng': [{'id': 262, 'label': 'Lô 1.0', 'month': 2, 'year': 2026}]}
+    for it in results:
+        if 'sample_lots' not in it or not it['sample_lots']:
+            it['sample_lots'] = lots_lookup.get(it['name'], [])
+            if it['sample_lots']:
+                it['latest_lot_id'] = it['sample_lots'][0]['id']
 
     # Sắp xếp danh sách kết quả theo Category và Count
     category_order = {
