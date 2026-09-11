@@ -17,7 +17,7 @@ from app.services.advance_service import (
     clean_amount
 )
 
-CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN') or os.environ.get('TELEGRAM_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or 'AIzaSyBw4meqMYr07l1LkoQWNz3MK9GIksGmA6A'
 ALLOWED_CHAT_IDS = [cid.strip() for cid in os.environ.get('ALLOWED_CHAT_ID', '-5294577893,5749845754').split(',') if cid.strip()]
 

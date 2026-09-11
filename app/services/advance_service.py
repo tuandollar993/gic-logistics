@@ -829,7 +829,7 @@ def get_bill_media(media_id):
                         tg_file_id = row[1].strip()
                         file_name = row[2].strip() if len(row) > 2 else 'receipt.jpg'
                         
-                        tg_token = os.environ.get('TELEGRAM_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+                        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
                         tg_res = requests.get(f'https://api.telegram.org/bot{tg_token}/getFile?file_id={tg_file_id}', timeout=10).json()
                         if tg_res.get('ok'):
                             file_path = tg_res['result']['file_path']
@@ -862,7 +862,7 @@ def sync_all_bills_from_filedb():
             return 0, f"Lỗi đọc FileDB: {resp.text}"
 
         rows = resp.json().get('values', [])
-        tg_token = os.environ.get('TELEGRAM_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+        tg_token = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
         count = 0
 
         for row in rows:
