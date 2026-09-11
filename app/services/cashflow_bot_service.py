@@ -319,7 +319,7 @@ def append_transaction_to_sheet(data, public_img_url):
 
     # 4. Xác định các cột và chuẩn bị dữ liệu
     cols = detect_columns(token, sheet_name) or {}
-    max_c = max(cols.get('max_col', 15), 15)
+    max_c = max(cols.get('max_col', 18), 18)
     row_data = [""] * max_c
 
     now = datetime.now()
@@ -361,8 +361,20 @@ def append_transaction_to_sheet(data, public_img_url):
     if idx_bill < len(row_data):
         row_data[idx_bill] = public_img_url
 
+    # Ghi External ID (UUID / short_id) vào cột R (index 17) để hệ thống đồng bộ nhận diện chuẩn xác
+    short_id = ''
+    if '/bill/' in public_img_url:
+        short_id = public_img_url.split('/bill/')[-1].split('?')[0]
+    elif 'start=' in public_img_url:
+        short_id = public_img_url.split('start=')[-1].split('&')[0]
+    if not short_id:
+        short_id = 'gido_' + hex(int(time.time() * 1000))[2:]
+
+    if len(row_data) > 17:
+        row_data[17] = short_id
+
     # 5. Ghi dòng dữ liệu
-    col_letter = chr(64 + len(row_data))
+    col_letter = 'R' if len(row_data) >= 18 else chr(64 + len(row_data))
     update_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{sheet_name}!A{row_a1}:{col_letter}{row_a1}?valueInputOption=USER_ENTERED"
     requests.put(update_url, json={'values': [row_data]}, headers={'Authorization': f'Bearer {token}'}, timeout=10)
 

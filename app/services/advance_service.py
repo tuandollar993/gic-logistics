@@ -37,11 +37,18 @@ def acquire_sync_lock(lock_id=987654321):
 
     acquired_pg = False
     is_postgres = False
+    raw_conn = None
     try:
         bind = db.session.get_bind()
         if bind.dialect.name == 'postgresql':
             is_postgres = True
-            result = db.session.execute(sa.text("SELECT pg_try_advisory_lock(:lid)"), {'lid': lock_id}).scalar()
+            try:
+                raw_conn = db.engine.connect()
+                result = raw_conn.execute(sa.text("SELECT pg_try_advisory_lock(:lid)"), {'lid': lock_id}).scalar()
+            except Exception:
+                raw_conn = None
+                result = db.session.execute(sa.text("SELECT pg_try_advisory_lock(:lid)"), {'lid': lock_id}).scalar()
+
             if not result:
                 acquired_pg = False
             else:
@@ -49,6 +56,12 @@ def acquire_sync_lock(lock_id=987654321):
         else:
             acquired_pg = True
     except Exception:
+        if raw_conn is not None:
+            try:
+                raw_conn.close()
+            except Exception:
+                pass
+            raw_conn = None
         # A production lock failure must never silently degrade to a
         # process-local lock: multiple web workers could otherwise sync at once.
         if is_postgres:
@@ -58,6 +71,12 @@ def acquire_sync_lock(lock_id=987654321):
         acquired_pg = True
 
     if not acquired_pg:
+        if raw_conn is not None:
+            try:
+                raw_conn.close()
+            except Exception:
+                pass
+            raw_conn = None
         _sync_lock.release()
         yield False
         return
@@ -66,10 +85,22 @@ def acquire_sync_lock(lock_id=987654321):
         yield True
     finally:
         if is_postgres and acquired_pg:
-            try:
-                db.session.execute(sa.text("SELECT pg_advisory_unlock(:lid)"), {'lid': lock_id})
-            except Exception:
-                pass
+            if raw_conn is not None:
+                try:
+                    raw_conn.execute(sa.text("SELECT pg_advisory_unlock(:lid)"), {'lid': lock_id})
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        raw_conn.close()
+                    except Exception:
+                        pass
+            else:
+                try:
+                    db.session.execute(sa.text("SELECT pg_advisory_unlock(:lid)"), {'lid': lock_id})
+                    db.session.commit()
+                except Exception:
+                    pass
         _sync_lock.release()
 
 _token_cache = {
@@ -442,11 +473,27 @@ def sync_month_from_google(month, year):
             # UPSERT các transaction (bảo toàn ID và các liên kết hóa đơn đã gán thủ công)
             existing_trans_list = CashAdvanceTransaction.query.filter_by(month=month, year=year, is_manual=False).all()
             existing_by_ext_id = {t.external_id: t for t in existing_trans_list if t.external_id}
+            existing_by_row = {t.row_index: t for t in existing_trans_list}
             matched_ids = set()
 
             for item in transactions_data:
                 r_idx = item['row_index']
                 raw_ext = item.get('raw_ext_id')
+
+                # Fallback 1: Trích xuất short_id định danh từ bill_link nếu có
+                if not raw_ext and item.get('bill_link'):
+                    bl = item['bill_link']
+                    if 'gido_' in bl:
+                        raw_ext = 'gido_' + bl.split('gido_')[-1].split('?')[0].split('/')[0].split('&')[0]
+
+                # Fallback 2: Đối soát với bản ghi cũ đã có sẵn trong DB theo row_index
+                if not raw_ext:
+                    existing_by_r = existing_by_row.get(r_idx)
+                    if existing_by_r and not existing_by_r.external_id:
+                        raw_ext = f"legacy_row_{month}_{year}_{r_idx}"
+                        existing_by_r.external_id = raw_ext
+                        existing_by_ext_id[raw_ext] = existing_by_r
+
                 row_hash = hashlib.sha256(
                     f"{item['trans_date']}|{item['content']}|{item['tuan_chi']}|{item['luong_chi']}|{item['luong_thu']}|{item['partner_amount']}".encode('utf-8')
                 ).hexdigest()[:16]
@@ -454,6 +501,13 @@ def sync_month_from_google(month, year):
                 if raw_ext:
                     ext_id = raw_ext
                     existing_t = existing_by_ext_id.get(ext_id)
+                    if not existing_t and r_idx in existing_by_row:
+                        cand = existing_by_row[r_idx]
+                        if not cand.external_id or cand.external_id == ext_id:
+                            existing_t = cand
+                            existing_t.external_id = ext_id
+                            existing_by_ext_id[ext_id] = existing_t
+
                     if existing_t:
                         matched_ids.add(existing_t.id)
                         # Nếu transaction đã bị soft-delete bởi người dùng, không được tự ý khôi phục
@@ -509,18 +563,23 @@ def sync_month_from_google(month, year):
                             is_deleted=False
                         )
                         db.session.add(trans)
+                        existing_by_ext_id[ext_id] = trans
+                        db.session.flush()
+                        matched_ids.add(trans.id)
                 else:
-                    # Identity is mandatory for a financial transaction.  Do
-                    # not persist an unidentifiable source row: doing so made
-                    # every subsequent sync create another duplicate record.
-                    print(f"[AdvanceService] Cảnh báo: Bỏ qua dòng {r_idx} sheet {sheet_title} thiếu External ID (UUID)")
+                    # Identity is mandatory for a financial transaction.
+                    try:
+                        print(f"[AdvanceService] Warning: Skip row {r_idx} sheet {sheet_title} missing External ID")
+                    except Exception:
+                        pass
 
             # Xử lý khi dòng bị xoá trên Google Sheet:
-            # Nếu 1 transaction có external_id mà lần sync mới không còn trên Sheet:
-            # KHÔNG hard delete. Đánh dấu sync_status = 'missing_source'
+            # Nếu 1 transaction mà lần sync mới không còn trên Sheet:
+            # Đánh dấu sync_status = 'missing_source' và xóa mềm
             for old_t in existing_trans_list:
-                if old_t.id not in matched_ids and old_t.external_id:
+                if old_t.id not in matched_ids:
                     if not old_t.is_deleted:
+                        old_t.is_deleted = True
                         old_t.sync_status = 'missing_source'
                         if not old_t.deleted_reason:
                             old_t.deleted_reason = 'Không còn xuất hiện trên Google Sheet trong lần đồng bộ này (missing_source)'
