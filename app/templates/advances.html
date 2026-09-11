@@ -237,7 +237,7 @@
                     <tr id="row-{{ t.id }}">
                         <!-- Ngày -->
                         <td class="text-center font-mono text-muted fw-semibold" style="white-space: nowrap;">
-                            {{ t.trans_date or '-' }}
+                            {{ t.trans_date | clean_date_vn(t.month, t.year) }}
                         </td>
 
                         <!-- Nội dung -->
@@ -284,8 +284,8 @@
                         </td>
 
                         <!-- Lương: Thu -->
-                        <td class="text-end font-mono text-success">
-                            {% if t.luong_thu %}+{{ t.luong_thu|format_money }}{% else %}-{% endif %}
+                        <td class="text-end font-mono {% if t.luong_thu and t.luong_thu < 0 %}text-danger fw-bold{% elif t.luong_thu and t.luong_thu > 0 %}text-success{% else %}text-muted{% endif %}">
+                            {% if t.luong_thu and t.luong_thu > 0 %}+{{ t.luong_thu|format_money }}{% elif t.luong_thu %}{{ t.luong_thu|format_money }}{% else %}-{% endif %}
                         </td>
 
                         <!-- Lương: Chi -->
@@ -331,7 +331,7 @@
                                         class="btn btn-sm btn-outline-primary py-0 px-2 d-inline-flex align-items-center gap-1 shadow-sm text-nowrap" 
                                         style="font-size: 0.72rem;"
                                         data-bill-link="{{ t.bill_link }}"
-                                        data-title="{{ t.trans_date or '' }} - {{ t.content or '' }}"
+                                        data-title="{{ t.trans_date | clean_date_vn(t.month, t.year) }} - {{ t.content or '' }}"
                                         data-amount="{% if t.tuan_chi and t.tuan_chi != 0 %}{{ t.tuan_chi|format_money }}{% elif t.tuan_thu_cty and t.tuan_thu_cty > 0 %}+{{ t.tuan_thu_cty|format_money }}{% elif t.partner_amount and t.partner_amount != 0 %}{{ t.partner_amount|format_money }}{% else %}-{% endif %}"
                                         onclick="openBillPreview(this)"
                                         title="Bấm để xem ảnh hóa đơn chứng từ">
@@ -414,7 +414,10 @@
                     <!-- Xuyên -->
                     <td class="text-end">{{ metrics.personnel_summary.xuyen|format_money }}</td>
                     <!-- Lương Thu -->
-                    <td class="text-end text-success">+{{ (monthly.total_luong_thu if monthly else 0)|format_money }}</td>
+                    {% set m_luong_thu = (monthly.total_luong_thu if monthly else 0) %}
+                    <td class="text-end {% if m_luong_thu < 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                        {% if m_luong_thu > 0 %}+{{ m_luong_thu|format_money }}{% else %}{{ m_luong_thu|format_money }}{% endif %}
+                    </td>
                     <!-- Lương Chi -->
                     <td class="text-end text-danger">{{ (monthly.total_luong_chi if monthly else 0)|format_money }}</td>
                     <!-- Trường -->

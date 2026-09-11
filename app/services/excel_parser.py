@@ -392,7 +392,7 @@ class ExcelParserService:
                     lot_label = f"Lô {lot_counter}"
                     
                 if is_new_lot:
-                    cust = get_or_create_customer(cust_name)
+                    cust = get_or_create_customer(cust_name or company)
                     current_lot = Lot(
                         lot_label=lot_label or f"Lô {lot_counter}",
                         customer_id=cust.id if cust else None,
@@ -412,8 +412,8 @@ class ExcelParserService:
                     lot_counter += 1
                 else:
                     if current_lot:
-                        if cust_name and not current_lot.customer_id:
-                            cust = get_or_create_customer(cust_name)
+                        if (cust_name or company) and not current_lot.customer_id:
+                            cust = get_or_create_customer(cust_name or company)
                             current_lot.customer_id = cust.id
                         if decl_num and not current_lot.customs_declaration:
                             current_lot.customs_declaration = decl_num
@@ -644,10 +644,23 @@ class ExcelParserService:
                     
                     # 5. If not matched, create/group into pending CPVH lot for that month
                     if not current_lot_match:
+                        # If current_customer_name is missing, try to detect from block rows
+                        if not current_customer_name:
+                            for look_r in range(r, min(r + 30, ws.max_row + 1)):
+                                if look_r > r and ws.cell(look_r, 1).value:
+                                    break
+                                desc_look = normalize_text(ws.cell(look_r, 5).value or '')
+                                if 'keep rise' in desc_look or 'keep' in desc_look:
+                                    current_customer_name = 'Keep Rise'
+                                    break
+                                elif 'sunluxe' in desc_look:
+                                    current_customer_name = 'Sunluxe'
+                                    break
                         cust = get_or_create_customer(current_customer_name)
                         current_lot_match = Lot(
                             lot_label=f"Lô CP {stt_val}",
                             customer_id=cust.id if cust else None,
+                            company=current_customer_name if current_customer_name and current_customer_name != "Khách vãng lai" else None,
                             customs_declaration=current_decl,
                             month=month,
                             year=year,

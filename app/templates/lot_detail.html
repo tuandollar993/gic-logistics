@@ -47,13 +47,15 @@
             </div>
             <div class="small">
                 <div class="d-flex justify-content-between py-2 border-bottom border-light">
-                    <span class="text-muted">Khách hàng:</span>
-                    <strong class="text-dark">{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}</strong>
-                </div>
-                <div class="d-flex justify-content-between py-2 border-bottom border-light">
                     <span class="text-muted">Công ty / Dự án:</span>
-                    <span class="text-dark fw-semibold">{{ lot.company or 'N/A' }}</span>
+                    <strong class="text-dark">{{ lot.company or (lot.customer.name if lot.customer else 'Khách vãng lai') }}</strong>
                 </div>
+                {% if lot.company and lot.customer and lot.customer.name and lot.customer.name|lower != lot.company|lower and lot.customer.name != 'Khách vãng lai' %}
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Người liên hệ:</span>
+                    <span class="text-dark fw-semibold">{{ lot.customer.name }}</span>
+                </div>
+                {% endif %}
                 <div class="d-flex justify-content-between py-2 border-bottom border-light">
                     <span class="text-muted">Số tờ khai HQ:</span>
                     <span class="font-mono fw-bold text-primary">{{ lot.customs_declaration or 'Chưa có' }}</span>

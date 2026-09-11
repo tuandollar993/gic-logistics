@@ -132,11 +132,13 @@
                                 {{ lot.lot_label or ('Lô #' ~ lot.id) }}
                             </a>
                         </td>
-                        <td data-val="{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}">
-                            <div class="fw-bold text-dark">{{ lot.customer.name if lot.customer else 'Khách vãng lai' }}</div>
-                            {% if lot.company %}
+                        {% set client_title = lot.company or (lot.customer.name if lot.customer else 'Khách vãng lai') %}
+                        {% set client_contact = lot.customer.name if (lot.company and lot.customer and lot.customer.name and lot.customer.name|lower != lot.company|lower and lot.customer.name != 'Khách vãng lai') else None %}
+                        <td data-val="{{ client_title }}">
+                            <div class="fw-bold text-dark">{{ client_title }}</div>
+                            {% if client_contact %}
                                 <div class="text-muted small" style="font-size: 0.78rem;">
-                                    <i class="fa-regular fa-building me-1 text-secondary"></i>{{ lot.company }}
+                                    <i class="fa-regular fa-user me-1 text-secondary"></i>{{ client_contact }}
                                 </div>
                             {% endif %}
                         </td>

@@ -42,6 +42,57 @@ def create_app(config_class=Config):
         except Exception:
             return '0'
 
+    @app.template_filter('clean_date_vn')
+    def clean_date_vn_filter(val, default_month=None, default_year=2026):
+        import re
+        if not val:
+            return '-'
+        val_str = str(val).strip()
+        if not val_str or val_str == '-':
+            return '-'
+        
+        # 1. Full date DD/MM/YYYY or DD-MM-YYYY
+        m = re.match(r'^(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{4})$', val_str)
+        if m:
+            d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            return f'{d:02d}/{mth:02d}/{y}'
+        
+        # YYYY-MM-DD
+        m = re.match(r'^(\d{4})[/\.-](\d{1,2})[/\.-](\d{1,2})', val_str)
+        if m:
+            y, mth, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            return f'{d:02d}/{mth:02d}/{y}'
+            
+        # 2. 'thg 6' or 'thg6' or 'tháng 6'
+        m = re.match(r'^(\d{1,2})[/\s\.-]+(?:thg|tháng)\s*(\d{1,2})', val_str, re.IGNORECASE)
+        if m:
+            d, mth = int(m.group(1)), int(m.group(2))
+            y = default_year or 2026
+            return f'{d:02d}/{mth:02d}/{y}'
+
+        # 3. Date with English month name like '13-Aug', '7-Sep'
+        month_names = {
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+        }
+        m = re.match(r'^(\d{1,2})[/\s\.-]+([a-zA-Z]+)', val_str, re.IGNORECASE)
+        if m:
+            d = int(m.group(1))
+            mth_str = m.group(2).lower()[:3]
+            if mth_str in month_names:
+                mth = month_names[mth_str]
+                y = default_year or 2026
+                return f'{d:02d}/{mth:02d}/{y}'
+
+        # 4. Just day number e.g. '13' or '25'
+        m = re.match(r'^(\d{1,2})$', val_str)
+        if m and default_month:
+            d = int(m.group(1))
+            y = default_year or 2026
+            return f'{d:02d}/{int(default_month):02d}/{y}'
+
+        return val_str
+
     # Register blueprints
     from app.routes.auth import auth_bp
     from app.routes.dashboard import dashboard_bp
