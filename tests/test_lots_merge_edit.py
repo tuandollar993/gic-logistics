@@ -282,3 +282,51 @@ def test_create_new_lot_auto_code_and_duplicate_prevention(auth_client_manager, 
         assert 'GIDO102026-01' in labels
         assert 'GIDO102026-02' in labels
 
+
+def test_category_classification_and_descriptions(app):
+    with app.app_context():
+        # Test Cửa khẩu
+        it_ck = RevenueItem(service_description='Phí cửa khẩu', weight_class='8T')
+        assert it_ck.category == 'Cửa khẩu'
+        assert it_ck.display_description == 'Phí cửa khẩu'
+
+        # Test DVTK TQ & DVTK HQ
+        it_tk_tq = RevenueItem(service_description='DVTK TQ')
+        assert it_tk_tq.category == 'Tờ khai'
+        assert it_tk_tq.display_description == 'Dịch vụ tờ khai Trung Quốc'
+
+        it_tk_hq = RevenueItem(service_description='DVTK HQ')
+        assert it_tk_hq.category == 'Tờ khai'
+        assert it_tk_hq.display_description == 'Dịch vụ tờ khai Hải quan'
+
+        # Test Bốc xếp
+        it_bx = RevenueItem(service_description='Chi phí dịch vụ bốc xếp')
+        assert it_bx.category == 'Bốc xếp'
+
+        # Test Quatest
+        it_qt = RevenueItem(service_description='Dịch vụ Quatest')
+        assert it_qt.category == 'Kiểm định'
+
+        # Test Vận chuyển
+        it_vc = RevenueItem(service_description='Hữu Nghị - Phú Thọ', weight_class='25T')
+        assert it_vc.category == 'Vận chuyển'
+
+        # Test OperatingCost typo correction
+        op_bx = OperatingCost(cost_type='Bốp xếp', description='Bốc xếp hàng')
+        assert op_bx.display_cost_type == 'Bốc xếp'
+
+
+def test_profit_margin_rounded(app):
+    with app.app_context():
+        lot = Lot(month=8, year=2026, lot_label='Lô Test Margin')
+        db.session.add(lot)
+        db.session.flush()
+
+        item = RevenueItem(lot_id=lot.id, buy_price=4370000.0, sell_price=800000.0, total_buy_price_excel=4370000.0, total_sell_price_excel=800000.0)
+        db.session.add(item)
+        db.session.commit()
+
+        # (-3570000 / 800000) * 100 = -446.25%
+        assert lot.profit_margin == -446.25
+
+

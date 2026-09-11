@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from datetime import datetime, date
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -156,7 +158,7 @@ class Lot(db.Model):
     def profit_margin(self):
         rev = self.total_sell_revenue
         if rev > 0:
-            return (self.net_profit / rev) * 100
+            return round((self.net_profit / rev) * 100, 2)
         return 0.0
 
     @property
@@ -302,6 +304,42 @@ class RevenueItem(db.Model):
                       (self.other_surcharge or 0))
         return (self.sell_price or 0) + surcharges
 
+    @property
+    def category(self):
+        """Phân loại nghiệp vụ chuẩn hóa: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
+        raw = self.service_description or ''
+        desc = unicodedata.normalize('NFC', raw.lower())
+        desc_ascii = ''.join(c for c in unicodedata.normalize('NFD', raw.lower()) if unicodedata.category(c) != 'Mn')
+        if 'cửa khẩu' in desc or 'cua khau' in desc_ascii:
+            return 'Cửa khẩu'
+        if any(k in desc for k in ['dvtk', 'tờ khai', 'hải quan']) or any(k in desc_ascii for k in ['to khai', 'hai quan']):
+            return 'Tờ khai'
+        if any(k in desc for k in ['bốc xếp', 'sang hàng', 'nâng hạ']) or any(k in desc_ascii for k in ['boc xep', 'sang hang', 'nang ha']):
+            return 'Bốc xếp'
+        if any(k in desc for k in ['quatest', 'kiểm định', 'kiểm dịch']) or any(k in desc_ascii for k in ['kiem dinh', 'kiem dich']):
+            return 'Kiểm định'
+        if any(k in desc for k in ['lưu ca', 'lưu kho', 'hủy xe', 'xử phạt']) or any(k in desc_ascii for k in ['luu ca', 'luu kho', 'huy xe', 'xu phat']):
+            return 'Phụ phí'
+        return 'Vận chuyển'
+
+    @property
+    def display_description(self):
+        """Tên dịch vụ viết rõ ràng, mở rộng viết tắt (VD: DVTK TQ -> Dịch vụ tờ khai Trung Quốc)"""
+        desc = self.service_description or ''
+        if not desc:
+            return 'Cước vận chuyển hàng hóa'
+        # Viết đầy đủ DVTK TQ -> Dịch vụ tờ khai Trung Quốc
+        if re.search(r'\bDVTK\s*TQ\b', desc, re.IGNORECASE):
+            return re.sub(r'\bDVTK\s*TQ\b', 'Dịch vụ tờ khai Trung Quốc', desc, flags=re.IGNORECASE)
+        # Viết đầy đủ DVTK HQ -> Dịch vụ tờ khai Hải quan
+        if re.search(r'\bDVTK\s*HQ\b', desc, re.IGNORECASE):
+            return re.sub(r'\bDVTK\s*HQ\b', 'Dịch vụ tờ khai Hải quan', desc, flags=re.IGNORECASE)
+        if re.search(r'\bDVTKHQ\b', desc, re.IGNORECASE):
+            return re.sub(r'\bDVTKHQ\b', 'Dịch vụ tờ khai Hải quan', desc, flags=re.IGNORECASE)
+        if desc.strip().upper() == 'DVTK':
+            return 'Dịch vụ tờ khai'
+        return desc
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -309,6 +347,7 @@ class RevenueItem(db.Model):
             'vehicle_plate': self.vehicle_plate_vn or self.vehicle_plate_cn or '',
             'weight_class': self.weight_class or '',
             'service_description': self.service_description or '',
+            'category': self.category,
             'quantity': self.quantity or 1,
             'buy_price': self.buy_price or 0,
             'sell_price': self.sell_price or 0,
@@ -359,6 +398,25 @@ class OperatingCost(db.Model):
     source_payload = db.Column(db.Text, nullable=True)
     
     filler = db.relationship('User', foreign_keys=[filled_by])
+
+    @property
+    def display_cost_type(self):
+        """Tên phân loại chi phí chuẩn hóa, sửa lỗi chính tả Excel cũ"""
+        ct = (self.cost_type or '').strip()
+        if ct.lower() == 'bốp xếp':
+            return 'Bốc xếp'
+        if not ct:
+            desc = (self.description or '').lower()
+            if 'cửa khẩu' in desc or 'cua khau' in desc:
+                return 'Phí cửa khẩu'
+            if any(k in desc for k in ['hải quan', 'hai quan', 'tờ khai', 'to khai', 'thông quan']):
+                return 'Phí thông quan'
+            if any(k in desc for k in ['bốc xếp', 'boc xep', 'sang hàng', 'nâng hạ']):
+                return 'Bốc xếp'
+            if any(k in desc for k in ['bến bãi', 'ben bai', 'vé xe', 've xe']):
+                return 'Phí bến bãi'
+            return 'Chi phí vận hành'
+        return ct
 
     def to_dict(self):
         return {

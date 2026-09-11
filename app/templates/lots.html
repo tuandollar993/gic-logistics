@@ -131,6 +131,9 @@
                             <a href="{{ url_for('lots.detail', lot_id=lot.id) }}" class="text-primary text-decoration-none font-mono">
                                 {{ lot.lot_label or ('Lô #' ~ lot.id) }}
                             </a>
+                            {% if lot.source_type == 'ghnlog' %}
+                                <span class="badge bg-light text-secondary border font-sans ms-1" style="font-size: 0.65rem;">GHNLog</span>
+                            {% endif %}
                         </td>
                         {% set client_title = lot.company or (lot.customer.name if lot.customer else 'Khách vãng lai') %}
                         {% set client_contact = lot.customer.name if (lot.company and lot.customer and lot.customer.name and lot.customer.name|lower != lot.company|lower and lot.customer.name != 'Khách vãng lai') else None %}
@@ -156,7 +159,7 @@
                         </td>
                         <td class="text-end font-mono fw-bold tabular-nums {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}" data-val="{{ lot.net_profit }}">
                             {{ lot.net_profit | format_money }}
-                            <div style="font-size: 0.7rem;" class="fw-normal text-muted font-sans">({{ lot.profit_margin }}%)</div>
+                            <div style="font-size: 0.7rem;" class="fw-normal text-muted font-sans">({{ "%.2f"|format(lot.profit_margin) }}%)</div>
                         </td>
                         <td data-val="{{ lot.assignee.full_name if lot.assignee else '' }}">
                             {% if lot.assignee %}

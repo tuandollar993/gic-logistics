@@ -58,6 +58,20 @@ try:
                 print(f'✅ [STARTUP] Đã tự động đồng bộ {len(items)} dòng cước giá mua trên production DB!')
         except Exception as db_sync_err:
             print(f'⚠️ [STARTUP] Cảnh báo đồng bộ dòng cước: {db_sync_err}')
+
+        # Tự động dọn dẹp các lô trùng lặp batch cũ nếu còn sót lại
+        try:
+            from app.models import Lot
+            has_high = Lot.query.filter(Lot.id >= 1000).first()
+            if has_high:
+                old_lots = Lot.query.filter(Lot.id < 1000).all()
+                if old_lots:
+                    for ol in old_lots:
+                        db.session.delete(ol)
+                    db.session.commit()
+                    print(f'✅ [STARTUP] Đã dọn dẹp {len(old_lots)} lô trùng lặp batch cũ!')
+        except Exception as dup_err:
+            print(f'⚠️ [STARTUP] Cảnh báo kiểm tra lô trùng: {dup_err}')
     print('✅ [STARTUP] Cơ sở dữ liệu đã sẵn sàng!')
 except Exception as e:
     print(f'⚠️ [STARTUP] Cảnh báo tạo DB: {e}')

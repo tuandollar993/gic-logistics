@@ -177,14 +177,25 @@
                 <tr>
                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
                     <td>
-                        <span class="badge bg-light text-dark border font-mono">
-                            {{ item.weight_class or 'Vận chuyển' }}
-                        </span>
+                        {% set cat = item.category %}
+                        {% if cat == 'Cửa khẩu' %}
+                            <span class="badge bg-warning text-dark border font-sans"><i class="fa-solid fa-archway me-1"></i>Cửa khẩu</span>
+                        {% elif cat == 'Tờ khai' %}
+                            <span class="badge bg-info text-dark border font-sans"><i class="fa-solid fa-file-lines me-1"></i>Tờ khai</span>
+                        {% elif cat == 'Bốc xếp' %}
+                            <span class="badge bg-secondary text-white border font-sans"><i class="fa-solid fa-boxes-stacked me-1"></i>Bốc xếp</span>
+                        {% elif cat == 'Kiểm định' %}
+                            <span class="badge bg-success text-white border font-sans"><i class="fa-solid fa-vial me-1"></i>Kiểm định</span>
+                        {% elif cat == 'Phụ phí' %}
+                            <span class="badge bg-light text-dark border font-sans"><i class="fa-solid fa-receipt me-1"></i>Phụ phí</span>
+                        {% else %}
+                            <span class="badge bg-primary text-white border font-sans"><i class="fa-solid fa-truck me-1"></i>Vận chuyển</span>
+                        {% endif %}
                     </td>
                     <td>
-                        <div class="fw-bold text-dark">{{ item.service_description or 'Cước vận chuyển hàng hóa' }}</div>
+                        <div class="fw-bold text-dark">{{ item.display_description }}</div>
                         {% if item.weight_class %}
-                            <small class="text-muted"><i class="fa-solid fa-weight-hanging me-1"></i>{{ item.weight_class }}</small>
+                            <small class="text-muted"><i class="fa-solid fa-truck me-1"></i>Loại xe: {{ item.weight_class }}</small>
                         {% endif %}
                     </td>
                     <td>
@@ -243,8 +254,8 @@
                 <tr>
                     <td class="text-center font-mono text-muted">{{ lot.active_revenue_items|length + loop.index }}</td>
                     <td>
-                        <span class="badge bg-light text-dark border font-mono">
-                            {{ cost.cost_type or 'Chi phí' }}
+                        <span class="badge bg-light text-dark border font-sans">
+                            {{ cost.display_cost_type }}
                         </span>
                     </td>
                     <td>
