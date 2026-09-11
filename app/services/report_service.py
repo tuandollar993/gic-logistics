@@ -75,39 +75,105 @@ def fmt_vn(val):
 # ─────────────────────────────────────────────────
 
 class ChartGenerator:
-    """Tạo các biểu đồ chuẩn theo đúng mẫu báo cáo GIDO."""
+    """Tạo các biểu đồ chuẩn theo đúng mẫu báo cáo GIDO (Executive / BI Styling)."""
 
     @staticmethod
     def create_topline_chart(months, toplines, actuals, kpis):
         """
         Biểu đồ 1: Doanh thu theo tháng: Topline vs. Thực tế và Tỷ lệ đạt KPI
-        Cột xanh: Topline kế hoạch
-        Cột cam: Doanh thu thực tế
-        Đường xanh lá: Tỷ lệ đạt KPI (%)
+        - Topline: Xanh Navy (#1F4E79)
+        - Thực tế: Xanh Ngọc Lục Bảo (#10B981) có nhãn số liệu trực tiếp, sọc chéo nếu tháng đang dở dang
+        - KPI: Đường Amber Gold (#D97706) kèm pill badge nổi bật
+        - Legend trên đầu, không bị cắt xén
         """
-        fig, ax1 = plt.subplots(figsize=(8.5, 3.8), dpi=110)
+        fig, ax1 = plt.subplots(figsize=(9.2, 4.4), dpi=115)
+        fig.patch.set_facecolor('#FFFFFF')
+        ax1.set_facecolor('#FAFAFA')
+
         x = np.arange(len(months))
-        width = 0.35
+        width = 0.36
 
-        # Cột Doanh thu (triệu đồng)
-        ax1.bar(x - width/2, [t / 1e6 for t in toplines], width, label='Topline kế hoạch', color='#4472C4')
-        ax1.bar(x + width/2, [a / 1e6 for a in actuals], width, label='Doanh thu thực tế', color='#ED7D31')
-        ax1.set_ylabel('VNĐ (Triệu)', fontsize=9, fontweight='bold', color='#333333')
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(months, fontsize=9)
-        ax1.grid(axis='y', linestyle='--', alpha=0.4)
+        top_m = [(t or 0) / 1e6 for t in toplines]
+        act_m = [(a or 0) / 1e6 for a in actuals]
 
-        # Trục thứ hai: Tỷ lệ đạt KPI (%)
+        # Topline (GIDO Navy Theme)
+        bars1 = ax1.bar(
+            x - width/2, top_m, width,
+            label='Topline kế hoạch',
+            color='#1F4E79', alpha=0.88, edgecolor='#163857', linewidth=0.8
+        )
+
+        # Actual (Emerald Green / Hatched for in-progress)
+        bars2 = []
+        for i, a in enumerate(act_m):
+            is_last_inprogress = (i == len(act_m) - 1 and a < 10)
+            b = ax1.bar(
+                x[i] + width/2, a, width,
+                color='#10B981' if not is_last_inprogress else '#A7F3D0',
+                edgecolor='#059669',
+                hatch='///' if is_last_inprogress else None,
+                linewidth=0.8,
+                label='Doanh thu thực tế' if i == 0 else ""
+            )
+            bars2.append(b)
+
+        # Secondary Axis: KPI Line
         ax2 = ax1.twinx()
-        ax2.plot(x, kpis, color='#70AD47', marker='o', linewidth=2.2, label='Tỷ lệ đạt KPI (%)')
-        ax2.set_ylabel('Tỷ lệ đạt KPI (%)', fontsize=9, fontweight='bold', color='#70AD47')
+        ax2.plot(
+            x, kpis,
+            color='#D97706', marker='o', markersize=5.5,
+            linewidth=2.2, markeredgecolor='#FFFFFF', markeredgewidth=1.5,
+            label='Tỷ lệ đạt KPI (%)'
+        )
+
+        # Data Labels on Bars
+        for bar in bars1:
+            h = bar.get_height()
+            if h > 0:
+                lbl = f"{h:,.0f}"
+                ax1.text(bar.get_x() + bar.get_width()/2., h + 25, lbl,
+                         ha='center', va='bottom', fontsize=7.2, fontweight='bold', color='#1F4E79')
+
+        for i, bar_group in enumerate(bars2):
+            bar = bar_group[0]
+            h = bar.get_height()
+            if h > 0:
+                lbl = f"{h*1000:.0f}k*" if (i == len(act_m) - 1 and h < 5) else f"{h:,.0f}"
+                ax1.text(bar.get_x() + bar.get_width()/2., h + 25, lbl,
+                         ha='center', va='bottom', fontsize=7.2, fontweight='bold', color='#047857')
+
+        # KPI labels with white pill box
+        for xi, kpi_val in zip(x, kpis):
+            if (kpi_val or 0) > 0:
+                ax2.text(xi, kpi_val + 3.5, f"{kpi_val}%",
+                         ha='center', va='bottom', fontsize=7.5, fontweight='bold', color='#92400E',
+                         bbox=dict(boxstyle='round,pad=0.18', facecolor='#FEF3C7', edgecolor='#FDE68A', alpha=0.9, linewidth=0.6))
+
+        ax1.set_ylabel('Doanh thu (Triệu VNĐ)', fontsize=8.5, fontweight='bold', color='#1E293B')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(months, fontsize=8.2, fontweight='bold', color='#334155')
+        max_rev = max(max(top_m, default=100), max(act_m, default=100), 10)
+        ax1.set_ylim(0, max_rev * 1.18)
+        ax1.grid(axis='y', linestyle='--', alpha=0.3, color='#94A3B8')
+
+        ax2.set_ylabel('Tỷ lệ đạt KPI (%)', fontsize=8.5, fontweight='bold', color='#D97706')
         max_kpi = max(max(kpis, default=100), 100)
         ax2.set_ylim(0, max_kpi * 1.35)
 
-        plt.title('Doanh thu theo tháng: Topline vs. Thực tế và Tỷ lệ đạt KPI', fontsize=11, fontweight='bold', pad=12)
+        for s in ['top', 'left', 'right']:
+            ax1.spines[s].set_visible(False)
+            ax2.spines[s].set_visible(False)
+        ax1.spines['bottom'].set_color('#CBD5E1')
+        ax2.spines['bottom'].set_color('#CBD5E1')
+
+        plt.title('DOANH THU THEO THÁNG: TOPLINE VS. THỰC TẾ & TỶ LỆ ĐẠT KPI',
+                  fontsize=10.5, fontweight='bold', color='#0F172A', pad=22)
+
         h1, l1 = ax1.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
-        ax1.legend(h1 + h2, l1 + l2, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=True, fontsize=8)
+        leg = ax1.legend(h1 + h2, l1 + l2, loc='upper center', bbox_to_anchor=(0.5, 1.08),
+                   ncol=3, frameon=True, facecolor='#FFFFFF', edgecolor='#E2E8F0', fontsize=8)
+        leg.get_frame().set_alpha(0.95)
 
         plt.tight_layout()
         buf = io.BytesIO()
@@ -121,32 +187,68 @@ class ChartGenerator:
     def create_cont_area_chart(months, ls_counts, hp_counts, proportions):
         """
         Biểu đồ 2: Số cont theo khu vực (Lạng Sơn, Hải Phòng, Tỷ trọng %)
+        - Lạng Sơn: Navy (#1F4E79)
+        - Hải Phòng: Sky Blue (#0284C7)
+        - Tỷ trọng: Emerald Green (#10B981) kèm badge
         """
-        fig, ax1 = plt.subplots(figsize=(8.0, 3.6), dpi=110)
+        fig, ax1 = plt.subplots(figsize=(8.5, 4.0), dpi=115)
+        fig.patch.set_facecolor('#FFFFFF')
+        ax1.set_facecolor('#FAFAFA')
+
         x = np.arange(len(months))
         width = 0.32
 
-        ax1.bar(x - width/2, ls_counts, width, label='Lạng Sơn', color='#4472C4')
-        ax1.bar(x + width/2, hp_counts, width, label='Hải Phòng', color='#ED7D31')
-        ax1.set_ylabel('Số cont', fontsize=9, fontweight='bold', color='#333333')
+        bars_ls = ax1.bar(x - width/2, ls_counts, width, label='Lạng Sơn', color='#1F4E79', alpha=0.9, edgecolor='#163857', linewidth=0.8)
+        bars_hp = ax1.bar(x + width/2, hp_counts, width, label='Hải Phòng', color='#0284C7', alpha=0.9, edgecolor='#0369A1', linewidth=0.8)
+
+        # Labels on bars
+        for bar in bars_ls:
+            h = bar.get_height()
+            if h > 0:
+                ax1.text(bar.get_x() + bar.get_width()/2., h + 0.5, str(int(h)),
+                         ha='center', va='bottom', fontsize=7.5, fontweight='bold', color='#1F4E79')
+
+        for bar in bars_hp:
+            h = bar.get_height()
+            if h > 0:
+                ax1.text(bar.get_x() + bar.get_width()/2., h + 0.5, str(int(h)),
+                         ha='center', va='bottom', fontsize=7.5, fontweight='bold', color='#0284C7')
+
+        ax1.set_ylabel('Số container (cont)', fontsize=8.5, fontweight='bold', color='#1E293B')
         ax1.set_xticks(x)
-        ax1.set_xticklabels(months, fontsize=9)
-        max_c = max(max(ls_counts, default=5), max(hp_counts, default=5))
-        ax1.set_ylim(0, max_c + 4)
-        ax1.grid(axis='y', linestyle='--', alpha=0.4)
+        ax1.set_xticklabels(months, fontsize=8.2, fontweight='bold', color='#334155')
+        max_c = max(max(ls_counts, default=5), max(hp_counts, default=5), 5)
+        ax1.set_ylim(0, max_c + 5)
+        ax1.grid(axis='y', linestyle='--', alpha=0.3, color='#94A3B8')
 
         ax2 = ax1.twinx()
-        ax2.plot(x, [p * 100 for p in proportions], color='#70AD47', marker='o', linewidth=2, label='Tỷ trọng (%)')
-        ax2.set_ylabel('Tỷ trọng (%)', fontsize=9, fontweight='bold', color='#70AD47')
-        ax2.set_ylim(0, 110)
+        pct_vals = [(p or 0) * 100 for p in proportions]
+        ax2.plot(x, pct_vals, color='#10B981', marker='s', markersize=5.5, linewidth=2.2,
+                 markeredgecolor='#FFFFFF', markeredgewidth=1.2, label='Tỷ trọng (%)')
+        ax2.set_ylabel('Tỷ trọng (%)', fontsize=8.5, fontweight='bold', color='#047857')
+        ax2.set_ylim(0, 118)
+
+        for xi, p_val in zip(x, pct_vals):
+            ax2.text(xi, p_val + 3.0, f"{p_val:.0f}%",
+                     ha='center', va='bottom', fontsize=7.5, fontweight='bold', color='#065F46',
+                     bbox=dict(boxstyle='round,pad=0.18', facecolor='#D1FAE5', edgecolor='#A7F3D0', alpha=0.9, linewidth=0.6))
+
+        for s in ['top', 'left', 'right']:
+            ax1.spines[s].set_visible(False)
+            ax2.spines[s].set_visible(False)
+        ax1.spines['bottom'].set_color('#CBD5E1')
+        ax2.spines['bottom'].set_color('#CBD5E1')
 
         total_cont = sum(ls_counts) + sum(hp_counts)
-        period_str = f"{months[0]} - {months[-1]}" if len(months) > 1 else months[0]
-        plt.title(f'Số cont theo khu vực - {period_str} (Tổng {total_cont} cont)', fontsize=11, fontweight='bold', pad=12)
+        period_str = f"{months[0]} - {months[-1]}" if len(months) > 1 else (months[0] if months else "")
+        plt.title(f'SỐ CONT THEO KHU VỰC - {period_str.upper()} (TỔNG {total_cont} CONT)',
+                  fontsize=10.5, fontweight='bold', color='#0F172A', pad=22)
 
         h1, l1 = ax1.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
-        ax1.legend(h1 + h2, l1 + l2, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=True, fontsize=8)
+        leg = ax1.legend(h1 + h2, l1 + l2, loc='upper center', bbox_to_anchor=(0.5, 1.08),
+                   ncol=3, frameon=True, facecolor='#FFFFFF', edgecolor='#E2E8F0', fontsize=8)
+        leg.get_frame().set_alpha(0.95)
 
         plt.tight_layout()
         buf = io.BytesIO()
@@ -160,25 +262,40 @@ class ChartGenerator:
     def create_storage_chart(months, storage_rates):
         """
         Biểu đồ 3: Tỷ lệ số cont lưu kho theo từng tháng
+        - Cột Royal Blue (#2563EB) với pill badge hiển thị tỷ lệ
         """
-        fig, ax = plt.subplots(figsize=(7.2, 3.4), dpi=110)
+        fig, ax = plt.subplots(figsize=(7.8, 3.8), dpi=115)
+        fig.patch.set_facecolor('#FFFFFF')
+        ax.set_facecolor('#FAFAFA')
+
         x = np.arange(len(months))
-        width = 0.35
-        pct_vals = [r * 100 for r in storage_rates]
-        bars = ax.bar(x, pct_vals, width, label='Tỷ lệ cont lưu kho', color='#4472C4')
-        ax.set_ylabel('Tỷ lệ (%)', fontsize=9, fontweight='bold')
+        width = 0.36
+        pct_vals = [(r or 0) * 100 for r in storage_rates]
+
+        bars = ax.bar(x, pct_vals, width, label='Tỷ lệ cont lưu kho (%)',
+                      color='#2563EB', alpha=0.88, edgecolor='#1D4ED8', linewidth=0.8)
+        ax.set_ylabel('Tỷ lệ lưu kho (%)', fontsize=8.5, fontweight='bold', color='#1E293B')
         ax.set_xticks(x)
-        ax.set_xticklabels(months, fontsize=9)
-        ax.set_ylim(0, 115)
-        ax.grid(axis='y', linestyle='--', alpha=0.4)
+        ax.set_xticklabels(months, fontsize=8.2, fontweight='bold', color='#334155')
+        max_r = max(max(pct_vals, default=10), 15)
+        ax.set_ylim(0, max_r * 1.35)
+        ax.grid(axis='y', linestyle='--', alpha=0.3, color='#94A3B8')
 
         for bar in bars:
             h = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., h + 2, f'{h:.1f}%' if h > 0 else '0%',
-                    ha='center', va='bottom', fontsize=8, fontweight='bold')
+            lbl = f"{h:.1f}%" if h > 0 else "0%"
+            ax.text(bar.get_x() + bar.get_width()/2., h + (max_r * 0.03), lbl,
+                    ha='center', va='bottom', fontsize=8.0, fontweight='bold', color='#1E40AF',
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='#EFF6FF', edgecolor='#BFDBFE', alpha=0.9, linewidth=0.6))
 
-        plt.title('Tỷ lệ số cont lưu kho', fontsize=11, fontweight='bold', pad=12)
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=1, frameon=True, fontsize=8)
+        for s in ['top', 'left', 'right']:
+            ax.spines[s].set_visible(False)
+        ax.spines['bottom'].set_color('#CBD5E1')
+
+        plt.title('TỶ LỆ SỐ CONT LƯU KHO THEO TỪNG THÁNG',
+                  fontsize=10.5, fontweight='bold', color='#0F172A', pad=18)
+        leg = ax.legend(loc='upper right', frameon=True, facecolor='#FFFFFF', edgecolor='#E2E8F0', fontsize=8)
+        leg.get_frame().set_alpha(0.95)
 
         plt.tight_layout()
         buf = io.BytesIO()
