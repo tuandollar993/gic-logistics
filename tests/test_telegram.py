@@ -41,6 +41,36 @@ def test_telegram_chat_id_authorization(monkeypatch):
     res_unauth = handle_telegram_update(unauth_update)
     assert res_unauth == {'ok': True}
 
+
+@pytest.mark.parametrize('chat_type, chat_id', [
+    ('private', 111111),
+    ('group', -222222),
+    ('supergroup', -100333333),
+])
+def test_telegram_id_command_is_available_before_whitelist(monkeypatch, chat_type, chat_id):
+    from app.services import cashflow_bot_service
+    monkeypatch.setattr(cashflow_bot_service, 'ALLOWED_CHAT_IDS', ['999999999'])
+    sent = {}
+
+    def fake_send(chat_id_arg, text, reply_markup=None, reply_to_message_id=None):
+        sent.update(chat_id=str(chat_id_arg), text=text, reply_to_message_id=reply_to_message_id)
+        return {'ok': True}
+
+    monkeypatch.setattr(cashflow_bot_service, 'send_telegram_message', fake_send)
+    result = handle_telegram_update({
+        'message': {
+            'message_id': 101,
+            'chat': {'id': chat_id, 'type': chat_type},
+            'text': '/id'
+        }
+    })
+
+    assert result == {'ok': True}
+    assert sent['chat_id'] == str(chat_id)
+    assert f"Chat ID hiện tại: <code>{chat_id}</code>" in sent['text']
+    assert f"Chat type: <code>{chat_type}</code>" in sent['text']
+    assert sent['reply_to_message_id'] == 101
+
 def test_telegram_callback_tampering_prevented(monkeypatch):
     from app.services import cashflow_bot_service
     monkeypatch.setattr(cashflow_bot_service, 'ALLOWED_CHAT_IDS', ['123456789'])
@@ -174,4 +204,3 @@ def test_set_telegram_webhook_success(auth_client_admin, monkeypatch, app):
         assert audit is not None
         assert 'super_secret_bot_token_abc' not in (audit.details or '')
         assert 'super_secret_bot_token_abc' not in str(audit.after_state or '')
-

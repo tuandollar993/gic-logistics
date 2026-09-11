@@ -13,6 +13,26 @@ if os.getenv('TELEGRAM_BOT_TOKEN'):
 else:
     print('⚠️ [STARTUP] Chưa có TELEGRAM_BOT_TOKEN trong biến môi trường.')
 
+# Tự động đồng bộ Webhook cho Cashflow Bot (@gidotien_bot)
+cashflow_token = os.getenv('CASHFLOW_BOT_TOKEN')
+secret_token = os.getenv('TELEGRAM_SECRET_TOKEN')
+render_url = os.getenv('RENDER_EXTERNAL_URL') or 'https://gic-logistics.onrender.com'
+
+if cashflow_token:
+    try:
+        import requests
+        target_url = f"{render_url.rstrip('/')}/advances/bot-webhook"
+        payload = {
+            'url': target_url,
+            'allowed_updates': ['message', 'edited_message', 'callback_query']
+        }
+        if secret_token:
+            payload['secret_token'] = secret_token
+        res = requests.post(f"https://api.telegram.org/bot{cashflow_token}/setWebhook", json=payload, timeout=10).json()
+        print(f"🤖 [STARTUP] Telegram Cashflow Webhook: {res.get('description', res)}")
+    except Exception as e:
+        print(f"⚠️ [STARTUP] Lỗi đồng bộ Webhook: {e}")
+
 print('⏰ [STARTUP] Kích hoạt Clock Scheduler background...')
 clock_proc = subprocess.Popen([sys.executable, 'clock.py'])
 

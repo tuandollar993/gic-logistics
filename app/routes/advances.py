@@ -538,7 +538,7 @@ def telegram_cashflow_webhook():
     if not secret_header or not hmac.compare_digest(secret_header, expected_token):
         return jsonify({'ok': False, 'error': 'Invalid or missing secret token'}), 401
 
-    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    client_ip = (request.headers.get('X-Forwarded-For') or request.remote_addr).split(',')[0].strip()
     allowed, _ = check_rate_limit(f"tg_bot_hook_{client_ip}", max_attempts=120, window_seconds=60)
     if not allowed:
         return jsonify({'ok': False, 'error': 'Rate limit exceeded'}), 429

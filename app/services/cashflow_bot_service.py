@@ -19,10 +19,36 @@ from app.services.advance_service import (
 
 CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
+def get_gemini_api_key():
+    key = os.environ.get('GEMINI_API_KEY') or GEMINI_API_KEY
+    if not key:
+        from flask import current_app
+        try:
+            key = current_app.config.get('GEMINI_API_KEY', '')
+        except Exception:
+            pass
+    return key
+
 ALLOWED_CHAT_IDS = [
     cid.strip() for cid in (os.environ.get('ALLOWED_CHAT_IDS') or os.environ.get('ALLOWED_CHAT_ID', '')).split(',')
     if cid.strip()
 ]
+
+def get_allowed_chat_ids():
+    import app.services.cashflow_bot_service as cbs
+    if getattr(cbs, 'ALLOWED_CHAT_IDS', None):
+        return [str(c).strip() for c in cbs.ALLOWED_CHAT_IDS if str(c).strip()]
+    raw = os.environ.get('ALLOWED_CHAT_IDS') or os.environ.get('ALLOWED_CHAT_ID', '')
+    if not raw:
+        from flask import current_app
+        try:
+            raw = current_app.config.get('ALLOWED_CHAT_IDS', '') or current_app.config.get('ALLOWED_CHAT_ID', '')
+        except Exception:
+            pass
+    if isinstance(raw, list):
+        return [str(c).strip() for c in raw if str(c).strip()]
+    return [c.strip() for c in str(raw).split(',') if c.strip()]
 
 # Cache lưu trữ các giao dịch đang chờ bấm nút Xác nhận
 _pending_confirmations = {}
@@ -145,7 +171,13 @@ Lưu ý RẤT QUAN TRỌNG:
 - Về "ngay_giao_dich": Đọc ngày giao dịch trên bill (thường là ngày chuyển khoản). Format: d-MMM (ví dụ: 5-May, 31-Aug).
 - KHÔNG BAO GỒM mã markdown, chỉ trả về JSON thuần.
 """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    api_key = get_gemini_api_key()
+    if not api_key:
+        raise Exception("GEMINI_API_KEY chưa được cấu hình")
+
+    models_to_try = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
+    last_err = None
+
     payload = {
         "contents": [{
             "parts": [
@@ -159,14 +191,23 @@ Lưu ý RẤT QUAN TRỌNG:
             ]
         }]
     }
-    
-    resp = requests.post(url, json=payload, timeout=25)
-    if resp.status_code == 200:
-        raw_text = resp.json()['candidates'][0]['content']['parts'][0]['text']
-        cleaned = raw_text.replace('```json', '').replace('```', '').strip()
-        return json.loads(cleaned)
-    else:
-        raise Exception(f"Gemini API lỗi: {resp.status_code} - {resp.text}")
+
+    for model in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        try:
+            resp = requests.post(url, json=payload, timeout=25)
+            if resp.status_code == 200:
+                raw_text = resp.json()['candidates'][0]['content']['parts'][0]['text']
+                cleaned = raw_text.replace('```json', '').replace('```', '').strip()
+                return json.loads(cleaned)
+            else:
+                last_err = f"{resp.status_code} - {resp.text}"
+                print(f"[CashflowBot] Model {model} failed: {last_err}, trying next...")
+        except Exception as e:
+            last_err = str(e)
+            print(f"[CashflowBot] Model {model} error: {e}, trying next...")
+
+    raise Exception(f"Gemini API lỗi trên tất cả các models: {last_err}")
 
 def detect_columns(token, sheet_name):
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{sheet_name}!A4:O6"
@@ -427,11 +468,12 @@ def handle_telegram_update(update):
         cb_data = cq.get('data', '')
 
         # Kiểm tra danh sách chat được phép
+        allowed_chats = get_allowed_chat_ids()
         is_prod = os.getenv('FLASK_ENV') == 'production' or os.getenv('ENVIRONMENT') == 'production' or bool(os.getenv('RENDER'))
-        if is_prod and not ALLOWED_CHAT_IDS:
+        if is_prod and not allowed_chats:
             answer_callback_query(cq_id, "Lỗi bảo mật: ALLOWED_CHAT_IDS chưa được cấu hình.")
             return {'ok': True}
-        if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS:
+        if allowed_chats and chat_id not in allowed_chats:
             answer_callback_query(cq_id, "Bạn không có quyền thực hiện thao tác này.")
             return {'ok': True}
 
@@ -498,13 +540,27 @@ def handle_telegram_update(update):
         chat_type = msg.get('chat', {}).get('type', 'private')
         print(f"[CashflowBot] Nhận tin nhắn từ chat_id={chat_id} ({chat_type}), text={text[:50] if text else ''}")
 
+        # /id is a safe discovery command and must remain available before
+        # whitelist enforcement, so an administrator can add a new chat ID.
+        # It only returns Telegram metadata and performs no financial action.
+        command = text.split(maxsplit=1)[0].lower() if text else ''
+        if command in ('/id', '/id@' + str(os.getenv('TELEGRAM_BOT_USERNAME', '')).lower()):
+            send_telegram_message(
+                chat_id,
+                f"Chat ID hiện tại: <code>{html.escape(chat_id)}</code>\n"
+                f"Chat type: <code>{html.escape(str(chat_type))}</code>",
+                reply_to_message_id=msg_id
+            )
+            return {'ok': True}
+
         # Kiểm tra phân quyền chat: Bắt buộc trong production hoặc khi ALLOWED_CHAT_IDS được cấu hình
+        allowed_chats = get_allowed_chat_ids()
         is_prod = os.getenv('FLASK_ENV') == 'production' or os.getenv('ENVIRONMENT') == 'production' or bool(os.getenv('RENDER'))
-        if is_prod and not ALLOWED_CHAT_IDS:
+        if is_prod and not allowed_chats:
             print("[CashflowBot Security] Bỏ qua: Production yêu cầu ALLOWED_CHAT_IDS nhưng danh sách đang rỗng.")
             return {'ok': True}
 
-        if ALLOWED_CHAT_IDS and chat_id not in ALLOWED_CHAT_IDS and str(msg['chat'].get('id')) not in ALLOWED_CHAT_IDS:
+        if allowed_chats and chat_id not in allowed_chats and str(msg['chat'].get('id')) not in allowed_chats:
             print(f"[CashflowBot Security] Bỏ qua tin nhắn từ chat không nằm trong ALLOWED_CHAT_IDS: {chat_id}")
             return {'ok': True}
 
