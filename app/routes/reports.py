@@ -56,18 +56,19 @@ def generate():
         # 2. Gọi Gemini AI sinh nội dung
         report = GeminiReportWriter.generate_report(data, report_type=report_type)
 
-        # Serialize safe response (loại bỏ các object không JSON-serializable)
         safe_data = {
             'kpi': report['data']['kpi'],
-            'total_declarations': report['data']['total_declarations'],
-            'total_containers': report['data']['total_containers'],
-            'luu_ca_rate': report['data']['luu_ca_rate'],
-            'location_breakdown': report['data']['location_breakdown'],
-            'existing_customers': report['data']['existing_customers'],
-            'staff_assignments': {
-                k: v for k, v in report['data']['staff_assignments'].items()
-            },
-            'lot_count': report['data']['lot_count']
+            'topline_table': report['data'].get('topline_table', {}),
+            'monthly_cont_stats': report['data'].get('monthly_cont_stats', []),
+            'total_period_declarations': report['data'].get('total_period_declarations', 0),
+            'total_period_containers': report['data'].get('total_period_containers', 0),
+            'storage_ratio_text': report['data'].get('storage_ratio_text', ''),
+            'storage_pct': report['data'].get('storage_pct', 0.0),
+            'customer_monthly_tables': report['data'].get('customer_monthly_tables', []),
+            'potential_customers': report['data'].get('potential_customers', []),
+            'staff_plan': report['data'].get('staff_plan', []),
+            'proposals': report['data'].get('proposals', []),
+            'charts_b64': report['data'].get('charts_b64', {})
         }
 
         return jsonify({
