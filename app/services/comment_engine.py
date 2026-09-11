@@ -4,13 +4,15 @@ from datetime import date
 
 class CommentEngine:
     @staticmethod
-    def generate_comments(month, year):
+    def generate_comments(month, year, kpi=None, customers=None):
         """
         Generates automatic executive commentary for monthly performance.
         Returns a list of structured comment items with status/tag.
         """
-        kpi = CalculatorService.get_monthly_kpi(month, year)
-        customers = CalculatorService.get_customer_breakdown(month, year)
+        if kpi is None:
+            kpi = CalculatorService.get_monthly_kpi(month, year)
+        if customers is None:
+            customers = CalculatorService.get_customer_breakdown(month, year)
         
         comments = []
         

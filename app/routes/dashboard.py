@@ -20,7 +20,7 @@ def index():
     selected_year = request.args.get('year', default_year, type=int)
     
     kpi = CalculatorService.get_monthly_kpi(selected_month, selected_year)
-    comments = CommentEngine.generate_comments(selected_month, selected_year)
+    comments = CommentEngine.generate_comments(selected_month, selected_year, kpi=kpi)
     
     return render_template(
         'dashboard.html',

@@ -88,11 +88,11 @@ class Lot(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     lot_label = db.Column(db.String(50), nullable=True)  # 'Lô 1', 'Lô 2', hoặc mã tự sinh
-    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=True, index=True)
     company = db.Column(db.String(200), nullable=True)   # Johnson 2, Sunluxe, Keep Rise...
     customs_declaration = db.Column(db.String(150), nullable=True, index=True)  # Số tờ khai HQ
-    month = db.Column(db.Integer, nullable=False)
-    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False, index=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
     
@@ -100,8 +100,8 @@ class Lot(db.Model):
     source_type = db.Column(db.String(20), default='gido')  # 'gido' hoặc 'ghnlog'
     
     # Workflow
-    status = db.Column(db.String(20), default='pending')  # 'pending', 'assigned', 'in_progress', 'completed'
-    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    status = db.Column(db.String(20), default='pending', index=True)  # 'pending', 'assigned', 'in_progress', 'completed'
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     cost_deadline = db.Column(db.Date, nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -207,7 +207,7 @@ class RevenueItem(db.Model):
     __tablename__ = 'revenue_items'
     
     id = db.Column(db.Integer, primary_key=True)
-    lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'), nullable=False)
+    lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'), nullable=False, index=True)
     
     supplier = db.Column(db.String(200), nullable=True)
     vehicle_plate_cn = db.Column(db.String(50), nullable=True)
@@ -299,7 +299,7 @@ class OperatingCost(db.Model):
     __tablename__ = 'operating_costs'
     
     id = db.Column(db.Integer, primary_key=True)
-    lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'), nullable=False)
+    lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'), nullable=False, index=True)
     
     cost_type = db.Column(db.String(100), nullable=True)  # Phí thông quan, Phí cửa khẩu...
     description = db.Column(db.Text, nullable=False)       # Nội dung chi tiết

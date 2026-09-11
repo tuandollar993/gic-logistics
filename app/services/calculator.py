@@ -1,20 +1,29 @@
 from datetime import date
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload, selectinload
 from app.models import Lot, Target, Customer, RevenueItem, OperatingCost, CostEntryTask
 
 class CalculatorService:
+    _cached_months = None
+
     @staticmethod
     def get_available_months():
         """Get all unique (year, month) pairs present in the database"""
+        if CalculatorService._cached_months is not None:
+            return CalculatorService._cached_months
         lots = Lot.query.with_entities(Lot.year, Lot.month).distinct().order_by(Lot.year.desc(), Lot.month.desc()).all()
-        return [(l.year, l.month) for l in lots]
+        CalculatorService._cached_months = [(l.year, l.month) for l in lots]
+        return CalculatorService._cached_months
 
     @staticmethod
     def get_monthly_kpi(month, year):
         """
         Calculate total revenue, costs, profit, and target progress for given month & year
         """
-        all_lots = Lot.query.filter_by(month=month, year=year).all()
+        all_lots = Lot.query.filter_by(month=month, year=year).options(
+            selectinload(Lot.revenue_items),
+            selectinload(Lot.operating_costs)
+        ).all()
         
         total_sell = sum(lot.total_sell_revenue for lot in all_lots)
         total_buy = sum(lot.total_buy_cost for lot in all_lots)
@@ -45,7 +54,10 @@ class CalculatorService:
         # Previous month comparison (Requirement 11)
         prev_m = 12 if month == 1 else month - 1
         prev_y = year - 1 if month == 1 else year
-        prev_lots = Lot.query.filter_by(month=prev_m, year=prev_y).all()
+        prev_lots = Lot.query.filter_by(month=prev_m, year=prev_y).options(
+            selectinload(Lot.revenue_items),
+            selectinload(Lot.operating_costs)
+        ).all()
         prev_sell = sum(lot.total_sell_revenue for lot in prev_lots)
         prev_buy = sum(lot.total_buy_cost for lot in prev_lots)
         
@@ -82,17 +94,24 @@ class CalculatorService:
     @staticmethod
     def get_year_trend(year):
         """
-        Get 12-month series of revenue, costs, and target for charts
+        Get 12-month series of revenue, costs, and target for charts.
+        Optimized to fetch all year lots and targets in 2 queries instead of 24.
         """
+        all_year_lots = Lot.query.filter_by(year=year).options(
+            selectinload(Lot.revenue_items),
+            selectinload(Lot.operating_costs)
+        ).all()
+        
+        targets = Target.query.filter_by(year=year).all()
+        target_map = {t.month: t.target_amount_vnd for t in targets if t.target_amount}
+        
         months_data = []
         for m in range(1, 13):
-            lots = Lot.query.filter_by(month=m, year=year).all()
+            lots = [l for l in all_year_lots if l.month == m]
             sell = sum(lot.total_sell_revenue for lot in lots)
             buy = sum(lot.total_buy_cost for lot in lots)
             ops = sum(lot.total_operating_cost for lot in lots)
-            
-            target_obj = Target.query.filter_by(year=year, month=m).first()
-            target_val = target_obj.target_amount_vnd if (target_obj and target_obj.target_amount) else 0.0
+            target_val = target_map.get(m, 0.0)
             
             months_data.append({
                 'month': f"T{m}",
@@ -111,8 +130,12 @@ class CalculatorService:
         """
         Get revenue and lot share grouped by customer (Requirement 12).
         Returns Top 5 customers + 'Khác', summing to exactly 100%.
+        Eager loads customer to avoid N+1 queries.
         """
-        lots = Lot.query.filter_by(month=month, year=year).all()
+        lots = Lot.query.filter_by(month=month, year=year).options(
+            joinedload(Lot.customer),
+            selectinload(Lot.revenue_items)
+        ).all()
         cust_map = {}
         total_rev = 0
         

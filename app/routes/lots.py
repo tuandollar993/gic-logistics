@@ -41,9 +41,13 @@ def index():
             (Lot.company.ilike(f"%{query}%"))
         )
         
-    if status_filter:
-        lots_query = lots_query.filter_by(status=status_filter)
-        
+    from sqlalchemy.orm import joinedload, selectinload
+    lots_query = lots_query.options(
+        joinedload(Lot.customer),
+        joinedload(Lot.assignee),
+        selectinload(Lot.revenue_items),
+        selectinload(Lot.operating_costs)
+    )
     lots = lots_query.order_by(Lot.id.desc()).all()
     staff_users = User.query.filter_by(is_active=True).all()
     
