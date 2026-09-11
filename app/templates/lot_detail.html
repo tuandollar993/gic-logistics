@@ -128,12 +128,18 @@
 
 <!-- Section 1: Doanh Thu Bán Hàng (Từ Báo Cáo Bán Hàng) -->
 <div class="data-table-card mb-4">
-    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
             <i class="fa-solid fa-truck-moving text-primary"></i>
             <h6 class="fw-bold m-0 text-dark">Chi Tiết Dịch Vụ & Doanh Thu Bán Ra (Từ Báo Cáo Bán Hàng)</h6>
         </div>
-        <span class="badge bg-light text-dark border font-mono">{{ lot.revenue_items|length }} chuyến / dịch vụ</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark border font-mono">{{ lot.revenue_items|length }} chuyến / dịch vụ</span>
+            <button type="button" class="btn-primary-gic py-1 px-3 d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addRevenueItemModal" style="font-size: 0.82rem;">
+                <i class="fa-solid fa-plus"></i>
+                <span>Thêm Giá Mua / Chuyến Xe</span>
+            </button>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table-custom-clean">
@@ -148,6 +154,7 @@
                     <th class="text-end">Phụ Phí</th>
                     <th class="text-end fw-bold">Tổng Thu</th>
                     <th class="text-end text-muted">Giá Mua (Có VAT)</th>
+                    <th class="text-end" style="width: 100px;">Thao Tác</th>
                 </tr>
             </thead>
             <tbody>
@@ -165,11 +172,32 @@
                             {{ (item.total_sell_price - item.sell_price) | format_money }}
                         </td>
                         <td class="text-end font-mono fw-bold text-success tabular-nums">{{ item.total_sell_price | format_money }}</td>
-                        <td class="text-end font-mono text-secondary tabular-nums">{{ item.total_buy_price | format_money }}</td>
+                        <td class="text-end font-mono text-secondary tabular-nums fw-semibold">{{ item.total_buy_price | format_money }}</td>
+                        <td class="text-end">
+                            <div class="d-inline-flex align-items-center gap-1">
+                                <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-revenue-item" style="font-size: 0.75rem;"
+                                    data-id="{{ item.id }}"
+                                    data-supplier="{{ item.supplier or '' }}"
+                                    data-plate="{{ item.vehicle_plate_vn or item.vehicle_plate_cn or '' }}"
+                                    data-weight="{{ item.weight_class or '' }}"
+                                    data-desc="{{ item.service_description or '' }}"
+                                    data-buy="{{ item.buy_price or item.total_buy_price or 0 }}"
+                                    data-sell="{{ item.sell_price or 0 }}"
+                                    data-surcharge="{{ item.other_surcharge or (item.total_sell_price - item.sell_price) or 0 }}"
+                                    title="Sửa chuyến xe / giá mua">
+                                    <i class="fa-solid fa-pen-to-square text-primary"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('lots.delete_revenue_item', lot_id=lot.id, item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa chuyến xe này?');">
+                                    <button type="submit" class="btn-secondary-gic py-1 px-2 text-danger" style="font-size: 0.75rem;" title="Xóa chuyến xe">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">Chưa có dữ liệu chuyến hoặc dịch vụ bán hàng.</td>
+                        <td colspan="10" class="text-center py-4 text-muted">Chưa có dữ liệu chuyến hoặc dịch vụ bán hàng. Nhấn nút "Thêm Giá Mua / Chuyến Xe" ở trên để tạo mới.</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -277,6 +305,152 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- Modal Thêm Chuyến Xe / Giá Mua - Bán -->
+<div class="modal fade" id="addRevenueItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form method="POST" action="{{ url_for('lots.add_revenue_item', lot_id=lot.id) }}" class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-3">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-truck-moving text-primary"></i>
+                    <span>Thêm Chuyến Xe / Giá Mua - Bán (Lô {{ lot.lot_label }})</span>
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp Vận Tải</label>
+                        <input type="text" name="supplier" class="form-control" list="supplierDatalist" placeholder="Chọn hoặc nhập tên NCC...">
+                        <datalist id="supplierDatalist">
+                            {% for s in suppliers %}
+                                <option value="{{ s.name }}">{{ s.name }} (MST: {{ s.tax_code or 'N/A' }})</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Biển Số Xe (BKS)</label>
+                        <input type="text" name="vehicle_plate" class="form-control font-mono" placeholder="VD: 98C-123.45 hoặc xe TQ...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Xe / Trọng Tải</label>
+                        <input type="text" name="weight_class" class="form-control" placeholder="VD: Xe 5T, Xe 15T, Cont 40'...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Dịch Vụ / Lộ Trình Vận Chuyển</label>
+                        <input type="text" name="service_description" class="form-control" placeholder="VD: Hữu Nghị - KCN Quế Võ...">
+                    </div>
+                    
+                    <div class="col-12"><hr class="my-2"></div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
+                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Cước (Có VAT)
+                        </label>
+                        <div class="input-group">
+                            <input type="number" step="any" name="buy_price" class="form-control font-mono fw-bold text-danger" placeholder="0" required>
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Giá đầu vào trả cho nhà xe</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
+                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Cước (Chưa VAT)
+                        </label>
+                        <div class="input-group">
+                            <input type="number" step="any" name="sell_price" class="form-control font-mono fw-bold text-success" placeholder="0">
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Doanh thu bán ra cho khách</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phụ Phí Bán Ra (Nếu Có)</label>
+                        <div class="input-group">
+                            <input type="number" step="any" name="surcharges" class="form-control font-mono" placeholder="0" value="0">
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Lưu ca, nâng hạ, phụ phí khác</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic">
+                    <i class="fa-solid fa-check me-1"></i> Lưu Chuyến Xe
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Sửa Chuyến Xe / Giá Mua - Bán -->
+<div class="modal fade" id="editRevenueItemModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form method="POST" id="editRevenueItemForm" action="" class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-3">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-primary"></i>
+                    <span>Chỉnh Sửa Chuyến Xe / Giá Mua - Bán</span>
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp Vận Tải</label>
+                        <input type="text" name="supplier" id="editSupplier" class="form-control" list="supplierDatalist">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Biển Số Xe (BKS)</label>
+                        <input type="text" name="vehicle_plate" id="editPlate" class="form-control font-mono">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Xe / Trọng Tải</label>
+                        <input type="text" name="weight_class" id="editWeight" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Dịch Vụ / Lộ Trình Vận Chuyển</label>
+                        <input type="text" name="service_description" id="editDesc" class="form-control">
+                    </div>
+                    
+                    <div class="col-12"><hr class="my-2"></div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
+                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Cước (Có VAT)
+                        </label>
+                        <div class="input-group">
+                            <input type="number" step="any" name="buy_price" id="editBuyPrice" class="form-control font-mono fw-bold text-danger" required>
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
+                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Cước (Chưa VAT)
+                        </label>
+                        <div class="input-group">
+                            <input type="number" step="any" name="sell_price" id="editSellPrice" class="form-control font-mono fw-bold text-success">
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phụ Phí Bán Ra (Nếu Có)</label>
+                        <div class="input-group">
+                            <input type="number" step="any" name="surcharges" id="editSurcharges" class="form-control font-mono">
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic">
+                    <i class="fa-solid fa-save me-1"></i> Cập Nhật
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 function openAssignModal(lotId, lotName, currentAssignee, currentDeadline) {
     document.getElementById('assignForm').action = `/lots/${lotId}/assign`;
@@ -305,6 +479,26 @@ document.addEventListener('DOMContentLoaded', function() {
             openAssignModal(lotId, lotName, assignee, deadline);
         });
     }
+
+    // Bind Edit Revenue Item modal
+    const editButtons = document.querySelectorAll('.btn-edit-revenue-item');
+    const editModal = new bootstrap.Modal(document.getElementById('editRevenueItemModal'));
+    const editForm = document.getElementById('editRevenueItemForm');
+    
+    editButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.getAttribute('data-id');
+            editForm.action = `/lots/{{ lot.id }}/items/${itemId}/edit`;
+            document.getElementById('editSupplier').value = this.getAttribute('data-supplier') || '';
+            document.getElementById('editPlate').value = this.getAttribute('data-plate') || '';
+            document.getElementById('editWeight').value = this.getAttribute('data-weight') || '';
+            document.getElementById('editDesc').value = this.getAttribute('data-desc') || '';
+            document.getElementById('editBuyPrice').value = this.getAttribute('data-buy') || 0;
+            document.getElementById('editSellPrice').value = this.getAttribute('data-sell') || 0;
+            document.getElementById('editSurcharges').value = this.getAttribute('data-surcharge') || 0;
+            editModal.show();
+        });
+    });
 });
 </script>
 {% endblock %}
