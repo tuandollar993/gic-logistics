@@ -94,7 +94,7 @@ def get_google_access_token():
         header = base64.urlsafe_b64encode(json.dumps({'alg': 'RS256', 'typ': 'JWT'}).encode()).rstrip(b'=').decode()
         payload_data = {
             'iss': key_data['client_email'],
-            'scope': 'https://www.googleapis.com/auth/spreadsheets.readonly',
+            'scope': 'https://www.googleapis.com/auth/spreadsheets',
             'aud': 'https://oauth2.googleapis.com/token',
             'exp': now + 3600,
             'iat': now

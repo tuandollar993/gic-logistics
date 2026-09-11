@@ -244,3 +244,44 @@ def sync_bills():
         return jsonify({'success': False, 'message': err}), 500
     return jsonify({'success': True, 'count': count, 'message': f'Đã đồng bộ {count} hóa đơn về Supabase!'})
 
+
+@advances_bp.route('/bot-webhook', methods=['POST'])
+@advances_bp.route('/telegram-bot-webhook', methods=['POST'])
+def telegram_cashflow_webhook():
+    """Nhận webhook từ Telegram Bot (@gidotien_bot) để đọc bill và lưu Supabase"""
+    from app.services.cashflow_bot_service import handle_telegram_update
+    update = request.get_json(force=True, silent=True)
+    if update:
+        try:
+            handle_telegram_update(update)
+        except Exception as e:
+            print(f"[AdvancesRoute] Error in telegram webhook: {e}")
+    return jsonify({'ok': True})
+
+
+@advances_bp.route('/set-telegram-webhook', methods=['GET', 'POST'])
+def set_telegram_webhook():
+    """Cài đặt hoặc kiểm tra webhook cho @gidotien_bot trỏ thẳng về Render"""
+    import requests
+    from app.services.cashflow_bot_service import CASHFLOW_BOT_TOKEN
+    
+    target_url = request.args.get('url') or f"{request.host_url.rstrip('/')}/advances/bot-webhook"
+    if target_url.startswith('http://') and 'localhost' not in target_url and '127.0.0.1' not in target_url:
+        target_url = target_url.replace('http://', 'https://')
+        
+    set_url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/setWebhook?url={target_url}"
+    info_url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/getWebhookInfo"
+    
+    if request.method == 'POST' or request.args.get('apply') == '1':
+        res = requests.get(set_url, timeout=10).json()
+        info = requests.get(info_url, timeout=10).json()
+        return jsonify({'set_result': res, 'current_info': info, 'target_url': target_url})
+    
+    info = requests.get(info_url, timeout=10).json()
+    return jsonify({
+        'current_info': info,
+        'proposed_url': target_url,
+        'instruction': 'Thêm ?apply=1 để kích hoạt webhook trỏ về Render'
+    })
+
+
