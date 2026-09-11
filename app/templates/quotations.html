@@ -1009,6 +1009,11 @@ function querySuggestedPrice() {
                 if (res.unit && !document.getElementById('itemUnit').value) {
                     document.getElementById('itemUnit').value = res.unit;
                 }
+                const priceInput = document.getElementById('itemPrice');
+                if (res.recommended_price > 0 && (!priceInput.value || priceInput.getAttribute('data-auto') === '1')) {
+                    priceInput.value = formatNumberDisplay(res.recommended_price);
+                    priceInput.setAttribute('data-auto', '1');
+                }
             } else {
                 basisCard.classList.add('d-none');
             }
@@ -1022,7 +1027,9 @@ function applySuggestedPrice() {
     const basisCard = document.getElementById('pricingBasisCard');
     const recPrice = parseFloat(basisCard.getAttribute('data-rec-price') || 0);
     if (recPrice > 0) {
-        document.getElementById('itemPrice').value = formatNumberDisplay(recPrice);
+        const priceInput = document.getElementById('itemPrice');
+        priceInput.value = formatNumberDisplay(recPrice);
+        priceInput.setAttribute('data-auto', '1');
         updateLineTotalHint();
     }
 }
@@ -1046,8 +1053,15 @@ function formatNumberDisplay(num) {
 }
 
 function parseMoneyInput(val) {
-    if (!val) return 0;
-    return parseFloat(String(val).replace(/[^\d.]/g, '')) || 0;
+    if (val === undefined || val === null) return 0;
+    const s = String(val).trim();
+    if (!s) return 0;
+    if (s.includes('%') || (parseFloat(s) < 1 && s.startsWith('0.'))) {
+        return parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+    }
+    // Ở tiền Việt Nam (VNĐ), dấu chấm (.) là phân tách hàng nghìn (VD: 5.250.000)
+    // Loại bỏ mọi ký tự không phải số để lấy chính xác số nguyên VND
+    return parseInt(s.replace(/\D/g, ''), 10) || 0;
 }
 
 // Add Item From Builder Form
@@ -1100,7 +1114,7 @@ function addItemToQuote() {
 // 1-Click Select from Tab 2 Benchmark Explorer to Quotation
 function selectBenchmarkToQuote(cat, name, spec, recPrice, unit, basisText) {
     const cleanUnit = unit || 'Chuyến';
-    const priceNum = parseFloat(recPrice) || 0;
+    const priceNum = parseMoneyInput(recPrice);
     const lineTotal = cleanUnit.startsWith('%') ? priceNum : priceNum;
 
     quotationItems.push({
@@ -1111,8 +1125,7 @@ function selectBenchmarkToQuote(cat, name, spec, recPrice, unit, basisText) {
         unit: cleanUnit,
         quantity: 1,
         unit_price: priceNum,
-        total: lineTotal,
-        basis: basisText || ''
+        total: lineTotal
     });
 
     renderQuotationPreview();
@@ -1150,7 +1163,6 @@ function renderQuotationPreview() {
                     <td class="text-center font-mono text-muted">${idx + 1}</td>
                     <td>
                         <strong class="text-dark">${it.name}</strong>
-                        ${it.basis ? `<br><small class="text-muted" style="font-size: 0.68rem;"><i class="fa-solid fa-scale-balanced me-1 text-primary"></i>${it.basis}</small>` : ''}
                     </td>
                     <td>${it.spec ? `<span class="badge bg-light text-dark border font-mono">${it.spec}</span>` : '-'}</td>
                     <td class="text-center text-secondary small font-semibold">${it.unit}</td>
@@ -1236,9 +1248,7 @@ function copyZaloText() {
         } else {
             text += `   - SL: ${it.quantity} ${it.unit} x ${formatNumberDisplay(it.unit_price)} đ = ${formatNumberDisplay(it.total)} đ\n`;
         }
-        if (it.basis) {
-            text += `   ℹ️ Cơ sở: ${it.basis}\n`;
-        }
+
     });
     text += `------------------------------------\n`;
     text += `💰 Cộng tiền dịch vụ: ${formatNumberDisplay(subtotal)} đ\n`;
@@ -1313,8 +1323,9 @@ function showToastNotification(msg) {
 
 // Auto format currency inputs
 document.getElementById('itemPrice').addEventListener('input', function(e) {
+    this.setAttribute('data-auto', '0');
     let val = parseMoneyInput(this.value);
-    if (val > 0) {
+    if (val > 0 && !String(this.value).includes('%')) {
         this.value = formatNumberDisplay(val);
     }
     updateLineTotalHint();
