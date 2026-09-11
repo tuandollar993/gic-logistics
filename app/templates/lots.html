@@ -126,7 +126,7 @@
                     {% set totals.buy = totals.buy + lot.total_buy_cost %}
                     {% set totals.ops = totals.ops + lot.total_operating_cost %}
                     {% set totals.net = totals.net + lot.net_profit %}
-                    <tr class="lot-row" data-search="{{ lot.lot_label|lower }} {{ (lot.customer.name if lot.customer else '')|lower }} {{ (lot.company or '')|lower }} {{ (lot.customs_declaration or '')|lower }} {{ (lot.assignee.full_name if lot.assignee else '')|lower }} {{ lot.status }}">
+                    <tr class="lot-row" data-search="{{ lot.lot_label|lower }} {{ lot.display_customer_name|lower }} {{ (lot.display_contact_person or '')|lower }} {{ (lot.company or '')|lower }} {{ (lot.customs_declaration or '')|lower }} {{ (lot.assignee.full_name if lot.assignee else '')|lower }} {{ lot.status }}">
                         <td class="fw-bold" data-val="{{ lot.lot_label or ('Lô #' ~ lot.id) }}">
                             <a href="{{ url_for('lots.detail', lot_id=lot.id) }}" class="text-primary text-decoration-none font-mono">
                                 {{ lot.lot_label or ('Lô #' ~ lot.id) }}
@@ -135,13 +135,17 @@
                                 <span class="badge bg-light text-secondary border font-sans ms-1" style="font-size: 0.65rem;">GHNLog</span>
                             {% endif %}
                         </td>
-                        {% set client_title = lot.company or (lot.customer.name if lot.customer else 'Khách vãng lai') %}
-                        {% set client_contact = lot.customer.name if (lot.company and lot.customer and lot.customer.name and lot.customer.name|lower != lot.company|lower and lot.customer.name != 'Khách vãng lai') else None %}
-                        <td data-val="{{ client_title }}">
-                            <div class="fw-bold text-dark">{{ client_title }}</div>
-                            {% if client_contact %}
+                        <td data-val="{{ lot.display_customer_name }}">
+                            {% if lot.customer_id %}
+                                <a href="{{ url_for('customers.detail', customer_id=lot.customer_id) }}" class="fw-bold text-dark text-decoration-none text-hover-primary" title="Xem hồ sơ khách hàng {{ lot.display_customer_name }}">
+                                    {{ lot.display_customer_name }}
+                                </a>
+                            {% else %}
+                                <div class="fw-bold text-dark">{{ lot.display_customer_name }}</div>
+                            {% endif %}
+                            {% if lot.display_contact_person %}
                                 <div class="text-muted small" style="font-size: 0.78rem;">
-                                    <i class="fa-regular fa-user me-1 text-secondary"></i>{{ client_contact }}
+                                    <i class="fa-regular fa-user me-1 text-secondary"></i>{{ lot.display_contact_person }}
                                 </div>
                             {% endif %}
                         </td>
@@ -290,8 +294,16 @@
                     <small class="text-muted d-block mt-1" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-info text-info me-1"></i>Hệ thống tự động đề xuất số tiếp theo trong tháng để tránh trùng lặp. Bạn có thể bấm chọn gợi ý hoặc gõ tên tùy ý.</small>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Khách Hàng</label>
-                    <input type="text" name="customer_name" class="form-control" placeholder="VD: GUANGXI ZHONGYUANDA, Keep Rise, Hải Bân..." required>
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Khách Hàng <span class="text-danger">*</span></label>
+                    <input type="text" name="customer_name" class="form-control" list="canonicalCustomerDatalist" placeholder="Chọn hoặc nhập tên khách hàng..." required autocomplete="off">
+                    <datalist id="canonicalCustomerDatalist">
+                        {% for c in canonical_customers %}
+                            <option value="{{ c.name }}">{{ c.code }} - {{ c.name }}{% if c.contact_person %} (LH: {{ c.contact_person }}){% endif %}</option>
+                        {% endfor %}
+                    </datalist>
+                    <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
+                        <i class="fa-solid fa-shield-halved text-success me-1"></i>Hệ thống tự động chuẩn hóa tên khách hàng (vd: <em>Keeprise</em> &rarr; <strong>Keep Rise</strong>, <em>Anh Thắng _Sunluxe</em> &rarr; <strong>Sunluxe</strong>).
+                    </small>
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-md-6">

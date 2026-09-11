@@ -57,8 +57,64 @@ class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), unique=True, nullable=False)
     code = db.Column(db.String(50), nullable=True)
+    contact_person = db.Column(db.String(100), nullable=True)
+    phone = db.Column(db.String(50), nullable=True)
+    email = db.Column(db.String(100), nullable=True)
+    address = db.Column(db.Text, nullable=True)
+    tax_code = db.Column(db.String(50), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     lots = db.relationship('Lot', backref='customer', lazy='dynamic')
+
+    @property
+    def active_lots(self):
+        return [l for l in self.lots.all() if not l.is_deleted]
+
+    @property
+    def total_lots(self):
+        return len(self.active_lots)
+
+    @property
+    def total_revenue(self):
+        return sum(l.total_sell_revenue for l in self.active_lots)
+
+    @property
+    def total_cost(self):
+        return sum((l.total_buy_cost + l.total_operating_cost) for l in self.active_lots)
+
+    @property
+    def net_profit(self):
+        return sum(l.net_profit for l in self.active_lots)
+
+    @property
+    def margin_percent(self):
+        rev = self.total_revenue
+        if rev > 0:
+            return round((self.net_profit / rev) * 100.0, 2)
+        return 0.0
+
+    @property
+    def latest_lot(self):
+        lots = self.active_lots
+        if not lots:
+            return None
+        return sorted(lots, key=lambda l: (l.year or 0, l.month or 0, l.id), reverse=True)[0]
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'code': self.code or '',
+            'contact_person': self.contact_person or '',
+            'phone': self.phone or '',
+            'email': self.email or '',
+            'total_lots': self.total_lots,
+            'total_revenue': self.total_revenue,
+            'net_profit': self.net_profit,
+            'margin_percent': self.margin_percent
+        }
 
 class Supplier(db.Model):
     __tablename__ = 'suppliers'
@@ -165,6 +221,26 @@ class Lot(db.Model):
     def is_sales_lot(self):
         """Phân biệt lô bán hàng thực tế với các lô CPVH tạo tự động khi không ghép được"""
         return self.source_type != 'cpvh'
+
+    @property
+    def display_customer_name(self):
+        """Tên khách hàng chuẩn hóa hiển thị trên bảng lô hàng"""
+        if self.customer and self.customer.name:
+            return self.customer.name
+        if self.company:
+            return self.company
+        return "Khách vãng lai"
+
+    @property
+    def display_contact_person(self):
+        """Người liên hệ nếu có"""
+        if self.customer and self.customer.contact_person:
+            return self.customer.contact_person
+        if self.company and ('mr ' in self.company.lower() or 'anh ' in self.company.lower()):
+            parts = self.company.split('_')
+            if len(parts) > 1:
+                return parts[0].strip()
+        return None
 
     @property
     def active_revenue_items(self):

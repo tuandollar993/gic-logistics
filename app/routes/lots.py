@@ -133,6 +133,7 @@ def index():
     
     suggested_code, next_num = suggest_lot_label(selected_month, selected_year)
     suggested_lo = f"Lô {next_num:02d}"
+    canonical_customers = Customer.query.filter_by(is_active=True).order_by(Customer.name.asc()).all()
     
     return render_template(
         'lots.html',
@@ -144,7 +145,8 @@ def index():
         query=query,
         status_filter=status_filter,
         suggested_code=suggested_code,
-        suggested_lo=suggested_lo
+        suggested_lo=suggested_lo,
+        canonical_customers=canonical_customers
     )
 
 @lots_bp.route('/<int:lot_id>')
@@ -185,11 +187,10 @@ def new_lot():
             flash('Vui lòng điền đủ Tên khách hàng, Tháng và Năm.', 'danger')
             return redirect(url_for('lots.index'))
             
-        cust = Customer.query.filter_by(name=customer_name).first()
-        if not cust:
-            cust = Customer(name=customer_name)
-            db.session.add(cust)
-            db.session.flush()
+        from app.services.customer_service import get_or_create_canonical_customer
+        cust = get_or_create_canonical_customer(customer_name)
+        if not company:
+            company = cust.name
             
         deadline = None
         if deadline_str:
@@ -505,16 +506,15 @@ def edit_lot(lot_id):
     
     if lot_label:
         lot.lot_label = lot_label
-    lot.company = company
     lot.customs_declaration = customs_declaration
     
     if customer_name:
-        cust = Customer.query.filter_by(name=customer_name).first()
-        if not cust:
-            cust = Customer(name=customer_name)
-            db.session.add(cust)
-            db.session.flush()
+        from app.services.customer_service import get_or_create_canonical_customer
+        cust = get_or_create_canonical_customer(customer_name)
         lot.customer_id = cust.id
+        lot.company = company if company else cust.name
+    elif company:
+        lot.company = company
         
     if status in ['pending', 'assigned', 'in_progress', 'completed', 'overdue']:
         lot.status = status

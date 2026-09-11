@@ -90,15 +90,8 @@ def is_summary_or_footer_row(row_cells):
     return any(k in row_text for k in keywords)
 
 def get_or_create_customer(name):
-    if not name:
-        name = "Khách vãng lai"
-    name = name.strip()
-    cust = Customer.query.filter_by(name=name).first()
-    if not cust:
-        cust = Customer(name=name)
-        db.session.add(cust)
-        db.session.flush()
-    return cust
+    from app.services.customer_service import get_or_create_canonical_customer
+    return get_or_create_canonical_customer(name)
 
 class ExcelParserService:
     @staticmethod

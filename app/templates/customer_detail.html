@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.name }} - Hồ Sơ Khách Hàng - GIC Logistics{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 px-lg-4">
+    <!-- Top Action & Navigation Bar -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('customers.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fa-solid fa-arrow-left me-1"></i> Danh sách khách hàng
+            </a>
+            <h4 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                <span>{{ customer.name }}</span>
+                {% if customer.code %}
+                    <span class="badge bg-light text-dark border font-mono fs-6">{{ customer.code }}</span>
+                {% endif %}
+            </h4>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editCustomerModal">
+                <i class="fa-solid fa-pen-to-square me-1"></i> Sửa Thông Tin
+            </button>
+            <a href="{{ url_for('quotations.index') }}" class="btn btn-sm btn-primary-gic">
+                <i class="fa-solid fa-calculator me-1"></i> Lập Báo Giá Cho Khách Này
+            </a>
+        </div>
+    </div>
+
+    <!-- Customer Business Card & KPI Cards -->
+    <div class="row g-3 mb-4">
+        <!-- Profile Card -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-3 p-3 p-md-4 h-100 bg-white">
+                <div class="d-flex align-items-center gap-3 mb-3 pb-3 border-bottom">
+                    <div style="width: 48px; height: 48px; border-radius: 10px; background: var(--gic-accent); display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-building text-white fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark fs-6">{{ customer.name }}</div>
+                        <div class="text-muted small font-mono">{{ customer.code or 'CHƯA CÓ MÃ' }}</div>
+                    </div>
+                </div>
+
+                <div class="small" style="line-height: 1.8;">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Người liên hệ:</span>
+                        <strong class="text-dark">{{ customer.contact_person or '-' }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Số điện thoại:</span>
+                        <span class="font-mono">{{ customer.phone or '-' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Email:</span>
+                        <span class="font-mono">{{ customer.email or '-' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Mã số thuế:</span>
+                        <span class="font-mono">{{ customer.tax_code or '-' }}</span>
+                    </div>
+                    <div class="mt-1">
+                        <span class="text-muted d-block">Địa chỉ:</span>
+                        <div class="text-secondary">{{ customer.address or '-' }}</div>
+                    </div>
+                    {% if customer.notes %}
+                    <div class="mt-2 pt-2 border-top">
+                        <span class="text-muted d-block">Ghi chú riêng:</span>
+                        <div class="fst-italic text-secondary">{{ customer.notes }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 4 KPI Metrics of This Customer -->
+        <div class="col-lg-8">
+            <div class="row g-3 h-100">
+                <!-- 1. Total Lots -->
+                <div class="col-6">
+                    <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+                        <div class="d-flex align-items-center justify-content-between text-muted small mb-1">
+                            <span>Tổng Lô Đã Chạy</span>
+                            <i class="fa-solid fa-boxes-stacked text-primary"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-dark font-mono">{{ lots|length }} <span class="fs-6 fw-normal text-muted">lô</span></div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Toàn bộ các kỳ</div>
+                    </div>
+                </div>
+                <!-- 2. Revenue -->
+                <div class="col-6">
+                    <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+                        <div class="d-flex align-items-center justify-content-between text-muted small mb-1">
+                            <span>Doanh Thu Lũy Kế</span>
+                            <i class="fa-solid fa-sack-dollar text-success"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-success font-mono tabular-nums">{{ total_revenue | format_money }}</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Doanh thu bán chưa VAT</div>
+                    </div>
+                </div>
+                <!-- 3. Cost -->
+                <div class="col-6">
+                    <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+                        <div class="d-flex align-items-center justify-content-between text-muted small mb-1">
+                            <span>Tổng Chi Phí</span>
+                            <i class="fa-solid fa-receipt text-danger"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-danger font-mono tabular-nums">{{ total_cost | format_money }}</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Bao gồm giá mua & CPVH</div>
+                    </div>
+                </div>
+                <!-- 4. Net Profit & Margin -->
+                <div class="col-6">
+                    <div class="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white border-start border-4 {% if net_profit >= 0 %}border-success{% else %}border-danger{% endif %}">
+                        <div class="d-flex align-items-center justify-content-between text-muted small mb-1">
+                            <span>Lợi Nhuận (Biên LN)</span>
+                            <i class="fa-solid fa-chart-line {% if net_profit >= 0 %}text-success{% else %}text-danger{% endif %}"></i>
+                        </div>
+                        <div class="fs-3 fw-black font-mono tabular-nums {% if net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ net_profit | format_money }}
+                            <span class="fs-6 fw-normal badge {% if margin >= 10 %}bg-success{% elif margin >= 0 %}bg-warning text-dark{% else %}bg-danger{% endif %} ms-1 font-sans">
+                                {{ margin }}%
+                            </span>
+                        </div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Hiệu quả kinh doanh ròng</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Summary Accordion / Breakdown -->
+    {% if monthly_summary %}
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-calendar-days text-primary"></i>
+                Thống Kê Doanh Thu & Lợi Nhuận Theo Từng Kỳ Báo Cáo
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.84rem;">
+                    <thead class="table-light text-uppercase font-sans" style="font-size: 0.7rem;">
+                        <tr>
+                            <th class="text-center" style="width: 50px;">#</th>
+                            <th>Kỳ Báo Cáo</th>
+                            <th class="text-center">Số Lô</th>
+                            <th class="text-end">Doanh Thu (Bán)</th>
+                            <th class="text-end">Tổng Chi Phí</th>
+                            <th class="text-end">Lợi Nhuận</th>
+                            <th class="text-center">Biên LN (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in monthly_summary %}
+                        <tr>
+                            <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                            <td class="fw-bold text-dark font-mono">{{ m.period }}</td>
+                            <td class="text-center font-mono fw-semibold">{{ m.lots }} lô</td>
+                            <td class="text-end font-mono tabular-nums text-dark">{{ m.rev | format_money }}</td>
+                            <td class="text-end font-mono tabular-nums text-danger">{{ m.cost | format_money }}</td>
+                            <td class="text-end font-mono tabular-nums fw-bold {% if m.profit > 0 %}text-success{% elif m.profit < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                {{ m.profit | format_money }}
+                            </td>
+                            <td class="text-center font-mono small">
+                                <span class="{% if m.margin >= 10 %}text-success{% elif m.margin >= 0 %}text-warning{% else %}text-danger{% endif %} fw-semibold">
+                                    {{ m.margin }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Table of All Lots of This Customer -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                <i class="fa-solid fa-boxes-stacked text-primary"></i>
+                Danh Sách Tất Cả Các Lô Hàng Của Khách Hàng ({{ lots|length }} lô)
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                    <thead class="table-light text-uppercase font-sans" style="font-size: 0.72rem;">
+                        <tr>
+                            <th class="text-center" style="width: 40px;">#</th>
+                            <th style="min-width: 110px;">Mã Lô</th>
+                            <th class="text-center" style="width: 90px;">Kỳ Báo Cáo</th>
+                            <th style="min-width: 140px;">Số Tờ Khai HQ</th>
+                            <th class="text-end" style="width: 130px;">Doanh Thu (Bán)</th>
+                            <th class="text-end" style="width: 130px;">Giá Mua (Cước)</th>
+                            <th class="text-end" style="width: 120px;">Chi Phí VH</th>
+                            <th class="text-end" style="width: 130px;">Lợi Nhuận</th>
+                            <th class="text-center" style="width: 110px;">Phụ Trách</th>
+                            <th class="text-center" style="width: 90px;">Trạng Thái</th>
+                            <th class="text-center" style="width: 80px;">Chi Tiết</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in lots %}
+                        <tr>
+                            <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                            <td class="fw-bold">
+                                <a href="{{ url_for('lots.detail', lot_id=l.id) }}" class="text-primary text-decoration-none font-mono">
+                                    {{ l.lot_label or ('Lô #' ~ l.id) }}
+                                </a>
+                                {% if l.source_type == 'ghnlog' %}
+                                    <span class="badge bg-light text-secondary border font-sans ms-1" style="font-size: 0.65rem;">GHNLog</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center font-mono small text-secondary">
+                                T{{ "%02d" % l.month }}/{{ l.year }}
+                            </td>
+                            <td>
+                                {% if l.customs_declaration %}
+                                    <span class="badge bg-light text-dark border font-mono fw-normal" style="font-size: 0.72rem;">
+                                        {{ l.customs_declaration }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted small">Chưa có</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end font-mono tabular-nums text-dark">
+                                {{ l.total_sell_revenue | format_money }}
+                            </td>
+                            <td class="text-end font-mono tabular-nums text-muted small">
+                                {{ l.total_buy_cost | format_money }}
+                            </td>
+                            <td class="text-end font-mono tabular-nums text-muted small">
+                                {{ l.total_operating_cost | format_money }}
+                            </td>
+                            <td class="text-end font-mono tabular-nums fw-bold {% if l.net_profit > 0 %}text-success{% elif l.net_profit < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                {{ l.net_profit | format_money }}
+                            </td>
+                            <td class="text-center small">
+                                {% if l.assignee %}
+                                    <span class="text-dark">{{ l.assignee.full_name }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if l.status == 'completed' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle font-sans">Hoàn thành</span>
+                                {% elif l.status == 'in_progress' %}
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-sans">Đang điền</span>
+                                {% elif l.status == 'assigned' %}
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle font-sans">Đã giao</span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle font-sans">Chờ giao</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('lots.detail', lot_id=l.id) }}" class="btn-secondary-gic py-1 px-2 text-primary" title="Xem chi tiết lô hàng">
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="11" class="text-center py-5 text-muted">
+                                Khách hàng này chưa có lô hàng nào.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: SỬA THÔNG TIN KHÁCH HÀNG -->
+<div class="modal fade" id="editCustomerModal" tabindex="-1" aria-labelledby="editCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form method="POST" action="{{ url_for('customers.edit_customer', customer_id=customer.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header border-bottom py-3">
+                    <h6 class="modal-title fw-bold text-dark" id="editCustomerModalLabel">
+                        <i class="fa-solid fa-pen-to-square text-primary me-1"></i> Chỉnh Sửa Khách Hàng
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                                Tên Doanh Nghiệp / Khách Hàng <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="name" class="form-control fw-bold" value="{{ customer.name }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Viết Tắt</label>
+                            <input type="text" name="code" class="form-control font-mono" value="{{ customer.code or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Người Liên Hệ / Đại Diện</label>
+                            <input type="text" name="contact_person" class="form-control" value="{{ customer.contact_person or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Điện Thoại</label>
+                            <input type="text" name="phone" class="form-control font-mono" value="{{ customer.phone or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ customer.email or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Số Thuế (MST)</label>
+                            <input type="text" name="tax_code" class="form-control font-mono" value="{{ customer.tax_code or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Địa Chỉ Trụ Sở / Nhà Máy</label>
+                            <input type="text" name="address" class="form-control" value="{{ customer.address or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Ghi Chú</label>
+                            <textarea name="notes" class="form-control" rows="2">{{ customer.notes or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top py-2">
+                    <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-sm btn-primary-gic">
+                        <i class="fa-solid fa-save me-1"></i> Lưu Cập Nhật
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

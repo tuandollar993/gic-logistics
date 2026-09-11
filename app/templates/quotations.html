@@ -166,7 +166,12 @@
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
                                         Tên Khách Hàng / Công Ty <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" id="quoteCustomer" class="form-control" placeholder="VD: Công ty TNHH Logistics ABC" required oninput="updateLivePreview()">
+                                    <input type="text" id="quoteCustomer" class="form-control" list="quoteCustomerDatalist" placeholder="Chọn hoặc nhập tên khách hàng..." required autocomplete="off" oninput="handleCustomerAutocomplete(); updateLivePreview()">
+                                    <datalist id="quoteCustomerDatalist">
+                                        {% for c in canonical_customers %}
+                                            <option value="{{ c.name }}" data-contact="{{ c.contact_person or '' }}" data-phone="{{ c.phone or '' }}">{{ c.code }} - {{ c.name }}{% if c.contact_person %} (LH: {{ c.contact_person }}){% endif %}</option>
+                                        {% endfor %}
+                                    </datalist>
                                 </div>
                                 <div class="col-md-5">
                                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Người Liên Hệ</label>
@@ -1635,6 +1640,28 @@ function renderQuotationPreview() {
                 </tr>`;
         });
         auxBody.innerHTML = aHtml;
+    }
+}
+
+function handleCustomerAutocomplete() {
+    const val = (document.getElementById('quoteCustomer').value || '').trim().toLowerCase();
+    const datalist = document.getElementById('quoteCustomerDatalist');
+    if (!datalist || !val) return;
+    const options = datalist.querySelectorAll('option');
+    for (let opt of options) {
+        if (opt.value.toLowerCase() === val) {
+            const contact = opt.getAttribute('data-contact');
+            const phone = opt.getAttribute('data-phone');
+            const contactInput = document.getElementById('quoteContact');
+            const phoneInput = document.getElementById('quotePhone');
+            if (contact && contactInput && !contactInput.value) {
+                contactInput.value = contact;
+            }
+            if (phone && phoneInput && !phoneInput.value) {
+                phoneInput.value = phone;
+            }
+            break;
+        }
     }
 }
 

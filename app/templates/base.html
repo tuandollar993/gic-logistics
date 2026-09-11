@@ -67,6 +67,10 @@
                     <i class="fa-solid fa-layer-group"></i>
                     <span>Quản Lý Lô Hàng</span>
                 </a>
+                <a class="nav-link {% if request.endpoint and 'customers' in request.endpoint %}active{% endif %}" href="{{ url_for('customers.index') }}">
+                    <i class="fa-solid fa-building-user"></i>
+                    <span>Khách Hàng</span>
+                </a>
                 <a class="nav-link {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" href="{{ url_for('quotations.index') }}">
                     <i class="fa-solid fa-file-invoice-dollar"></i>
                     <span>Đề Xuất Báo Giá</span>

@@ -4,7 +4,7 @@ import json
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Quotation
+from app.models import Quotation, Customer
 from app.services.quotation_service import (
     get_all_benchmarks,
     get_benchmarks_filtered,
@@ -29,6 +29,7 @@ def index():
     benchmarks = get_benchmarks_filtered(category=cat_filter, search=search_query)
     quick_opts = get_quick_options()
     transport_matrix = get_transport_matrix()
+    canonical_customers = Customer.query.filter_by(is_active=True).order_by(Customer.name.asc()).all()
     
     recent_quotes = Quotation.query.filter_by(is_deleted=False).order_by(
         Quotation.id.desc()
@@ -63,7 +64,8 @@ def index():
         stats=stats,
         current_cat=cat_filter,
         search_query=search_query,
-        active_tab=active_tab
+        active_tab=active_tab,
+        canonical_customers=canonical_customers
     )
 
 @quotations_bp.route('/api/benchmarks', methods=['GET'])
