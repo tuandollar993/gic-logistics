@@ -4,6 +4,7 @@ import time
 import base64
 import urllib.parse
 from datetime import datetime
+import unicodedata
 import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -675,20 +676,124 @@ def update_transaction(trans_id, data):
 
 
 def delete_transaction(trans_id):
-    """Xóa bút toán tạm ứng"""
+    """Xóa bút toán tạm ứng trên cả Google Sheet và Supabase"""
     trans = CashAdvanceTransaction.query.get(trans_id)
     if not trans:
         return False
     
     month = trans.month
     year = trans.year
-    db.session.delete(trans)
-    
-    monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
-    if monthly:
-        _recalculate_monthly_totals(monthly)
+    content = trans.content or ''
+    trans_date = trans.trans_date or ''
+    bill_link = trans.bill_link or ''
+    row_idx = trans.row_index
 
+    # 1. Xóa dòng tương ứng trên Google Sheet nếu có kết nối
+    try:
+        token = get_google_access_token()
+        if token:
+            meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}?fields=sheets.properties"
+            m_resp = requests.get(meta_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+            sheets_list = m_resp.json().get('sheets', [])
+
+            target_sheet_name = None
+            target_sheet_id = None
+            
+            # Tìm sheet theo tháng/năm
+            monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
+            if monthly and monthly.sheet_name:
+                for s in sheets_list:
+                    p = s['properties']
+                    if p['title'] == monthly.sheet_name:
+                        target_sheet_name = p['title']
+                        target_sheet_id = p['sheetId']
+                        break
+
+            if not target_sheet_name:
+                month_str = f"{month:02d}"
+                month_alt = f"{month}"
+                for s in sheets_list:
+                    p = s['properties']
+                    title_norm = unicodedata.normalize('NFD', p['title']).lower()
+                    if f"thang {month_str}" in title_norm or f"thang {month_alt}" in title_norm or f"tuan {month_alt}" in title_norm:
+                        target_sheet_name = p['title']
+                        target_sheet_id = p['sheetId']
+                        break
+
+            if target_sheet_name and target_sheet_id is not None:
+                quoted = urllib.parse.quote(target_sheet_name)
+                val_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{quoted}!A:O"
+                v_resp = requests.get(val_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+                rows = v_resp.json().get('values', [])
+
+                target_row_to_delete = None
+
+                # Ưu tiên 1: So sánh bill_link nếu có
+                if bill_link:
+                    for r_i, r in enumerate(rows):
+                        if r_i < 6:
+                            continue
+                        col_b = unicodedata.normalize('NFD', r[1].strip() if len(r) > 1 else '').lower()
+                        if col_b.startswith('tong') or col_b.startswith('nguoi lap'):
+                            break
+                        col_o = r[14].strip() if len(r) > 14 else ''
+                        if col_o == bill_link or (col_o and bill_link and col_o in bill_link):
+                            target_row_to_delete = r_i
+                            break
+
+                # Ưu tiên 2: So sánh tại row_idx - 1 nếu nội dung trùng khớp
+                if target_row_to_delete is None and row_idx and row_idx <= len(rows):
+                    candidate = rows[row_idx - 1]
+                    c_content = candidate[1].strip() if len(candidate) > 1 else ''
+                    if content and content in c_content:
+                        target_row_to_delete = row_idx - 1
+
+                # Ưu tiên 3: Quét tìm theo nội dung (từ dòng 7 đến trước TỔNG)
+                if target_row_to_delete is None and content:
+                    norm_content = unicodedata.normalize('NFD', content).lower().strip()
+                    for r_i, r in enumerate(rows):
+                        if r_i < 6:
+                            continue
+                        col_b = unicodedata.normalize('NFD', r[1].strip() if len(r) > 1 else '').lower()
+                        if col_b.startswith('tong') or col_b.startswith('nguoi lap'):
+                            break
+                        if norm_content in col_b or col_b in norm_content:
+                            target_row_to_delete = r_i
+                            break
+
+                if target_row_to_delete is not None:
+                    batch_url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}:batchUpdate"
+                    del_body = {
+                        "requests": [{
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": target_sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": target_row_to_delete,
+                                    "endIndex": target_row_to_delete + 1
+                                }
+                            }
+                        }]
+                    }
+                    del_res = requests.post(batch_url, json=del_body, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+                    print(f"[AdvanceService] Deleted row {target_row_to_delete + 1} from Google Sheet {target_sheet_name}: {del_res.status_code}")
+    except Exception as e:
+        print(f"[AdvanceService] Error deleting row from Google Sheet: {e}")
+
+    # 2. Xóa trong database
+    db.session.delete(trans)
     db.session.commit()
+
+    # 3. Đồng bộ lại tháng từ Google Sheet để cập nhật lại row_index và tổng số
+    try:
+        sync_month_from_google(month, year)
+    except Exception as sync_err:
+        print(f"[AdvanceService] Error resyncing after delete: {sync_err}")
+        monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
+        if monthly:
+            _recalculate_monthly_totals(monthly)
+            db.session.commit()
+
     return True
 
 

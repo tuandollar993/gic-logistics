@@ -188,7 +188,7 @@ def detect_columns(token, sheet_name):
         if 'xuyen' in nh: cols['xuyen'] = j; xuyen_idx = j
         if 'luong' in nh: cols['luong_start'] = j
         if 'truong' in nh: cols['truong'] = j
-        if nh in ('doi tac', 'doi tac khac') or 'doi tac' in nh: cols['doi_tac'] = j
+        if ('doi tac' in nh or 'doi tac khac' in nh) and 'hoa don' not in nh: cols['doi_tac'] = j
         if 'hoa don' in nh: cols['hoa_don'] = j
         if 'link bill' in nh or 'bill' in nh: cols['link_bill'] = j
 
