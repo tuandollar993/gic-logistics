@@ -212,10 +212,9 @@ def add_revenue_item(lot_id):
         flash('Bạn không có quyền chỉnh sửa lô hàng này.', 'danger')
         return redirect(url_for('lots.detail', lot_id=lot.id))
         
-    item_type = request.form.get('item_type', 'revenue_item').strip()
     supplier = request.form.get('supplier', '').strip()
     vehicle_plate = request.form.get('vehicle_plate', '').strip()
-    service_description = request.form.get('service_description', '').strip() or 'Chi phí lô hàng'
+    service_description = request.form.get('service_description', '').strip() or 'Khoản mục chi phí & doanh thu'
     weight_class = request.form.get('weight_class', '').strip()
     invoice_number = request.form.get('invoice_number', '').strip()
     invoice_type = request.form.get('invoice_type', '').strip()
@@ -235,40 +234,23 @@ def add_revenue_item(lot_id):
     except ValueError:
         surcharges = 0.0
 
-    if item_type == 'operating_cost':
-        cost = OperatingCost(
-            lot_id=lot.id,
-            cost_type=weight_class or 'Chi phí vận hành',
-            description=service_description,
-            vehicle_plate=vehicle_plate,
-            vehicle_count=1.0,
-            unit_price=buy_price,
-            total_amount=buy_price,
-            sell_price=sell_price,
-            invoice_type=invoice_type or 'Hóa đơn / Phiếu chi',
-            invoice_number=invoice_number,
-            supplier_name=supplier,
-            filled_by=current_user.id
-        )
-        db.session.add(cost)
-        flash(f'Đã thêm khoản chi phí vận hành cho {lot.lot_label}!', 'success')
-    else:
-        item = RevenueItem(
-            lot_id=lot.id,
-            supplier=supplier,
-            vehicle_plate_vn=vehicle_plate,
-            weight_class=weight_class,
-            service_description=service_description,
-            buy_price=buy_price,
-            sell_price=sell_price,
-            other_surcharge=surcharges,
-            total_buy_price_excel=buy_price,
-            total_sell_price_excel=sell_price + surcharges
-        )
-        db.session.add(item)
-        flash(f'Đã thêm mục doanh thu & giá mua cho {lot.lot_label}!', 'success')
-        
+    cost = OperatingCost(
+        lot_id=lot.id,
+        cost_type=weight_class or 'Khoản mục chi phí',
+        description=service_description,
+        vehicle_plate=vehicle_plate,
+        vehicle_count=1.0,
+        unit_price=buy_price,
+        total_amount=buy_price,
+        sell_price=sell_price + surcharges,
+        invoice_type=invoice_type,
+        invoice_number=invoice_number,
+        supplier_name=supplier,
+        filled_by=current_user.id
+    )
+    db.session.add(cost)
     db.session.commit()
+    flash(f'Đã thêm khoản mục thành công cho {lot.lot_label}!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
 @lots_bp.route('/<int:lot_id>/items/<int:item_id>/edit', methods=['POST'])

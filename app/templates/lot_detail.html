@@ -165,8 +165,8 @@
                 <tr>
                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
                     <td>
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                            <i class="fa-solid fa-truck-fast me-1"></i>Cước & Doanh Thu
+                        <span class="badge bg-light text-dark border font-mono">
+                            {{ item.weight_class or 'Vận chuyển' }}
                         </span>
                     </td>
                     <td>
@@ -231,8 +231,8 @@
                 <tr>
                     <td class="text-center font-mono text-muted">{{ lot.revenue_items|length + loop.index }}</td>
                     <td>
-                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
-                            <i class="fa-solid fa-receipt me-1"></i>{{ cost.cost_type or 'CP Vận hành' }}
+                        <span class="badge bg-light text-dark border font-mono">
+                            {{ cost.cost_type or 'Chi phí' }}
                         </span>
                     </td>
                     <td>
@@ -375,7 +375,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<!-- Modal Thêm Khoản Mục Mới (Giá Mua / Bán) -->
+<!-- Modal Thêm Khoản Mục Mới (Giá Mua & Bán) -->
 <div class="modal fade" id="unifiedItemModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <form method="POST" action="{{ url_for('lots.add_revenue_item', lot_id=lot.id) }}" class="modal-content border-0 shadow-lg">
@@ -387,32 +387,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <!-- Chọn Loại Khoản Mục -->
-                <div class="mb-3 p-3 bg-light rounded-3 border">
-                    <label class="form-label small fw-bold text-dark text-uppercase d-block mb-2" style="font-size: 0.72rem;">
-                        <i class="fa-solid fa-tags text-primary me-1"></i> Phân Loại Khoản Mục Cần Nhập:
-                    </label>
-                    <div class="d-flex gap-4 flex-wrap">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="item_type" id="typeRevenue" value="revenue_item" checked onchange="toggleAddType()">
-                            <label class="form-check-label fw-bold text-dark" for="typeRevenue">
-                                <i class="fa-solid fa-truck-fast text-primary me-1"></i> Cước xe / Dịch vụ bán ra
-                                <small class="text-muted d-block fw-normal" style="font-size: 0.75rem;">(Có cả Giá Mua trả xe & Giá Bán thu khách)</small>
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="item_type" id="typeCost" value="operating_cost" onchange="toggleAddType()">
-                            <label class="form-check-label fw-bold text-dark" for="typeCost">
-                                <i class="fa-solid fa-receipt text-warning me-1"></i> Chi phí vận hành / Phí đầu vào
-                                <small class="text-muted d-block fw-normal" style="font-size: 0.75rem;">(Chỉ có Chi phí mua vào / Hóa đơn chứng từ)</small>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp</label>
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp / Nhà Xe</label>
                         <input type="text" name="supplier" class="form-control" list="supplierDatalist" placeholder="Chọn hoặc nhập tên NCC...">
                         <datalist id="supplierDatalist">
                             {% for s in suppliers %}
@@ -425,12 +402,12 @@
                         <input type="text" name="vehicle_plate" class="form-control font-mono" placeholder="VD: 98C-123.45 hoặc xe TQ...">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-muted text-uppercase" id="lblWeightClass" style="font-size: 0.7rem;">Loại Xe / Trọng Tải</label>
-                        <input type="text" name="weight_class" id="inputWeightClass" class="form-control" placeholder="VD: Xe 5T, Cont 40' hoặc Bốc xếp...">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phân Loại Khoản Mục / Loại Xe</label>
+                        <input type="text" name="weight_class" class="form-control" placeholder="VD: Xe 5T, Xe 15T, Bốc xếp, Cân xe, Hải quan...">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nội Dung / Tuyến Dịch Vụ <span class="text-danger">*</span></label>
-                        <input type="text" name="service_description" class="form-control" placeholder="VD: Hữu Nghị - KCN Quế Võ..." required>
+                        <input type="text" name="service_description" class="form-control" placeholder="VD: Hữu Nghị - KCN Quế Võ, nâng hạ..." required>
                     </div>
                     
                     <div class="col-12"><hr class="my-2"></div>
@@ -438,19 +415,19 @@
                     <!-- Giá Mua Vào -->
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Có VAT) <span class="text-danger">*</span>
+                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Trả NCC) <span class="text-danger">*</span>
                         </label>
                         <div class="input-group">
                             <input type="number" step="any" name="buy_price" class="form-control font-mono fw-bold text-danger" placeholder="0" required>
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
-                        <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe</small>
+                        <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe (có VAT)</small>
                     </div>
                     
                     <!-- Giá Bán Ra & Phụ Phí -->
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu)
+                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu Thu Khách)
                         </label>
                         <div class="input-group">
                             <input type="number" step="any" name="sell_price" class="form-control font-mono fw-bold text-success" placeholder="0">
@@ -459,7 +436,7 @@
                         <small class="text-muted" style="font-size: 0.72rem;">Doanh thu thu từ khách hàng</small>
                     </div>
                     
-                    <div class="col-md-4 field-revenue-only">
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phụ Phí Bán Ra</label>
                         <div class="input-group">
                             <input type="number" step="any" name="surcharges" class="form-control font-mono" placeholder="0" value="0">
@@ -468,12 +445,12 @@
                         <small class="text-muted" style="font-size: 0.72rem;">Lưu ca, nâng hạ, phụ phí khác</small>
                     </div>
 
-                    <!-- Hóa Đơn & Chứng Từ (Hiển thị khi là CP Vận hành) -->
-                    <div class="col-md-6 field-cost-only d-none">
-                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / HĐ</label>
+                    <!-- Hóa Đơn & Chứng Từ -->
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / Hóa Đơn</label>
                         <input type="text" name="invoice_type" class="form-control" placeholder="VD: HĐ GTGT, Phiếu chi...">
                     </div>
-                    <div class="col-md-6 field-cost-only d-none">
+                    <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn / Ký Hiệu</label>
                         <input type="text" name="invoice_number" class="form-control font-mono" placeholder="VD: 0012345...">
                     </div>
@@ -501,14 +478,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="alert alert-light border py-2 px-3 mb-3 d-flex align-items-center gap-2">
-                    <i class="fa-solid fa-circle-info text-primary"></i>
-                    <span id="editModalBadge" class="small fw-semibold text-dark"></span>
-                </div>
-
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp</label>
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp / Nhà Xe</label>
                         <input type="text" name="supplier" id="editSupplier" class="form-control" list="supplierDatalist">
                     </div>
                     <div class="col-md-6">
@@ -516,11 +488,11 @@
                         <input type="text" name="vehicle_plate" id="editPlate" class="form-control font-mono">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-muted text-uppercase" id="editLblWeight" style="font-size: 0.7rem;">Phân Loại / Trọng Tải</label>
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phân Loại / Trọng Tải</label>
                         <input type="text" name="weight_class" id="editWeight" class="form-control">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nội Dung / Lộ Trình / Diễn Giải <span class="text-danger">*</span></label>
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nội Dung / Tuyến Dịch Vụ / Diễn Giải <span class="text-danger">*</span></label>
                         <input type="text" name="service_description" id="editDesc" class="form-control" required>
                     </div>
                     
@@ -529,19 +501,19 @@
                     <!-- Giá Mua Vào -->
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Có VAT) <span class="text-danger">*</span>
+                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Trả NCC) <span class="text-danger">*</span>
                         </label>
                         <div class="input-group">
                             <input type="number" step="any" name="buy_price" id="editBuyPrice" class="form-control font-mono fw-bold text-danger" required>
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
-                        <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe</small>
+                        <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe (có VAT)</small>
                     </div>
                     
-                    <!-- Giá Bán Ra: Luôn hiển thị cho cả 2 loại -->
+                    <!-- Giá Bán Ra -->
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu)
+                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu Thu Khách)
                         </label>
                         <div class="input-group">
                             <input type="number" step="any" name="sell_price" id="editSellPrice" class="form-control font-mono fw-bold text-success" placeholder="0">
@@ -551,7 +523,7 @@
                     </div>
                     
                     <!-- Phụ Phí Bán Ra -->
-                    <div class="col-md-4 edit-revenue-group">
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phụ Phí Bán Ra</label>
                         <div class="input-group">
                             <input type="number" step="any" name="surcharges" id="editSurcharges" class="form-control font-mono">
@@ -561,12 +533,12 @@
                     </div>
 
                     <!-- Chứng Từ & Hóa Đơn -->
-                    <div class="col-md-6 edit-cost-group d-none">
+                    <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / HĐ</label>
                         <input type="text" name="invoice_type" id="editInvoiceType" class="form-control" placeholder="VD: HĐ GTGT, Phiếu chi...">
                     </div>
                     
-                    <div class="col-md-6 edit-cost-group d-none">
+                    <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn</label>
                         <input type="text" name="invoice_number" id="editInvoiceNumber" class="form-control font-mono" placeholder="VD: 0012345...">
                     </div>
@@ -583,26 +555,6 @@
 </div>
 
 <script>
-function toggleAddType() {
-    const isCost = document.getElementById('typeCost').checked;
-    const revFields = document.querySelectorAll('.field-revenue-only');
-    const costFields = document.querySelectorAll('.field-cost-only');
-    const lblWeight = document.getElementById('lblWeightClass');
-    const inputWeight = document.getElementById('inputWeightClass');
-    
-    if (isCost) {
-        revFields.forEach(el => el.classList.add('d-none'));
-        costFields.forEach(el => el.classList.remove('d-none'));
-        if (lblWeight) lblWeight.innerText = 'Phân Loại Chi Phí';
-        if (inputWeight) inputWeight.placeholder = 'VD: Bốc xếp, Cân xe, Hải quan, Vé...';
-    } else {
-        revFields.forEach(el => el.classList.remove('d-none'));
-        costFields.forEach(el => el.classList.add('d-none'));
-        if (lblWeight) lblWeight.innerText = 'Loại Xe / Trọng Tải';
-        if (inputWeight) inputWeight.placeholder = 'VD: Xe 5T, Xe 15T, Cont 40\'...';
-    }
-}
-
 function openAssignModal(lotId, lotName, currentAssignee, currentDeadline) {
     document.getElementById('assignForm').action = `/lots/${lotId}/assign`;
     document.getElementById('modalLotName').innerText = lotName;
@@ -637,10 +589,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const editModal = new bootstrap.Modal(editModalEl);
         const editForm = document.getElementById('editUnifiedForm');
         const editTitle = document.getElementById('editModalTitle');
-        const editBadge = document.getElementById('editModalBadge');
-        const editRevGroup = document.querySelectorAll('.edit-revenue-group');
-        const editCostGroup = document.querySelectorAll('.edit-cost-group');
-        const editLblWeight = document.getElementById('editLblWeight');
         
         document.querySelectorAll('.btn-edit-row').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -668,19 +616,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (rowType === 'cost') {
                     editForm.action = `/lots/{{ lot.id }}/costs/${itemId}/edit`;
-                    editTitle.innerText = 'Chỉnh Sửa Khoản Mục (Chi Phí Mua & Doanh Thu Bán)';
-                    editBadge.innerHTML = 'Phân loại: <strong>Chi phí vận hành</strong> (Bạn có thể sửa cả Giá Mua Vào trả NCC và Giá Bán Ra thu khách)';
-                    if (editLblWeight) editLblWeight.innerText = 'Phân Loại Chi Phí';
-                    editRevGroup.forEach(el => el.classList.add('d-none'));
-                    editCostGroup.forEach(el => el.classList.remove('d-none'));
                 } else {
                     editForm.action = `/lots/{{ lot.id }}/items/${itemId}/edit`;
-                    editTitle.innerText = 'Chỉnh Sửa Cước Vận Tải (Giá Mua & Bán)';
-                    editBadge.innerHTML = 'Phân loại: <strong>Cước vận chuyển / Dịch vụ bán ra</strong> (Chỉnh sửa Giá Mua Vào & Giá Bán Ra)';
-                    if (editLblWeight) editLblWeight.innerText = 'Loại Xe / Trọng Tải';
-                    editRevGroup.forEach(el => el.classList.remove('d-none'));
-                    editCostGroup.forEach(el => el.classList.add('d-none'));
                 }
+                editTitle.innerText = 'Chỉnh Sửa Khoản Mục (Giá Mua & Bán)';
 
                 editModal.show();
             });
