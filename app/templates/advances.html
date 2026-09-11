@@ -373,10 +373,11 @@
 
                         <!-- Thao tác -->
                         <td class="text-center">
-                            <button class="btn btn-sm btn-light border py-0 px-1 text-muted hover-primary" 
-                                    onclick="openEditModal({{ t.to_dict()|tojson }})" 
-                                    title="Cập nhật chứng từ / ghi chú">
-                                <i class="fa-solid fa-pen-to-square"></i>
+                            <button type="button" class="btn btn-sm btn-light border py-0 px-2 text-muted hover-primary" 
+                                    data-trans="{{ t.to_dict()|tojson|forceescape }}" 
+                                    onclick="handleEditClick(this)" 
+                                    title="Cập nhật chứng từ & số tiền">
+                                <i class="fa-solid fa-pen-to-square text-primary"></i>
                             </button>
                         </td>
                     </tr>
@@ -558,12 +559,63 @@
                             <input type="text" name="content" id="edit_content" class="form-control form-control-sm" required>
                         </div>
 
+                        <div class="col-12"><hr class="my-1 text-muted"></div>
+                        <div class="col-12"><span class="small fw-bold text-primary">DÒNG TIỀN TUẤN</span></div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small">Thu từ Cty (₫):</label>
+                            <input type="number" step="any" name="tuan_thu_cty" id="edit_tuan_thu_cty" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Thu Hải Bân (₫):</label>
+                            <input type="number" step="any" name="tuan_thu_haiban" id="edit_tuan_thu_haiban" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Thu khác (₫):</label>
+                            <input type="number" step="any" name="tuan_thu_khac" id="edit_tuan_thu_khac" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Chi HB về cty (₫):</label>
+                            <input type="number" step="any" name="tuan_chi_haiban_cty" id="edit_tuan_chi_haiban_cty" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-danger fw-semibold">Chi tạm ứng (Tuấn chi) (₫):</label>
+                            <input type="number" step="any" name="tuan_chi" id="edit_tuan_chi" class="form-control form-control-sm" placeholder="0">
+                        </div>
+
+                        <div class="col-12"><hr class="my-1 text-muted"></div>
+                        <div class="col-12"><span class="small fw-bold text-success">CÁC BỘ PHẬN & ĐỐI TÁC</span></div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small">Xuyên nhận (₫):</label>
+                            <input type="number" step="any" name="xuyen_amount" id="edit_xuyen_amount" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Trường nhận (₫):</label>
+                            <input type="number" step="any" name="truong_amount" id="edit_truong_amount" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Đối tác nhận (₫):</label>
+                            <input type="number" step="any" name="partner_amount" id="edit_partner_amount" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Lương (Thu) (₫):</label>
+                            <input type="number" step="any" name="luong_thu" id="edit_luong_thu" class="form-control form-control-sm" placeholder="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Lương (Chi) (₫):</label>
+                            <input type="number" step="any" name="luong_chi" id="edit_luong_chi" class="form-control form-control-sm" placeholder="0">
+                        </div>
+
+                        <div class="col-12"><hr class="my-1 text-muted"></div>
+                        <div class="col-12"><span class="small fw-bold text-secondary">CHỨNG TỪ & ĐỐI SOÁT</span></div>
+
                         <div class="col-md-6">
                             <label class="form-label small fw-bold">Hóa đơn đối tác / Link file:</label>
                             <input type="text" name="partner_invoice" id="edit_partner_invoice" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold">Link Bill ck (Telegram / UNC):</label>
+                            <label class="form-label small fw-bold">Link Bill ck (Telegram / UNC / Supabase):</label>
                             <input type="text" name="bill_link" id="edit_bill_link" class="form-control form-control-sm">
                         </div>
 
@@ -696,6 +748,18 @@ document.getElementById('syncForm').addEventListener('submit', function() {
 
 // Edit modal population
 let currentEditingId = null;
+
+function handleEditClick(btn) {
+    try {
+        const raw = btn.getAttribute('data-trans');
+        if (!raw) return;
+        const trans = JSON.parse(raw);
+        openEditModal(trans);
+    } catch (e) {
+        console.error("Error parsing trans json:", e);
+    }
+}
+
 function openEditModal(trans) {
     currentEditingId = trans.id;
     document.getElementById('editTransIdDisplay').innerText = trans.id;
@@ -703,12 +767,32 @@ function openEditModal(trans) {
     
     document.getElementById('edit_trans_date').value = trans.trans_date || '';
     document.getElementById('edit_content').value = trans.content || '';
+    
+    // Financial fields (Tuấn)
+    const setNum = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = (val !== null && val !== undefined && val !== '') ? val : '';
+    };
+    setNum('edit_tuan_thu_cty', trans.tuan_thu_cty);
+    setNum('edit_tuan_thu_haiban', trans.tuan_thu_haiban);
+    setNum('edit_tuan_thu_khac', trans.tuan_thu_khac);
+    setNum('edit_tuan_chi_haiban_cty', trans.tuan_chi_haiban_cty);
+    setNum('edit_tuan_chi', trans.tuan_chi);
+
+    // Financial fields (Nhân sự & Đối tác)
+    setNum('edit_xuyen_amount', trans.xuyen_amount);
+    setNum('edit_truong_amount', trans.truong_amount);
+    setNum('edit_partner_amount', trans.partner_amount);
+    setNum('edit_luong_thu', trans.luong_thu);
+    setNum('edit_luong_chi', trans.luong_chi);
+
+    // Documents & Status
     document.getElementById('edit_partner_invoice').value = trans.partner_invoice || '';
     document.getElementById('edit_bill_link').value = trans.bill_link || '';
     document.getElementById('edit_advance_refund').value = trans.advance_refund || '';
     
     const accSelect = document.getElementById('edit_accounting_status');
-    accSelect.value = trans.accounting_status || 'Chờ thanh toán';
+    if (accSelect) accSelect.value = trans.accounting_status || 'Chờ thanh toán';
 
     // Set delete button action
     document.getElementById('btnDeleteTrans').onclick = function() {
