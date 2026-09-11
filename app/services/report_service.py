@@ -85,7 +85,7 @@ class ChartGenerator:
         Cột cam: Doanh thu thực tế
         Đường xanh lá: Tỷ lệ đạt KPI (%)
         """
-        fig, ax1 = plt.subplots(figsize=(9, 4.2), dpi=160)
+        fig, ax1 = plt.subplots(figsize=(8.5, 3.8), dpi=110)
         x = np.arange(len(months))
         width = 0.35
 
@@ -122,7 +122,7 @@ class ChartGenerator:
         """
         Biểu đồ 2: Số cont theo khu vực (Lạng Sơn, Hải Phòng, Tỷ trọng %)
         """
-        fig, ax1 = plt.subplots(figsize=(8.5, 4.0), dpi=160)
+        fig, ax1 = plt.subplots(figsize=(8.0, 3.6), dpi=110)
         x = np.arange(len(months))
         width = 0.32
 
@@ -161,7 +161,7 @@ class ChartGenerator:
         """
         Biểu đồ 3: Tỷ lệ số cont lưu kho theo từng tháng
         """
-        fig, ax = plt.subplots(figsize=(7.5, 3.8), dpi=160)
+        fig, ax = plt.subplots(figsize=(7.2, 3.4), dpi=110)
         x = np.arange(len(months))
         width = 0.35
         pct_vals = [r * 100 for r in storage_rates]

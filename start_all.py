@@ -34,9 +34,8 @@ if cashflow_token:
     except Exception as e:
         print(f"⚠️ [STARTUP] Lỗi đồng bộ Webhook: {e}")
 
-print('⏰ [STARTUP] Kích hoạt Clock Scheduler background...')
-clock_proc = subprocess.Popen([sys.executable, 'clock.py'])
-
+# 1. Kiểm tra và khởi tạo DB
+_app = None
 print('📦 [STARTUP] Kiểm tra và khởi tạo cơ sở dữ liệu (db.create_all)...')
 try:
     from app import create_app
@@ -48,14 +47,47 @@ try:
 except Exception as e:
     print(f'⚠️ [STARTUP] Cảnh báo tạo DB: {e}')
 
+# 2. Khởi động Clock Scheduler bằng background thread (tiết kiệm ~100MB RAM)
+scheduler = None
+if _app:
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        scheduler = BackgroundScheduler()
+
+        def scheduled_deadline_check():
+            with _app.app_context():
+                try:
+                    from app.services.reminder_service import ReminderService
+                    ReminderService.run_daily_deadline_check()
+                except Exception as ex:
+                    print(f'⚠️ [CLOCK] Lỗi kiểm tra deadline: {ex}')
+
+        def scheduled_sync_advances():
+            with _app.app_context():
+                try:
+                    from app.services.advance_service import auto_sync_active_months
+                    auto_sync_active_months()
+                except Exception as ex:
+                    print(f'⚠️ [CLOCK] Lỗi đồng bộ Google Sheets: {ex}')
+
+        scheduler.add_job(scheduled_deadline_check, 'cron', hour=8, minute=0, id='daily_deadline_check')
+        scheduler.add_job(scheduled_sync_advances, 'interval', minutes=30, id='sync_advances_30min')
+        scheduler.start()
+        print('⏰ [STARTUP] Clock Scheduler background thread đã sẵn sàng (0MB RAM phụ)!')
+    except Exception as e:
+        print(f'⚠️ [STARTUP] Lỗi khởi động Clock Scheduler: {e}')
+
+# 3. Khởi động Gunicorn Web Server với cấu hình tối ưu RAM
 print(f'🌐 [STARTUP] Khởi động Gunicorn Web Server tại 0.0.0.0:{port}...')
 cmd = [
     sys.executable, '-m', 'gunicorn',
     'app:create_app()',
     '--bind', f'0.0.0.0:{port}',
     '--workers', '1',
-    '--threads', '4',
-    '--timeout', '120'
+    '--threads', '2',
+    '--max-requests', '250',
+    '--max-requests-jitter', '25',
+    '--timeout', '60'
 ]
 
 try:
@@ -65,5 +97,5 @@ except KeyboardInterrupt:
 finally:
     if bot_proc:
         bot_proc.terminate()
-    if clock_proc:
-        clock_proc.terminate()
+    if scheduler:
+        scheduler.shutdown(wait=False)
