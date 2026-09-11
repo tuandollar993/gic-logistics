@@ -530,7 +530,12 @@ def sync_bills():
 def telegram_cashflow_webhook():
     """Nhận webhook từ Telegram Bot (@gidotien_bot) để đọc bill và lưu Supabase (Fail-Closed)"""
     # 1. Verify Telegram Secret Token (Fail-Closed)
-    expected_token = os.environ.get('TELEGRAM_SECRET_TOKEN') or current_app.config.get('TELEGRAM_SECRET_TOKEN', '')
+    from app.config import Config
+    expected_token = os.environ.get('TELEGRAM_SECRET_TOKEN')
+    if expected_token is None:
+        expected_token = getattr(Config, 'TELEGRAM_SECRET_TOKEN', None)
+    if expected_token is None:
+        expected_token = current_app.config.get('TELEGRAM_SECRET_TOKEN', '')
     if not expected_token:
         return jsonify({'ok': False, 'error': 'Webhook secret token not configured on server'}), 401
 
@@ -563,7 +568,12 @@ def set_telegram_webhook():
     import requests
     from app.services.cashflow_bot_service import CASHFLOW_BOT_TOKEN
 
-    expected_token = os.environ.get('TELEGRAM_SECRET_TOKEN') or current_app.config.get('TELEGRAM_SECRET_TOKEN', '')
+    from app.config import Config
+    expected_token = os.environ.get('TELEGRAM_SECRET_TOKEN')
+    if expected_token is None:
+        expected_token = getattr(Config, 'TELEGRAM_SECRET_TOKEN', None)
+    if expected_token is None:
+        expected_token = current_app.config.get('TELEGRAM_SECRET_TOKEN', '')
     if not expected_token:
         return jsonify({'error': 'TELEGRAM_SECRET_TOKEN chưa được cấu hình'}), 400
 

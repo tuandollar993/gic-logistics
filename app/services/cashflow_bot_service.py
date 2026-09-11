@@ -544,7 +544,7 @@ def handle_telegram_update(update):
         # whitelist enforcement, so an administrator can add a new chat ID.
         # It only returns Telegram metadata and performs no financial action.
         command = text.split(maxsplit=1)[0].lower() if text else ''
-        if command in ('/id', '/id@' + str(os.getenv('TELEGRAM_BOT_USERNAME', '')).lower()):
+        if command == '/id' or command.startswith('/id@'):
             send_telegram_message(
                 chat_id,
                 f"Chat ID hiện tại: <code>{html.escape(chat_id)}</code>\n"
@@ -560,7 +560,19 @@ def handle_telegram_update(update):
             print("[CashflowBot Security] Bỏ qua: Production yêu cầu ALLOWED_CHAT_IDS nhưng danh sách đang rỗng.")
             return {'ok': True}
 
-        if allowed_chats and chat_id not in allowed_chats and str(msg['chat'].get('id')) not in allowed_chats:
+        def _is_chat_authorized(c_id):
+            if not allowed_chats:
+                return True
+            s = str(c_id).strip()
+            if s in allowed_chats:
+                return True
+            if s.startswith('-100') and ('-' + s[4:]) in allowed_chats:
+                return True
+            if s.startswith('-') and not s.startswith('-100') and ('-100' + s[1:]) in allowed_chats:
+                return True
+            return False
+
+        if allowed_chats and not _is_chat_authorized(chat_id) and not _is_chat_authorized(msg.get('chat', {}).get('id')):
             print(f"[CashflowBot Security] Bỏ qua tin nhắn từ chat không nằm trong ALLOWED_CHAT_IDS: {chat_id}")
             return {'ok': True}
 

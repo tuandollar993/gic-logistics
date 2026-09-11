@@ -29,7 +29,11 @@ class Config:
     BOT_UPLOAD_SECRET = os.getenv('BOT_UPLOAD_SECRET', '')
 
     # Telegram Secret Token for Webhook Verification (X-Telegram-Bot-Api-Secret-Token)
-    TELEGRAM_SECRET_TOKEN = os.getenv('TELEGRAM_SECRET_TOKEN', '')
+    _tg_secret = os.getenv('TELEGRAM_SECRET_TOKEN')
+    if not _tg_secret:
+        import hashlib
+        _tg_secret = hashlib.sha256(f"telegram-webhook-token:{SECRET_KEY}".encode()).hexdigest()[:32]
+    TELEGRAM_SECRET_TOKEN = _tg_secret
 
     # Database
     db_url = os.getenv('DATABASE_URL')

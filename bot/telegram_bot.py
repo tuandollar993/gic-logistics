@@ -115,6 +115,14 @@ async def overview_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_html(msg)
 
+async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type
+    await update.message.reply_html(
+        f"Chat ID hiện tại: <code>{chat_id}</code>\n"
+        f"Chat type: <code>{chat_type}</code>"
+    )
+
 def run_bot():
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     if not token:
@@ -128,6 +136,7 @@ def run_bot():
     bot_app.add_handler(CommandHandler("link", link_command))
     bot_app.add_handler(CommandHandler("mytasks", mytasks_command))
     bot_app.add_handler(CommandHandler("overview", overview_command))
+    bot_app.add_handler(CommandHandler("id", id_command))
     bot_app.run_polling()
 
 if __name__ == '__main__':
