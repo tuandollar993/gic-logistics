@@ -175,7 +175,7 @@ Lưu ý RẤT QUAN TRỌNG:
     if not api_key:
         raise Exception("GEMINI_API_KEY chưa được cấu hình")
 
-    models_to_try = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
+    models_to_try = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest']
     last_err = None
 
     payload = {
