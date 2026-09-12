@@ -40,8 +40,14 @@ print('📦 [STARTUP] Kiểm tra và khởi tạo cơ sở dữ liệu (db.creat
 try:
     from app import create_app
     from app.extensions import db
+    from flask_migrate import upgrade as _migrate_upgrade
     _app = create_app()
     with _app.app_context():
+        try:
+            _migrate_upgrade()
+            print('✅ [STARTUP] Đã tự động cập nhật Alembic migration thành công!')
+        except Exception as mig_err:
+            print(f'⚠️ [STARTUP] Cảnh báo Alembic migration: {mig_err}')
         db.create_all()
         # Tự động đồng bộ chuẩn hóa các dòng cước bị thiếu tổng tiền từ Excel
         try:
@@ -115,7 +121,16 @@ if _app:
                 except Exception as ex:
                     print(f'⚠️ [CLOCK] Lỗi đồng bộ Google Sheets: {ex}')
 
+        def scheduled_advance_refund_reminder():
+            with _app.app_context():
+                try:
+                    from app.services.reminder_service import ReminderService
+                    ReminderService.run_advance_refund_reminder()
+                except Exception as ex:
+                    print(f'⚠️ [CLOCK] Lỗi nhắc nhở hoàn ứng: {ex}')
+
         scheduler.add_job(scheduled_deadline_check, 'cron', hour=8, minute=0, id='daily_deadline_check')
+        scheduler.add_job(scheduled_advance_refund_reminder, 'cron', hour=8, minute=5, id='advance_refund_reminder')
         scheduler.add_job(scheduled_sync_advances, 'interval', minutes=30, id='sync_advances_30min')
         scheduler.start()
         print('⏰ [STARTUP] Clock Scheduler background thread đã sẵn sàng (0MB RAM phụ)!')

@@ -36,6 +36,15 @@ def scheduled_deadline_check():
         print('⏰ [CLOCK] Đang tự động rà soát deadline và gửi nhắc nhở hàng ngày...')
         ReminderService.run_daily_deadline_check()
 
+def scheduled_advance_refund_reminder():
+    with app.app_context():
+        print('💰 [CLOCK] Đang rà soát hoàn ứng chứng từ tạm ứng hàng tháng...')
+        try:
+            result = ReminderService.run_advance_refund_reminder()
+            print(f'✅ [CLOCK] Hoàn ứng reminder: {result}')
+        except Exception as e:
+            print(f'⚠️ [CLOCK] Lỗi nhắc nhở hoàn ứng: {e}')
+
 def scheduled_sync_advances():
     with app.app_context():
         print('🔄 [CLOCK] Đang tự động đồng bộ dòng tiền tạm ứng từ Google Sheets...')
@@ -49,10 +58,12 @@ def scheduled_sync_advances():
 if __name__ == '__main__':
     scheduler = BlockingScheduler()
     scheduler.add_job(scheduled_deadline_check, 'cron', hour=9, minute=0)
+    scheduler.add_job(scheduled_advance_refund_reminder, 'cron', hour=9, minute=5)
     # Tự động đồng bộ dòng tiền tạm ứng mỗi 15 phút
     scheduler.add_job(scheduled_sync_advances, 'interval', minutes=15)
     print('✅ [CLOCK] Đã kích hoạt APScheduler (Blocking):')
     print('   • Deadline Check: Hàng ngày lúc 09:00 AM')
+    print('   • Advance Refund Reminder: Hàng ngày lúc 09:05 AM')
     print('   • Google Sheets Sync: Tự động mỗi 15 phút')
     
     # Đồng bộ 1 lần ngay khi khởi động

@@ -178,6 +178,103 @@
     </div>
 </div>
 
+<!-- ===== BẢNG CHỐT KẾ TOÁN HÀNG THÁNG ===== -->
+<div class="card border-0 shadow-sm rounded-3 mb-4" style="border-left: 4px solid #f59e0b !important;">
+    <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-calculator text-warning fs-5"></i>
+                <span class="fw-bold text-dark">Chốt Kế Toán Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}</span>
+                {% if settlement and settlement.get('settlement', {}).get('status') == 'closed' %}
+                    <span class="badge bg-success"><i class="fa-solid fa-lock me-1"></i>ĐÃ CHỐT</span>
+                {% else %}
+                    <span class="badge bg-warning text-dark"><i class="fa-solid fa-lock-open me-1"></i>ĐANG MỞ</span>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <!-- Nút Chốt tháng -->
+                {% if settlement and settlement.get('settlement', {}).get('status') != 'closed' %}
+                <form method="POST" action="{{ url_for('advances.close_settlement', month=selected_month, year=selected_year) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn CHỐT KẾ TOÁN tháng {{ selected_month }}/{{ selected_year }}?')">
+                    <button type="submit" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>Chốt Kế Toán Tháng Này</span>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row g-2">
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="bg-light rounded-2 p-2 text-center border">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Tổng chi phí</div>
+                    <div class="fw-bold font-mono text-dark">{{ (settlement.total_expenses or 0)|format_money }}</div>
+                    <div class="text-muted" style="font-size: 0.7rem;">{{ settlement.count_total or 0 }} khoản</div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="bg-light rounded-2 p-2 text-center border border-success border-opacity-25">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.65rem;">Có HĐ</div>
+                    <div class="fw-bold font-mono text-success">{{ (settlement.total_with_invoice or 0)|format_money }}</div>
+                    <div class="text-muted" style="font-size: 0.7rem;">{{ settlement.count_with_invoice or 0 }} khoản</div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="bg-light rounded-2 p-2 text-center border border-warning border-opacity-25">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.65rem;">Không HĐ</div>
+                    <div class="fw-bold font-mono text-warning">{{ (settlement.total_no_invoice or 0)|format_money }}</div>
+                    <div class="text-muted" style="font-size: 0.7rem;">{{ settlement.count_no_invoice or 0 }} khoản</div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="bg-light rounded-2 p-2 text-center border border-info border-opacity-25">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.65rem;">Đã hoàn ứng</div>
+                    <div class="fw-bold font-mono text-info">{{ (settlement.total_settled or 0)|format_money }}</div>
+                    <div class="text-muted" style="font-size: 0.7rem;">{{ settlement.count_settled or 0 }} khoản</div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="bg-light rounded-2 p-2 text-center border border-secondary border-opacity-25">
+                    <div class="text-muted small text-uppercase" style="font-size: 0.65rem;">Loại trừ (duyệt)</div>
+                    <div class="fw-bold font-mono text-secondary">{{ (settlement.total_excluded or 0)|format_money }}</div>
+                    <div class="text-muted" style="font-size: 0.7rem;">{{ settlement.count_excluded or 0 }} khoản</div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <div class="rounded-2 p-2 text-center border border-danger" style="background: #fef2f2;">
+                    <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.65rem;">💰 Gửi về KT</div>
+                    <div class="fw-bold font-mono text-danger fs-6">{{ (settlement.total_to_remit or 0)|format_money }}</div>
+                    <div class="text-muted" style="font-size: 0.7rem;">= Tổng chi − Loại trừ</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Exclusions Alert -->
+        {% if pending_exclusions %}
+        <div class="alert alert-warning mt-3 mb-0 py-2 px-3 d-flex align-items-start gap-2" style="font-size: 0.82rem;">
+            <i class="fa-solid fa-bell text-warning mt-1"></i>
+            <div>
+                <strong>{{ pending_exclusions|length }} khoản Không HĐ đang chờ duyệt loại trừ.</strong>
+                Cuộn xuống bảng bên dưới, tìm cột "Hoàn ứng" có badge "Chờ duyệt" để duyệt/từ chối.
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Overdue Alert -->
+        {% if settlement.count_overdue and settlement.count_overdue > 0 %}
+        <div class="alert alert-danger mt-3 mb-0 py-2 px-3 d-flex align-items-start gap-2" style="font-size: 0.82rem;">
+            <i class="fa-solid fa-exclamation-triangle text-danger mt-1"></i>
+            <div>
+                <strong>{{ settlement.count_overdue }} khoản quá hạn hoàn ứng!</strong>
+                Tổng: {{ (settlement.total_overdue or 0)|format_money }}. 
+                Cần đốc thúc nhân viên hoàn chứng từ ngay.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <!-- Main Data Table Card -->
 <div class="data-table-card mb-4">
     <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
@@ -348,12 +445,107 @@
                             {% endif %}
                         </td>
 
-                        <!-- Hoàn ứng -->
-                        <td class="text-center">
-                            {% if t.advance_refund %}
-                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size: 0.72rem;">
-                                    {{ t.advance_refund }}
-                                </span>
+                        <!-- Hoàn ứng (Structured) -->
+                        <td class="text-center" style="min-width: 120px;">
+                            {% set has_expense = (t.tuan_chi and t.tuan_chi != 0) or (t.partner_amount and t.partner_amount != 0) %}
+                            {% if has_expense %}
+                                <!-- Invoice Category Badge & Toggle -->
+                                {% if t.invoice_category == 'has_invoice' %}
+                                    <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size: 0.65rem;" title="Đã xác nhận Có HĐ">
+                                            <i class="fa-solid fa-file-invoice"></i> Có HĐ
+                                        </span>
+                                        <form method="POST" action="{{ url_for('advances.classify_single', trans_id=t.id) }}" class="d-inline" title="Đổi sang Không HĐ">
+                                            <input type="hidden" name="invoice_category" value="no_invoice">
+                                            <button type="submit" class="btn btn-link p-0 text-muted" style="font-size: 0.65rem; text-decoration: none;">
+                                                <i class="fa-solid fa-rotate text-secondary" style="font-size: 0.6rem;"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                {% elif t.invoice_category == 'no_invoice' %}
+                                    <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
+                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 0.65rem;" title="Đã xác nhận Không HĐ">
+                                            <i class="fa-solid fa-ban"></i> Không HĐ
+                                        </span>
+                                        <form method="POST" action="{{ url_for('advances.classify_single', trans_id=t.id) }}" class="d-inline" title="Đổi sang Có HĐ">
+                                            <input type="hidden" name="invoice_category" value="has_invoice">
+                                            <button type="submit" class="btn btn-link p-0 text-muted" style="font-size: 0.65rem; text-decoration: none;">
+                                                <i class="fa-solid fa-rotate text-secondary" style="font-size: 0.6rem;"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                {% else %}
+                                    <!-- Chưa xác định: hiển thị 2 nút cho nhân viên bấm chọn -->
+                                    <div class="d-flex gap-1 justify-content-center mb-1 flex-wrap">
+                                        <form method="POST" action="{{ url_for('advances.classify_single', trans_id=t.id) }}" class="d-inline">
+                                            <input type="hidden" name="invoice_category" value="has_invoice">
+                                            <button type="submit" class="btn btn-outline-success py-0 px-1" style="font-size: 0.62rem;" title="Bấm để xác định: Có Hóa Đơn">
+                                                <i class="fa-solid fa-file-invoice me-1"></i>Có HĐ
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ url_for('advances.classify_single', trans_id=t.id) }}" class="d-inline">
+                                            <input type="hidden" name="invoice_category" value="no_invoice">
+                                            <button type="submit" class="btn btn-outline-warning py-0 px-1" style="font-size: 0.62rem;" title="Bấm để xác định: Không Hóa Đơn">
+                                                <i class="fa-solid fa-ban me-1"></i>Không HĐ
+                                            </button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+
+                                <!-- Refund Status -->
+                                {% if t.refund_status == 'settled' %}
+                                    <span class="badge bg-success text-white" style="font-size: 0.68rem;">
+                                        <i class="fa-solid fa-check-circle"></i> Đã hoàn ứng
+                                    </span>
+                                {% elif t.refund_status == 'excluded' %}
+                                    <span class="badge bg-secondary text-white" style="font-size: 0.68rem;">
+                                        <i class="fa-solid fa-minus-circle"></i> Loại trừ
+                                    </span>
+                                {% elif t.refund_status == 'overdue' %}
+                                    <span class="badge bg-danger text-white" style="font-size: 0.68rem;">
+                                        <i class="fa-solid fa-exclamation-circle"></i> Quá hạn
+                                    </span>
+                                {% elif t.refund_status == 'submitted' %}
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.68rem;">
+                                        <i class="fa-solid fa-clock"></i> Đã nộp CT
+                                    </span>
+                                {% elif t.exclusion_status == 'pending_approval' %}
+                                    <span class="badge bg-warning text-dark" style="font-size: 0.68rem;">
+                                        <i class="fa-solid fa-hourglass-half"></i> Chờ duyệt LT
+                                    </span>
+                                    <!-- Approve/Reject buttons for Manager -->
+                                    {% if current_user.is_manager %}
+                                    <div class="mt-1 d-flex gap-1 justify-content-center">
+                                        <form method="POST" action="{{ url_for('advances.approve_exclusion_route', trans_id=t.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-success py-0 px-1" style="font-size: 0.6rem;" title="Duyệt loại trừ">
+                                                <i class="fa-solid fa-check"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ url_for('advances.reject_exclusion_route', trans_id=t.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-danger py-0 px-1" style="font-size: 0.6rem;" title="Từ chối">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                {% else %}
+                                    <!-- Pending: show action buttons -->
+                                    <div class="d-flex gap-1 justify-content-center flex-wrap">
+                                        <form method="POST" action="{{ url_for('advances.settle_transaction', trans_id=t.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-success py-0 px-1" style="font-size: 0.6rem;" title="Đánh dấu hoàn ứng">
+                                                <i class="fa-solid fa-check"></i> HƯ
+                                            </button>
+                                        </form>
+                                        {% if t.invoice_category == 'no_invoice' %}
+                                        <form method="POST" action="{{ url_for('advances.request_exclusion_route', trans_id=t.id) }}" class="d-inline">
+                                            <input type="hidden" name="exclusion_note" value="Không hóa đơn - yêu cầu loại trừ">
+                                            <button type="submit" class="btn btn-outline-warning py-0 px-1" style="font-size: 0.6rem;" title="Yêu cầu loại trừ (Không HĐ)">
+                                                <i class="fa-solid fa-minus"></i> LT
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
@@ -531,6 +723,18 @@
                                 <option value="Đang đối soát">Đang đối soát</option>
                             </select>
                         </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark">
+                                <i class="fa-solid fa-file-invoice text-primary me-1"></i>Phân loại Hóa Đơn (Bắt buộc xác định): <span class="text-danger">*</span>
+                            </label>
+                            <select name="invoice_category" class="form-select form-select-sm fw-semibold" required style="border-color: #3b82f6;">
+                                <option value="has_invoice">✅ Có Hóa Đơn (Yêu cầu nhân viên nộp chứng từ hoàn ứng trước cuối tháng)</option>
+                                <option value="no_invoice">⚠️ Không Hóa Đơn (Khoản tiền mặt - gửi mail Sếp tổng duyệt loại trừ)</option>
+                            </select>
+                            <div class="form-text text-muted" style="font-size: 0.72rem;">
+                                * Vui lòng tự xác định chính xác theo chứng từ thực tế, hệ thống không tự suy đoán.
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -637,6 +841,16 @@
                                 <option value="Chờ thanh toán">Chờ thanh toán</option>
                                 <option value="Đã thanh toán">Đã thanh toán</option>
                                 <option value="Đang đối soát">Đang đối soát</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark">
+                                <i class="fa-solid fa-file-invoice text-primary me-1"></i>Phân loại Hóa Đơn (Tự xác định): <span class="text-danger">*</span>
+                            </label>
+                            <select name="invoice_category" id="edit_invoice_category" class="form-select form-select-sm fw-semibold" style="border-color: #3b82f6;">
+                                <option value="has_invoice">✅ Có Hóa Đơn (Bắt buộc hoàn ứng)</option>
+                                <option value="no_invoice">⚠️ Không Hóa Đơn (Sếp duyệt loại trừ)</option>
+                                <option value="unknown">❓ Chưa xác định</option>
                             </select>
                         </div>
                     </div>
@@ -801,6 +1015,9 @@ function openEditModal(trans) {
     
     const accSelect = document.getElementById('edit_accounting_status');
     if (accSelect) accSelect.value = trans.accounting_status || 'Chờ thanh toán';
+
+    const invCatSelect = document.getElementById('edit_invoice_category');
+    if (invCatSelect) invCatSelect.value = trans.invoice_category || 'unknown';
 
     // Set delete button action
     document.getElementById('btnDeleteTrans').onclick = function() {

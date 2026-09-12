@@ -9,7 +9,7 @@ from flask import (
 from flask_login import login_required, current_user
 
 from app.extensions import db
-from app.models import CashAdvanceMonthly, CashAdvanceTransaction, CashAdvanceBillMedia, Lot, OperatingCost
+from app.models import CashAdvanceMonthly, CashAdvanceTransaction, CashAdvanceBillMedia, Lot, OperatingCost, MonthlySettlement
 from app.security import (
     manager_required,
     admin_required,
@@ -86,6 +86,11 @@ def index():
                q_lower in (t.accounting_status or '').lower()
         ]
 
+    # Settlement data
+    from app.services.settlement_service import calculate_settlement_summary, get_pending_exclusions
+    settlement_summary = calculate_settlement_summary(selected_month, selected_year)
+    pending_exclusions = get_pending_exclusions()
+
     return render_template(
         'advances.html',
         selected_month=selected_month,
@@ -94,7 +99,9 @@ def index():
         monthly=data['monthly'],
         metrics=data['metrics'],
         transactions=transactions,
-        query=query
+        query=query,
+        settlement=settlement_summary,
+        pending_exclusions=pending_exclusions
     )
 
 
@@ -618,3 +625,197 @@ def set_telegram_webhook():
     db.session.flush()
     db.session.commit()
     return jsonify({'set_result': res, 'current_info': info, 'target_url': target_url})
+
+
+# =============================================
+# SETTLEMENT / CHỐT KẾ TOÁN HÀNG THÁNG
+# =============================================
+
+@advances_bp.route('/settlement/classify/<int:month>/<int:year>', methods=['POST'])
+@login_required
+@manager_required
+def auto_classify(month, year):
+    """Tự động phân loại hóa đơn cho tất cả giao dịch trong tháng."""
+    from app.services.settlement_service import auto_classify_transactions, set_refund_deadlines
+    count_classified = auto_classify_transactions(month, year)
+    count_deadline = set_refund_deadlines(month, year)
+    log_audit('auto_classify', 'settlement', f"{month}/{year}",
+              f"Classified {count_classified} transactions, set {count_deadline} deadlines")
+    db.session.flush()
+    db.session.commit()
+    msg = f"Đã phân loại {count_classified} giao dịch và đặt deadline hoàn ứng cho {count_deadline} khoản."
+    if request.is_json:
+        return jsonify({'success': True, 'classified': count_classified, 'deadlines_set': count_deadline, 'message': msg})
+    flash(msg, "success")
+    return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/settlement/classify-single/<int:trans_id>', methods=['POST'])
+@login_required
+@manager_required
+def classify_single(trans_id):
+    """Phân loại thủ công 1 giao dịch."""
+    from app.services.settlement_service import classify_single_transaction
+    payload = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
+    category = payload.get('invoice_category', 'unknown')
+    t, err = classify_single_transaction(trans_id, category)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index'))
+    log_audit('classify_transaction', 'settlement', trans_id, f"Classified as {category}")
+    if request.is_json:
+        return jsonify({'success': True, 'transaction': t.to_dict()})
+    flash(f"Đã phân loại giao dịch #{trans_id} thành '{category}'", "success")
+    return redirect(url_for('advances.index', month=t.month, year=t.year))
+
+
+@advances_bp.route('/settlement/settle/<int:trans_id>', methods=['POST'])
+@login_required
+@manager_required
+def settle_transaction(trans_id):
+    """Đánh dấu giao dịch đã hoàn ứng chứng từ."""
+    from app.services.settlement_service import mark_settled
+    t, err = mark_settled(trans_id)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index'))
+    log_audit('mark_settled', 'settlement', trans_id, "Marked as settled")
+    if request.is_json:
+        return jsonify({'success': True, 'transaction': t.to_dict()})
+    flash(f"Đã đánh dấu hoàn ứng giao dịch #{trans_id}!", "success")
+    return redirect(url_for('advances.index', month=t.month, year=t.year))
+
+
+@advances_bp.route('/settlement/submit/<int:trans_id>', methods=['POST'])
+@login_required
+@manager_required
+def submit_transaction(trans_id):
+    """Đánh dấu NV đã nộp chứng từ (chờ xác nhận hoàn ứng)."""
+    from app.services.settlement_service import mark_submitted
+    t, err = mark_submitted(trans_id)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index'))
+    if request.is_json:
+        return jsonify({'success': True, 'transaction': t.to_dict()})
+    flash(f"Đã ghi nhận nộp chứng từ giao dịch #{trans_id}!", "info")
+    return redirect(url_for('advances.index', month=t.month, year=t.year))
+
+
+@advances_bp.route('/settlement/exclusion/request/<int:trans_id>', methods=['POST'])
+@login_required
+@manager_required
+def request_exclusion_route(trans_id):
+    """KT tạo yêu cầu loại trừ khoản Không HĐ."""
+    from app.services.settlement_service import request_exclusion
+    payload = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
+    note = payload.get('exclusion_note', '').strip()
+    t, err = request_exclusion(trans_id, note)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index'))
+    log_audit('request_exclusion', 'settlement', trans_id, f"Requested exclusion: {note}")
+    if request.is_json:
+        return jsonify({'success': True, 'transaction': t.to_dict()})
+    flash(f"Đã gửi yêu cầu loại trừ giao dịch #{trans_id}!", "info")
+    return redirect(url_for('advances.index', month=t.month, year=t.year))
+
+
+@advances_bp.route('/settlement/exclusion/approve/<int:trans_id>', methods=['POST'])
+@login_required
+@manager_required
+def approve_exclusion_route(trans_id):
+    """Sếp duyệt loại trừ khoản Không HĐ."""
+    from app.services.settlement_service import approve_exclusion
+    t, err = approve_exclusion(trans_id, current_user.id)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index'))
+    log_audit('approve_exclusion', 'settlement', trans_id, "Approved exclusion")
+    if request.is_json:
+        return jsonify({'success': True, 'transaction': t.to_dict()})
+    flash(f"Đã DUYỆT loại trừ giao dịch #{trans_id}!", "success")
+    return redirect(url_for('advances.index', month=t.month, year=t.year))
+
+
+@advances_bp.route('/settlement/exclusion/reject/<int:trans_id>', methods=['POST'])
+@login_required
+@manager_required
+def reject_exclusion_route(trans_id):
+    """Sếp từ chối loại trừ."""
+    from app.services.settlement_service import reject_exclusion
+    t, err = reject_exclusion(trans_id)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index'))
+    log_audit('reject_exclusion', 'settlement', trans_id, "Rejected exclusion")
+    if request.is_json:
+        return jsonify({'success': True, 'transaction': t.to_dict()})
+    flash(f"Đã TỪ CHỐI loại trừ giao dịch #{trans_id}!", "warning")
+    return redirect(url_for('advances.index', month=t.month, year=t.year))
+
+
+@advances_bp.route('/settlement/summary/<int:month>/<int:year>', methods=['GET'])
+@login_required
+@manager_required
+def settlement_summary(month, year):
+    """API xem bảng chốt kỳ."""
+    from app.services.settlement_service import calculate_settlement_summary
+    summary = calculate_settlement_summary(month, year)
+    return jsonify({'success': True, 'summary': summary})
+
+
+@advances_bp.route('/settlement/close/<int:month>/<int:year>', methods=['POST'])
+@login_required
+@manager_required
+def close_settlement(month, year):
+    """Chốt kế toán tháng."""
+    from app.services.settlement_service import close_month
+    settlement, err = close_month(month, year, current_user.id)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index', month=month, year=year))
+    log_audit('close_settlement', 'settlement', f"{month}/{year}",
+              f"Closed settlement: remit {settlement.total_to_remit:,.0f}đ")
+    db.session.flush()
+    db.session.commit()
+    msg = f"Đã CHỐT KẾ TOÁN Tháng {month:02d}/{year}. Số tiền gửi về KT: {settlement.total_to_remit:,.0f}đ"
+    if request.is_json:
+        return jsonify({'success': True, 'settlement': settlement.to_dict(), 'message': msg})
+    flash(msg, "success")
+    return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/settlement/reopen/<int:month>/<int:year>', methods=['POST'])
+@login_required
+@admin_required
+def reopen_settlement(month, year):
+    """Mở lại tháng đã chốt (chỉ Admin)."""
+    from app.services.settlement_service import reopen_month
+    settlement, err = reopen_month(month, year)
+    if err:
+        if request.is_json:
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, "danger")
+        return redirect(url_for('advances.index', month=month, year=year))
+    log_audit('reopen_settlement', 'settlement', f"{month}/{year}", "Reopened settlement")
+    db.session.flush()
+    db.session.commit()
+    if request.is_json:
+        return jsonify({'success': True, 'settlement': settlement.to_dict()})
+    flash(f"Đã MỞ LẠI chốt kế toán Tháng {month:02d}/{year}.", "info")
+    return redirect(url_for('advances.index', month=month, year=year))

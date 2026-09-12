@@ -714,6 +714,29 @@ class CashAdvanceTransaction(db.Model):
     advance_refund = db.Column(db.String(100), nullable=True)
     accounting_status = db.Column(db.String(100), nullable=True)
     
+    # === PHÂN LOẠI HÓA ĐƠN & HOÀN ỨNG (Chốt kế toán hàng tháng) ===
+    invoice_category = db.Column(db.String(20), default='unknown')
+    # Giá trị: 'has_invoice', 'no_invoice', 'unknown'
+    
+    refund_status = db.Column(db.String(20), default='pending')
+    # Giá trị: 'pending', 'submitted', 'settled', 'overdue', 'excluded'
+    
+    refund_deadline = db.Column(db.Date, nullable=True)
+    # Tự động = ngày cuối cùng của tháng giao dịch
+    
+    refund_settled_at = db.Column(db.DateTime, nullable=True)
+    # Ngày nhân viên hoàn ứng thực tế
+    
+    # === LOẠI TRỪ (cho khoản Không HĐ) ===
+    exclusion_status = db.Column(db.String(20), nullable=True)
+    # Giá trị: None, 'pending_approval', 'approved', 'rejected'
+    
+    exclusion_requested_at = db.Column(db.DateTime, nullable=True)
+    exclusion_approved_at = db.Column(db.DateTime, nullable=True)
+    exclusion_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    exclusion_note = db.Column(db.Text, nullable=True)
+    # Ghi chú lý do loại trừ
+    
     is_manual = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -742,6 +765,12 @@ class CashAdvanceTransaction(db.Model):
             'bill_link': self.bill_link or '',
             'advance_refund': self.advance_refund or '',
             'accounting_status': self.accounting_status or '',
+            'invoice_category': self.invoice_category or 'unknown',
+            'refund_status': self.refund_status or 'pending',
+            'refund_deadline': self.refund_deadline.strftime('%d/%m/%Y') if self.refund_deadline else '',
+            'refund_settled_at': self.refund_settled_at.strftime('%d/%m/%Y %H:%M') if self.refund_settled_at else '',
+            'exclusion_status': self.exclusion_status or '',
+            'exclusion_note': self.exclusion_note or '',
             'is_manual': self.is_manual
         }
 
@@ -866,3 +895,63 @@ class Quotation(db.Model):
             'creator_name': self.creator.full_name if self.creator else ''
         }
 
+
+class MonthlySettlement(db.Model):
+    """Bảng chốt kế toán hàng tháng — snapshot tổng hợp cuối kỳ"""
+    __tablename__ = 'monthly_settlements'
+
+    id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.Integer, nullable=False, index=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
+
+    # Tổng hợp chi phí
+    total_expenses = db.Column(db.Float, default=0.0)        # Tổng chi phí trong tháng
+    total_with_invoice = db.Column(db.Float, default=0.0)    # Tổng có HĐ
+    total_no_invoice = db.Column(db.Float, default=0.0)      # Tổng không HĐ
+    total_settled = db.Column(db.Float, default=0.0)         # Đã hoàn ứng
+    total_excluded = db.Column(db.Float, default=0.0)        # Đã loại trừ (sếp duyệt)
+    total_overdue = db.Column(db.Float, default=0.0)         # Quá hạn chưa hoàn
+    total_to_remit = db.Column(db.Float, default=0.0)        # Số tiền phải gửi về KT
+
+    # Đếm số lượng
+    count_total = db.Column(db.Integer, default=0)
+    count_with_invoice = db.Column(db.Integer, default=0)
+    count_no_invoice = db.Column(db.Integer, default=0)
+    count_settled = db.Column(db.Integer, default=0)
+    count_excluded = db.Column(db.Integer, default=0)
+    count_overdue = db.Column(db.Integer, default=0)
+    count_pending = db.Column(db.Integer, default=0)
+
+    # Trạng thái chốt kỳ
+    status = db.Column(db.String(20), default='open')        # open, closing, closed
+    closed_at = db.Column(db.DateTime, nullable=True)
+    closed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('year', 'month', name='uq_settlement_year_month'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'month': self.month,
+            'year': self.year,
+            'total_expenses': self.total_expenses,
+            'total_with_invoice': self.total_with_invoice,
+            'total_no_invoice': self.total_no_invoice,
+            'total_settled': self.total_settled,
+            'total_excluded': self.total_excluded,
+            'total_overdue': self.total_overdue,
+            'total_to_remit': self.total_to_remit,
+            'count_total': self.count_total,
+            'count_with_invoice': self.count_with_invoice,
+            'count_no_invoice': self.count_no_invoice,
+            'count_settled': self.count_settled,
+            'count_excluded': self.count_excluded,
+            'count_overdue': self.count_overdue,
+            'count_pending': self.count_pending,
+            'status': self.status,
+            'closed_at': self.closed_at.strftime('%d/%m/%Y %H:%M') if self.closed_at else '',
+            'notes': self.notes or ''
+        }

@@ -871,8 +871,13 @@ def add_transaction(data):
         bill_link=data.get('bill_link', '').strip(),
         advance_refund=data.get('advance_refund', '').strip(),
         accounting_status=data.get('accounting_status', 'Chờ duyệt').strip(),
+        invoice_category=data.get('invoice_category', 'unknown').strip() or 'unknown',
         is_manual=True
     )
+    if trans.invoice_category == 'has_invoice':
+        import calendar
+        from datetime import date
+        trans.refund_deadline = date(year, month, calendar.monthrange(year, month)[1])
     db.session.add(trans)
     
     # Recalculate totals
@@ -889,11 +894,16 @@ def update_transaction(trans_id, data):
 
     amt_fields = {'tuan_thu_cty', 'tuan_thu_haiban', 'tuan_thu_khac', 'tuan_chi_haiban_cty',
                   'tuan_chi', 'xuyen_amount', 'luong_thu', 'luong_chi', 'truong_amount', 'partner_amount'}
-    str_fields = {'trans_date', 'content', 'partner_invoice', 'bill_link', 'advance_refund', 'accounting_status'}
+    str_fields = {'trans_date', 'content', 'partner_invoice', 'bill_link', 'advance_refund', 'accounting_status', 'invoice_category'}
     for k in amt_fields.intersection(data):
         setattr(trans, k, clean_amount(data[k]))
     for k in str_fields.intersection(data):
         setattr(trans, k, str(data[k] or '').strip())
+
+    if trans.invoice_category == 'has_invoice' and not trans.refund_deadline:
+        import calendar
+        from datetime import date
+        trans.refund_deadline = date(trans.year, trans.month, calendar.monthrange(trans.year, trans.month)[1])
 
     trans.updated_at = datetime.now(timezone.utc)
     monthly = CashAdvanceMonthly.query.filter_by(month=trans.month, year=trans.year).first()

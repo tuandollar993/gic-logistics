@@ -171,3 +171,100 @@ class ReminderService:
             
         db.session.commit()
         return results
+
+    @staticmethod
+    def run_advance_refund_reminder():
+        """
+        Nhắc nhở hoàn ứng chứng từ tạm ứng hàng tháng.
+        Lịch nhắc: Ngày 20 (nhẹ), 25 (mạnh), 28 (cảnh báo), cuối tháng (HẠN CHÓT),
+                    Sau cuối tháng (báo cáo quá hạn lên Manager).
+        """
+        import calendar
+        from app.services.settlement_service import get_unsettled_transactions, check_overdue_transactions
+
+        today = date.today()
+        day = today.day
+        month = today.month
+        year = today.year
+        last_day = calendar.monthrange(year, month)[1]
+        manager_chat_id = current_app.config.get('TELEGRAM_MANAGER_CHAT_ID')
+
+        # Các mốc nhắc trong tháng hiện tại
+        reminder_days = {20: 'nhẹ', 25: 'mạnh', 28: 'cảnh_báo'}
+        if day == last_day:
+            reminder_days[day] = 'hạn_chót'
+
+        if day not in reminder_days:
+            # Ngày 1 tháng sau: báo cáo quá hạn tháng trước cho Manager
+            if day == 1:
+                prev_month = month - 1 if month > 1 else 12
+                prev_year = year if month > 1 else year - 1
+                overdue = check_overdue_transactions(prev_month, prev_year)
+                if overdue and manager_chat_id:
+                    total = sum(abs(t.tuan_chi or 0) + abs(t.partner_amount or 0) for t in overdue)
+                    msg = (
+                        f"📊 <b>BÁO CÁO HOÀN ỨNG THÁNG {prev_month:02d}/{prev_year}</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"🚨 <b>{len(overdue)} khoản quá hạn chưa hoàn ứng</b>\n"
+                        f"💰 Tổng giá trị: {total:,.0f}đ\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                    )
+                    for t in overdue[:10]:
+                        amt = abs(t.tuan_chi or 0) + abs(t.partner_amount or 0)
+                        msg += f"• {t.trans_date} - {(t.content or '')[:40]} - {amt:,.0f}đ\n"
+                    if len(overdue) > 10:
+                        msg += f"... và {len(overdue) - 10} khoản khác\n"
+                    msg += f"\n👉 <i>Vui lòng kiểm tra và đốc thúc nhân viên hoàn ứng.</i>"
+                    TelegramService.send_message(manager_chat_id, msg)
+
+                    # Nhắc Manager gửi tiền về KT
+                    from app.services.settlement_service import calculate_settlement_summary
+                    summary = calculate_settlement_summary(prev_month, prev_year)
+                    remit_msg = (
+                        f"💰 <b>NHẮC GỬI TIỀN VỀ KẾ TOÁN - THÁNG {prev_month:02d}/{prev_year}</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"• Tổng chi: {summary['total_expenses']:,.0f}đ\n"
+                        f"• Loại trừ đã duyệt: {summary['total_excluded']:,.0f}đ\n"
+                        f"• <b>Phải gửi về KT: {summary['total_to_remit']:,.0f}đ</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"👉 <i>Vui lòng chuyển khoản gửi về kế toán tổng.</i>"
+                    )
+                    TelegramService.send_message(manager_chat_id, remit_msg)
+            return {'reminded': 0}
+
+        level = reminder_days[day]
+        unsettled = get_unsettled_transactions(month, year)
+        if not unsettled:
+            return {'reminded': 0}
+
+        days_left = last_day - day
+        total_unsettled = sum(abs(t.tuan_chi or 0) + abs(t.partner_amount or 0) for t in unsettled)
+
+        # Xây tin nhắn theo cấp độ
+        if level == 'hạn_chót':
+            icon = "🔴"
+            title = "HÔM NAY LÀ HẠN CHÓT HOÀN ỨNG!"
+        elif level == 'cảnh_báo':
+            icon = "⚠️"
+            title = f"CÒN {days_left} NGÀY ĐỂ HOÀN ỨNG"
+        elif level == 'mạnh':
+            icon = "⏰"
+            title = f"CÒN {days_left} NGÀY ĐỂ HOÀN ỨNG THÁNG {month:02d}"
+        else:
+            icon = "📋"
+            title = f"NHẮC HOÀN ỨNG: CÒN {days_left} NGÀY"
+
+        # Gửi cho Manager
+        if manager_chat_id:
+            mgr_msg = (
+                f"{icon} <b>{title}</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"📌 <b>{len(unsettled)} khoản chưa hoàn ứng</b> - Tổng: {total_unsettled:,.0f}đ\n"
+                f"• Có HĐ chưa hoàn: {sum(1 for t in unsettled if t.invoice_category == 'has_invoice')}\n"
+                f"• Không HĐ chưa xử lý: {sum(1 for t in unsettled if t.invoice_category == 'no_invoice')}\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"👉 Vào hệ thống để kiểm tra chi tiết."
+            )
+            TelegramService.send_message(manager_chat_id, mgr_msg)
+
+        return {'reminded': len(unsettled), 'level': level}
