@@ -142,6 +142,7 @@ def create_app(config_class=Config):
     from app.routes.reports import reports_bp
     from app.routes.quotations import quotations_bp
     from app.routes.customers import customers_bp
+    from app.routes.audit import audit_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -152,6 +153,7 @@ def create_app(config_class=Config):
     app.register_blueprint(users_bp, url_prefix='/users')
     app.register_blueprint(advances_bp, url_prefix='/advances')
     app.register_blueprint(reports_bp, url_prefix='/reports')
+    app.register_blueprint(audit_bp, url_prefix='/audit')
     app.register_blueprint(quotations_bp, url_prefix='/quotations')
     app.register_blueprint(customers_bp, url_prefix='/customers')
     

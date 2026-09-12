@@ -1,0 +1,898 @@
+{% extends "base.html" %}
+
+{% block title %}AI Kiểm Toán Dữ Liệu Độc Lập - GIC Logistics{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Audit Dashboard Executive Styles ── */
+.audit-container {
+    padding: 24px;
+    background-color: #f8fafc;
+    min-height: 100vh;
+}
+
+.audit-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 16px;
+    padding: 28px 32px;
+    color: #ffffff;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+    margin-bottom: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.health-score-card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.score-circle {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: conic-gradient(#ef4444 0% 38%, rgba(255, 255, 255, 0.1) 38% 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+.score-inner {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.score-number {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ef4444;
+    line-height: 1;
+}
+
+.score-denom {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+/* Key Risk Cards */
+.risk-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.risk-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
+}
+
+.risk-card.danger {
+    border-top: 4px solid #ef4444;
+}
+
+.risk-card.warning {
+    border-top: 4px solid #f59e0b;
+}
+
+.risk-card.info {
+    border-top: 4px solid #3b82f6;
+}
+
+.risk-icon-wrapper {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    margin-bottom: 12px;
+}
+
+.risk-icon-danger {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.risk-icon-warning {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.risk-icon-info {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+/* Custom Tabs Styling */
+.audit-nav-tabs {
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 24px;
+    gap: 8px;
+}
+
+.audit-nav-tabs .nav-link {
+    border: none;
+    color: #64748b;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-radius: 8px 8px 0 0;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.audit-nav-tabs .nav-link:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+}
+
+.audit-nav-tabs .nav-link.active {
+    color: #0284c7;
+    background: #ffffff;
+    border-bottom: 2px solid #0284c7;
+}
+
+.audit-nav-tabs .nav-link .badge {
+    margin-left: 8px;
+    font-size: 0.7rem;
+}
+
+/* Table styling */
+.audit-table {
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.audit-table table {
+    margin-bottom: 0;
+    font-size: 0.88rem;
+}
+
+.audit-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.audit-table td {
+    padding: 12px 16px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* Action plan steps */
+.action-step-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border-left: 4px solid #0284c7;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.step-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="audit-container">
+
+    <!-- 1. EXECUTIVE AUDIT BANNER -->
+    <div class="audit-hero">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-danger px-3 py-1 text-uppercase fw-bold" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i> Báo Cáo Kiểm Toán Độc Lập
+                    </span>
+                    <span class="text-secondary small">Kỳ kiểm toán: 09/2025 - 09/2026</span>
+                </div>
+                <h2 class="fw-bold mb-2 text-white">TRUNG TÂM KIỂM TOÁN DỮ LIỆU & RỦI RO HỆ THỐNG</h2>
+                <p class="text-light text-opacity-75 mb-3" style="font-size: 0.95rem; line-height: 1.6;">
+                    Phân tích toàn diện <strong>357 Lô hàng</strong>, <strong>483 Dòng doanh thu</strong>, <strong>230 Dòng chi phí vận hành</strong> và <strong>Sổ quỹ tạm ứng</strong> theo Chuẩn mực Kiểm toán (ISA/VSA) và Pháp luật Thuế hiện hành.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-sm btn-outline-light" onclick="window.print()">
+                        <i class="fa-solid fa-print me-1"></i> In / Xuất Báo Cáo
+                    </button>
+                    <a href="#action-plan-section" class="btn btn-sm btn-danger">
+                        <i class="fa-solid fa-wrench me-1"></i> Xem Lộ Trình Khắc Phục (4 Bước)
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 mt-4 mt-lg-0">
+                <div class="health-score-card">
+                    <div class="score-circle">
+                        <div class="score-inner">
+                            <span class="score-number">{{ report.summary.health_score }}</span>
+                            <span class="score-denom">/ 100</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-danger fw-bold" style="font-size: 0.85rem; letter-spacing: 0.05em;">
+                            {{ report.summary.opinion }}
+                        </div>
+                        <div class="small text-white text-opacity-75 mt-1" style="font-size: 0.78rem;">
+                            Mức độ rủi ro: <strong class="text-warning">BÁO ĐỘNG ĐỎ</strong>. Tồn tại 8 nhóm sai phạm và khuyết tật dữ liệu cần xử lý trước khi quyết toán.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. TOP 6 CRITICAL RISK KPI CARDS -->
+    <div class="row g-3 mb-4">
+        <!-- Card 1: Tax Risk -->
+        <div class="col-md-4 col-lg-2">
+            <div class="risk-card danger">
+                <div class="risk-icon-wrapper risk-icon-danger">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                </div>
+                <div class="text-muted small fw-bold">RỦI RO THUẾ</div>
+                <h4 class="fw-bold text-danger my-1">{{ report.tax_risk.non_invoice_percent | round(1) }}%</h4>
+                <div class="small text-muted">
+                    <strong>{{ report.tax_risk.non_invoice_count }}</strong> khoản không HĐ ({{ report.tax_risk.non_invoice_amount | format_compact_money }}đ)
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Cost Gap -->
+        <div class="col-md-4 col-lg-2">
+            <div class="risk-card danger">
+                <div class="risk-icon-wrapper risk-icon-danger">
+                    <i class="fa-solid fa-calendar-xmark"></i>
+                </div>
+                <div class="text-muted small fw-bold">ĐỨT GÃY CHI PHÍ</div>
+                <h4 class="fw-bold text-danger my-1">{{ report.summary.missing_cost_months_count }}/13</h4>
+                <div class="small text-muted">
+                    Tháng trống 100% CPVH (Phóng đại lãi ảo)
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Negative Margin -->
+        <div class="col-md-4 col-lg-2">
+            <div class="risk-card warning">
+                <div class="risk-icon-wrapper risk-icon-warning">
+                    <i class="fa-solid fa-arrow-trend-down"></i>
+                </div>
+                <div class="text-muted small fw-bold">BÁN DƯỚI GIÁ VỐN</div>
+                <h4 class="fw-bold text-warning my-1">{{ report.margin_analysis.negative_margin_count }}</h4>
+                <div class="small text-muted">
+                    Dịch vụ giá mua > giá bán (Tuyến Ocean...)
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Loss Lots -->
+        <div class="col-md-4 col-lg-2">
+            <div class="risk-card warning">
+                <div class="risk-icon-wrapper risk-icon-warning">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div class="text-muted small fw-bold">LÔ HÀNG BỊ LỖ</div>
+                <h4 class="fw-bold text-warning my-1">{{ report.margin_analysis.loss_lots_count }}</h4>
+                <div class="small text-muted">
+                    37.8% số lô bị âm lợi nhuận & CPVH mồ côi
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 5: Missing Start Date -->
+        <div class="col-md-4 col-lg-2">
+            <div class="risk-card info">
+                <div class="risk-icon-wrapper risk-icon-info">
+                    <i class="fa-solid fa-bug"></i>
+                </div>
+                <div class="text-muted small fw-bold">BUG CHỮ 'Đ' PARSER</div>
+                <h4 class="fw-bold text-primary my-1">100%</h4>
+                <div class="small text-muted">
+                    357 lô bị mất Ngày bắt đầu chuyến
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 6: Cash Advance Payroll -->
+        <div class="col-md-4 col-lg-2">
+            <div class="risk-card info">
+                <div class="risk-icon-wrapper risk-icon-info">
+                    <i class="fa-solid fa-scale-unbalanced"></i>
+                </div>
+                <div class="text-muted small fw-bold">SỔ QUỸ LỆCH LƯƠNG</div>
+                <h4 class="fw-bold text-primary my-1">140 Tr</h4>
+                <div class="small text-muted">
+                    Lương T05/26 xếp nhầm cột Thu thay vì Chi
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. INTERACTIVE AUDIT TABS -->
+    <ul class="nav nav-tabs audit-nav-tabs" id="auditTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tax-tab" data-bs-toggle="tab" data-bs-target="#tax" type="button" role="tab">
+                <i class="fa-solid fa-file-invoice-dollar text-danger me-1"></i> Rủi Ro Thuế & Chứng Từ
+                <span class="badge bg-danger">{{ report.tax_risk.non_invoice_count }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="gap-tab" data-bs-toggle="tab" data-bs-target="#gap" type="button" role="tab">
+                <i class="fa-solid fa-calendar-xmark text-danger me-1"></i> Đứt Gãy 9 Tháng Chi Phí
+                <span class="badge bg-danger">9 Tháng</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="margin-tab" data-bs-toggle="tab" data-bs-target="#margin" type="button" role="tab">
+                <i class="fa-solid fa-arrow-trend-down text-warning me-1"></i> Giá Vốn & Lô Lỗ
+                <span class="badge bg-warning text-dark">{{ report.margin_analysis.negative_margin_count }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="cash-tab" data-bs-toggle="tab" data-bs-target="#cash" type="button" role="tab">
+                <i class="fa-solid fa-hand-holding-dollar text-primary me-1"></i> Sổ Quỹ Tạm Ứng
+                <span class="badge bg-primary">12 Tháng</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="master-tab" data-bs-toggle="tab" data-bs-target="#master" type="button" role="tab">
+                <i class="fa-solid fa-database text-info me-1"></i> Master Data & Parser
+                <span class="badge bg-info text-dark">Lỗi Parser</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="control-tab" data-bs-toggle="tab" data-bs-target="#control" type="button" role="tab">
+                <i class="fa-solid fa-user-shield text-secondary me-1"></i> Kiểm Soát Nội Bộ (SoD)
+            </button>
+        </li>
+    </ul>
+
+    <!-- 4. TAB CONTENTS -->
+    <div class="tab-content" id="auditTabsContent">
+
+        <!-- TAB 1: RỦI RO THUẾ & CHỨNG TỪ -->
+        <div class="tab-pane fade show active" id="tax" role="tabpanel">
+            <!-- Alert: Chi tiền mặt > 20 triệu -->
+            {% if report.tax_risk.cash_over_20m %}
+            <div class="alert alert-danger d-flex align-items-start gap-3 p-3 mb-4 rounded-3 border-danger shadow-sm">
+                <i class="fa-solid fa-triangle-exclamation fa-2x mt-1 text-danger"></i>
+                <div class="flex-grow-1">
+                    <h6 class="fw-bold text-danger mb-1">CẢNH BÁO VI PHẠM THUẾ ĐẶC BIỆT NGHIÊM TRỌNG: CHI TIỀN MẶT &ge; 20 TRIỆU ĐỒNG</h6>
+                    <p class="small mb-2 text-dark">
+                        Căn cứ <em>Thông tư 78/2014/TT-BTC</em> và <em>Thông tư 96/2015/TT-BTC</em>, các khoản chi từ 20 triệu đồng trở lên bắt buộc phải thanh toán không dùng tiền mặt (chuyển khoản/UNC) và có hóa đơn hợp lệ để được tính vào chi phí được trừ khi tính thuế TNDN.
+                    </p>
+                    <div class="table-responsive bg-white rounded border">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Lô Hàng</th>
+                                    <th>Nội Dung Chi Phí</th>
+                                    <th>Nhà Cung Cấp</th>
+                                    <th>Số Tiền</th>
+                                    <th>Hình Thức</th>
+                                    <th>Loại HĐ</th>
+                                    <th>Hậu Quả Dự Kiến</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in report.tax_risk.cash_over_20m %}
+                                <tr>
+                                    <td class="fw-bold text-danger">{{ item.lot_label }}</td>
+                                    <td>{{ item.description }}</td>
+                                    <td>{{ item.supplier_name }}</td>
+                                    <td class="fw-bold text-danger">{{ item.total_amount | format_money }}</td>
+                                    <td><span class="badge bg-danger">{{ item.payment_method }}</span></td>
+                                    <td><span class="badge bg-secondary">{{ item.invoice_type }}</span></td>
+                                    <td class="text-danger small">Bị loại 100% CP; Truy thu thuế TNDN 20% (6.32 tr) + phạt chậm nộp</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Metadata Missing Summary -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card p-3 border-0 bg-white shadow-sm">
+                        <div class="text-muted small">Thiếu MST Nhà Cung Cấp</div>
+                        <div class="h5 fw-bold text-danger my-1">{{ report.tax_risk.missing_tax_count }}/{{ report.summary.total_costs }} ({{ report.tax_risk.missing_tax_percent | round(1) }}%)</div>
+                        <div class="small text-muted">Không có căn cứ kê khai GTGT</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3 border-0 bg-white shadow-sm">
+                        <div class="text-muted small">Thiếu Tên Nhà Cung Cấp</div>
+                        <div class="h5 fw-bold text-danger my-1">{{ report.tax_risk.missing_supp_name_count }}/{{ report.summary.total_costs }} ({{ report.tax_risk.missing_supp_name_percent | round(1) }}%)</div>
+                        <div class="small text-muted">Không định danh đối tượng thanh toán</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3 border-0 bg-white shadow-sm">
+                        <div class="text-muted small">Thiếu Số Hóa Đơn / Chứng Từ</div>
+                        <div class="h5 fw-bold text-danger my-1">{{ report.tax_risk.missing_inv_num_count }}/{{ report.summary.total_costs }} ({{ report.tax_risk.missing_inv_num_percent | round(1) }}%)</div>
+                        <div class="small text-muted">Chi phí không có mã chứng từ gốc</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3 border-0 bg-white shadow-sm">
+                        <div class="text-muted small">Thiếu Ngày Chứng Từ</div>
+                        <div class="h5 fw-bold text-danger my-1">{{ report.tax_risk.missing_doc_date_count }}/{{ report.summary.total_costs }} ({{ report.tax_risk.missing_doc_date_percent | round(1) }}%)</div>
+                        <div class="small text-muted">Không thể xác định kỳ tính thuế</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed List of Non-Invoice Expenses -->
+            <div class="audit-table mb-4">
+                <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-list-check me-2 text-danger"></i> Danh Sách 173 Khoản Chi Không Có Hóa Đơn Hợp Lệ (Tổng Tiền: {{ report.tax_risk.non_invoice_amount | format_money }})
+                    </h6>
+                    <input type="text" id="taxSearchInput" class="form-control form-control-sm w-auto" placeholder="Tìm kiếm khoản chi..." onkeyup="filterTaxTable()">
+                </div>
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-hover" id="taxCostTable">
+                        <thead>
+                            <tr>
+                                <th>Mã CP</th>
+                                <th>Kỳ</th>
+                                <th>Lô Hàng</th>
+                                <th>Nội Dung Chi Tiết</th>
+                                <th>Số Tiền (VNĐ)</th>
+                                <th>Loại Chứng Từ</th>
+                                <th>Phương Thức</th>
+                                <th>Nhà Cung Cấp / Người Nhận</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in report.tax_risk.non_invoice_costs %}
+                            <tr>
+                                <td class="text-muted">#{{ c.id }}</td>
+                                <td>{{ c.month_year }}</td>
+                                <td class="fw-bold">{{ c.lot_label }}</td>
+                                <td>{{ c.description }}</td>
+                                <td class="fw-bold text-danger">{{ c.total_amount | format_money }}</td>
+                                <td><span class="badge bg-secondary">{{ c.invoice_type }}</span></td>
+                                <td>{{ c.payment_method }}</td>
+                                <td>{{ c.supplier_name }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: ĐỨT GÃY DỮ LIỆU (GAP ANALYSIS) -->
+        <div class="tab-pane fade" id="gap" role="tabpanel">
+            <div class="alert alert-warning border-warning d-flex align-items-start gap-3 p-3 mb-4 rounded-3 shadow-sm">
+                <i class="fa-solid fa-folder-open fa-2x mt-1 text-warning"></i>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">PHÁT HIỆN ĐẶC BIỆT: DỮ LIỆU CHI PHÍ THÁNG 12/2025 BỊ BỎ SÓT (519.66 TRIỆU ĐỒNG)</h6>
+                    <p class="small mb-0 text-muted">
+                        Trong file <code>Báo cáo bán hàng.xlsx</code>, sheet <strong>"Tính lợi nhuận"</strong> chứa dữ liệu chi phí vận hành thực tế của tháng 12/2025 (chi phí Trung Quốc 368M, Phương Uyên 52M, Aqua HN 14.6M, Aqua HP 38.2M...) với tổng chi phí lên tới <strong>519,665,212 VNĐ</strong>. Tuy nhiên sheet này bị hệ thống parser bỏ qua, khiến tháng 12/2025 trên CSDL ghi nhận 0đ chi phí vận hành!
+                    </p>
+                </div>
+            </div>
+
+            <div class="audit-table mb-4">
+                <div class="p-3 bg-light border-bottom">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-chart-column me-2 text-primary"></i> Ma Trận Đối Soát 13 Tháng: Doanh Thu vs Chi Phí Vận Hành
+                    </h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Kỳ Tháng/Năm</th>
+                                <th>Số Lô Bán Hàng</th>
+                                <th>Số Lô CPVH Tự Sinh</th>
+                                <th>Tổng Doanh Thu (VNĐ)</th>
+                                <th>Giá Mua Hàng (VNĐ)</th>
+                                <th>Chi Phí Vận Hành CSDL (VNĐ)</th>
+                                <th>Lợi Nhuận Thuần (VNĐ)</th>
+                                <th>Trạng Thái Chi Phí</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in report.gap_analysis.monthly_breakdown %}
+                            <tr class="{% if m.operating_cost == 0 %}table-danger bg-opacity-10{% endif %}">
+                                <td class="fw-bold">{{ "%02d"|format(m.month) }}/{{ m.year }}</td>
+                                <td>{{ m.sales_lots }}</td>
+                                <td>{{ m.cpvh_lots }}</td>
+                                <td class="fw-bold">{{ m.revenue | format_money }}</td>
+                                <td>{{ m.buy_cost | format_money }}</td>
+                                <td class="fw-bold {% if m.operating_cost == 0 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ m.operating_cost | format_money }}
+                                </td>
+                                <td class="fw-bold {% if (m.revenue - m.buy_cost - m.operating_cost) < 0 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ (m.revenue - m.buy_cost - m.operating_cost) | format_money }}
+                                </td>
+                                <td>
+                                    {% if m.operating_cost == 0 %}
+                                    <span class="badge bg-danger"><i class="fa-solid fa-xmark me-1"></i> KHUYẾT 100% CP</span>
+                                    {% else %}
+                                    <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i> Đầy Đủ</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: GIÁ VỐN & LÔ LỖ -->
+        <div class="tab-pane fade" id="margin" role="tabpanel">
+            <div class="row g-4">
+                <!-- 119 Dịch vụ bán dưới giá vốn -->
+                <div class="col-lg-6">
+                    <div class="audit-table h-100">
+                        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold mb-0 text-danger">
+                                <i class="fa-solid fa-arrow-trend-down me-2"></i> 119 Dịch Vụ Bán Dưới Giá Vốn (Mua > Bán)
+                            </h6>
+                            <span class="badge bg-danger">{{ report.margin_analysis.negative_margin_count }} chuyến</span>
+                        </div>
+                        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Lô / Kỳ</th>
+                                        <th>Khách Hàng</th>
+                                        <th>Nội Dung Tuyến Đường</th>
+                                        <th>Giá Mua (VNĐ)</th>
+                                        <th>Giá Bán (VNĐ)</th>
+                                        <th>Mức Lỗ Gộp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for it in report.margin_analysis.negative_margin_items[:25] %}
+                                    <tr>
+                                        <td><strong>{{ it.lot_label }}</strong> <br><small class="text-muted">{{ it.month_year }}</small></td>
+                                        <td>{{ it.customer }}</td>
+                                        <td class="small">{{ it.service_description }} ({{ it.vehicle_plate }})</td>
+                                        <td>{{ it.buy_price | format_money }}</td>
+                                        <td>{{ it.sell_price | format_money }}</td>
+                                        <td class="fw-bold text-danger">-{{ it.loss_amount | format_money }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 135 Lô hàng âm lợi nhuận -->
+                <div class="col-lg-6">
+                    <div class="audit-table h-100">
+                        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold mb-0 text-danger">
+                                <i class="fa-solid fa-triangle-exclamation me-2"></i> Top Lô Hàng Lỗ Nặng Nhất (135 Lô Âm)
+                            </h6>
+                            <span class="badge bg-danger">{{ report.margin_analysis.loss_lots_count }} lô</span>
+                        </div>
+                        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Lô Hàng</th>
+                                        <th>Khách Hàng</th>
+                                        <th>Doanh Thu</th>
+                                        <th>Tổng Chi Phí</th>
+                                        <th>Lỗ Ròng</th>
+                                        <th>Phân Loại</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for l in report.margin_analysis.loss_lots[:25] %}
+                                    <tr>
+                                        <td><strong>{{ l.lot_label }}</strong> <br><small class="text-muted">{{ l.month_year }}</small></td>
+                                        <td>{{ l.customer }}</td>
+                                        <td>{{ l.revenue | format_money }}</td>
+                                        <td>{{ (l.buy_cost + l.operating_cost) | format_money }}</td>
+                                        <td class="fw-bold text-danger">{{ l.net_profit | format_money }}</td>
+                                        <td>
+                                            {% if l.source_type == 'cpvh' %}
+                                            <span class="badge bg-secondary">CPVH mồ côi</span>
+                                            {% else %}
+                                            <span class="badge bg-danger">Lỗ bán hàng</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: SỔ QUỸ TẠM ỨNG -->
+        <div class="tab-pane fade" id="cash" role="tabpanel">
+            <div class="alert alert-info border-primary d-flex align-items-start gap-3 p-3 mb-4 rounded-3 shadow-sm">
+                <i class="fa-solid fa-circle-info fa-2x mt-1 text-primary"></i>
+                <div>
+                    <h6 class="fw-bold text-dark mb-1">CẢNH BÁO ĐẢO DẤU DÒNG TIỀN: 140 TRIỆU ĐỒNG LƯƠNG XẾP VÀO TIỀN THU</h6>
+                    <p class="small mb-0 text-muted">
+                        Tại kỳ Tháng 05/2026, khoản chi lương <strong>140,000,000 VNĐ</strong> đang được lưu ở cột <code>total_luong_thu</code> (Thu vào) thay vì <code>total_luong_chi</code> (Chi ra). Đồng thời có <strong>{{ report.cash_advance_audit.neg_tuan_chi_count }} giao dịch tạm ứng</strong> lưu dấu âm (VD: -4,000,000 VNĐ) làm sai lệch công thức số dư lũy kế cuối kỳ.
+                    </p>
+                </div>
+            </div>
+
+            <div class="audit-table mb-4">
+                <div class="p-3 bg-light border-bottom">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-book me-2 text-primary"></i> Bảng Đối Soát 12 Kỳ Sổ Quỹ Tạm Ứng
+                    </h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Kỳ Tháng/Năm</th>
+                                <th>Tên Sheet Nguồn</th>
+                                <th>Tồn Đầu Kỳ</th>
+                                <th>Cty Cấp Vốn</th>
+                                <th>Chi Tạm Ứng</th>
+                                <th>Lương Thu (Bất thường)</th>
+                                <th>Lương Chi</th>
+                                <th>Tồn Cuối Kỳ</th>
+                                <th>Khóa Sổ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in report.cash_advance_audit.monthly_records %}
+                            <tr class="{% if m.year == 2026 and m.month == 5 %}table-warning{% endif %}">
+                                <td class="fw-bold">{{ "%02d"|format(m.month) }}/{{ m.year }}</td>
+                                <td>{{ m.sheet_name }}</td>
+                                <td>{{ m.opening_balance | format_money }}</td>
+                                <td class="text-success">{{ m.company_receipts | format_money }}</td>
+                                <td class="text-danger">{{ m.advances_spent | format_money }}</td>
+                                <td class="fw-bold {% if m.luong_thu > 0 %}text-danger bg-warning bg-opacity-25{% endif %}">
+                                    {{ m.luong_thu | format_money }}
+                                </td>
+                                <td>{{ m.luong_chi | format_money }}</td>
+                                <td class="fw-bold">{{ m.closing_balance | format_money }}</td>
+                                <td>
+                                    {% if m.is_locked %}
+                                    <span class="badge bg-secondary"><i class="fa-solid fa-lock"></i> Đã Khóa</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Mở</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: MASTER DATA & PARSER -->
+        <div class="tab-pane fade" id="master" role="tabpanel">
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="card p-4 border-0 shadow-sm h-100">
+                        <h6 class="fw-bold text-danger mb-3">
+                            <i class="fa-solid fa-bug me-2"></i> Phân Tích Lỗi Parser Mất 100% Ngày Bắt Đầu (357 Lô)
+                        </h6>
+                        <p class="small text-muted mb-2">
+                            Trong hàm <code>normalize_text(s)</code>, thuật toán tách dấu NFD loại bỏ Combining Marks <code>Mn</code>. Ký tự tiếng Việt chữ <code>đ</code> không phải dấu tổ hợp mà là ký tự độc lập (Latin small letter d with stroke).
+                        </p>
+                        <div class="bg-light p-3 rounded mb-3 font-monospace small">
+                            Chuỗi gốc Excel: "Ngày bắt đầu chuyến"<br>
+                            &rarr; Sau normalize: "ngay bat <span class="text-danger fw-bold">đau</span> chuyen"<br>
+                            &rarr; Điều kiện tìm kiếm: <code>'bat dau' in norm</code> &rarr; <span class="badge bg-danger">False</span>!
+                        </div>
+                        <p class="small text-muted mb-0">
+                            <strong>Hậu quả:</strong> 100% lô hàng trong hệ thống (357/357) bị gán <code>start_date = NULL</code>. Cần cập nhật hàm để chuyển đổi <code>đ &rarr; d</code> trước khi chuẩn hóa.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card p-4 border-0 shadow-sm h-100">
+                        <h6 class="fw-bold text-warning mb-3">
+                            <i class="fa-solid fa-trash-can me-2"></i> Danh Sách Khách Hàng Rác & Trùng Lặp
+                        </h6>
+                        <ul class="list-group list-group-flush small mb-3">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><strong class="text-danger">Cpvh 11.2025</strong> (ID 21)</span>
+                                <span class="badge bg-secondary">Tên sheet biến thành khách</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><strong class="text-danger">Nhà Cung Cấp</strong> (ID 22)</span>
+                                <span class="badge bg-secondary">Tiêu đề cột biến thành khách</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><strong class="text-danger">Trung Quốc Chi Hộ</strong> (ID 68)</span>
+                                <span class="badge bg-secondary">Đối tác chi hộ biến thành khách</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><strong>Anh Thắng</strong> (ID 8) & <strong>A Thắng</strong> (ID 53)</span>
+                                <span class="badge bg-warning text-dark">Trùng lặp khách hàng</span>
+                            </li>
+                        </ul>
+                        <div class="small text-muted">
+                            Toàn bộ <strong>33/33 khách hàng</strong> trên hệ thống hiện chưa có Mã số thuế, cần hoàn thiện danh bạ pháp nhân.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: KIỂM SOÁT NỘI BỘ -->
+        <div class="tab-pane fade" id="control" role="tabpanel">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card p-4 border-0 shadow-sm text-center">
+                        <div class="h1 fw-bold text-danger mb-1">{{ report.internal_controls.audit_log_count }}</div>
+                        <div class="fw-bold text-dark mb-2">Bản Ghi Nhật Ký Kiểm Toán (Audit Logs)</div>
+                        <div class="small text-muted">
+                            Hệ thống chưa tự động ghi nhận vết khi người dùng sửa, xóa hoặc cập nhật lô hàng và chi phí.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card p-4 border-0 shadow-sm text-center">
+                        <div class="h1 fw-bold text-danger mb-1">{{ report.internal_controls.task_count }}</div>
+                        <div class="fw-bold text-dark mb-2">Nhiệm Vụ Nhập Chi Phí Được Tạo (Tasks)</div>
+                        <div class="small text-muted">
+                            Quy trình giao việc và nhắc hạn deadline qua bot Telegram chưa được khởi chạy trong thực tế.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card p-4 border-0 shadow-sm text-center">
+                        <div class="h1 fw-bold text-warning mb-1">100%</div>
+                        <div class="fw-bold text-dark mb-2">Lô Hàng Ở Trạng Thái Pending</div>
+                        <div class="small text-muted">
+                            357/357 lô hàng chưa từng được đóng sổ hoặc chuyển sang trạng thái Completed.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. ACTION PLAN & REMEDIATION ROADMAP -->
+    <div class="mt-5" id="action-plan-section">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h4 class="fw-bold text-dark mb-0">
+                <i class="fa-solid fa-list-check me-2 text-primary"></i> LỘ TRÌNH KHẮC PHỤC DỮ LIỆU TOÀN DIỆN (ACTION PLAN)
+            </h4>
+            <span class="badge bg-primary px-3 py-2">4 Giai Đoạn Chuẩn Hóa</span>
+        </div>
+
+        <div class="row g-3">
+            <!-- Phase 1 -->
+            <div class="col-md-6 col-lg-3">
+                <div class="action-step-card border-danger">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="step-badge bg-danger text-white">GIAI ĐOẠN 1</span>
+                        <span class="text-danger small fw-bold">ƯU TIÊN SỐ 1</span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-2">Xử Lý Khẩn Cấp Rủi Ro Thuế</h6>
+                    <ul class="small text-muted ps-3 mb-0">
+                        <li>Rà soát và bổ sung hóa đơn GTGT cho 173 khoản chi "Không HĐ".</li>
+                        <li>Thay thế hình thức "Tiền mặt" cho khoản 31.62M Lô CP 11.2 bằng UNC ngân hàng.</li>
+                        <li>Chạy script liên kết tự động 230 dòng chi phí sang 64 nhà cung cấp từ sheet NCC để bổ sung MST.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Phase 2 -->
+            <div class="col-md-6 col-lg-3">
+                <div class="action-step-card border-warning">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="step-badge bg-warning text-dark">GIAI ĐOẠN 2</span>
+                        <span class="text-warning small fw-bold">TÍNH ĐẦY ĐỦ</span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-2">Khôi Phục Dữ Liệu 9 Tháng</h6>
+                    <ul class="small text-muted ps-3 mb-0">
+                        <li>Import bổ sung 519.66 triệu VNĐ chi phí T12/2025 từ sheet "Tính lợi nhuận".</li>
+                        <li>Thu thập bảng kê chi phí các tháng T01/2026 - T06/2026 từ bộ phận kế toán để nạp vào DB.</li>
+                        <li>Tính lại chính xác kết quả kinh doanh và biên lợi nhuận thực tế.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Phase 3 -->
+            <div class="col-md-6 col-lg-3">
+                <div class="action-step-card border-primary">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="step-badge bg-primary text-white">GIAI ĐOẠN 3</span>
+                        <span class="text-primary small fw-bold">SỬA LỖI LOGIC</span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-2">Vá Lỗi Parser & Dọn Dẹp Data</h6>
+                    <ul class="small text-muted ps-3 mb-0">
+                        <li>Sửa hàm <code>normalize_text</code> chuyển <code>đ &rarr; d</code> để khôi phục ngày bắt đầu 357 lô.</li>
+                        <li>Loại bỏ đuôi <code>.0</code> tại số tờ khai hải quan.</li>
+                        <li>Gộp các dòng xe cùng tờ khai vào chung 1 Lô hàng, không nhân bản lô rời.</li>
+                        <li>Xóa 4 khách hàng rác và gộp khách hàng trùng lặp.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Phase 4 -->
+            <div class="col-md-6 col-lg-3">
+                <div class="action-step-card border-success">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="step-badge bg-success text-white">GIAI ĐOẠN 4</span>
+                        <span class="text-success small fw-bold">KIỂM SOÁT</span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-2">Sổ Quỹ & Kiểm Soát Nội Bộ</h6>
+                    <ul class="small text-muted ps-3 mb-0">
+                        <li>Chuyển 140 triệu tiền lương Tháng 05/2026 từ Thu sang Chi.</li>
+                        <li>Chuẩn hóa quy ước dấu số dương cho 51 giao dịch tạm ứng.</li>
+                        <li>Kích hoạt ghi nhật ký <code>audit_logs</code> tự động khi thêm/sửa/xóa.</li>
+                        <li>Đồng bộ hóa database SQLite cục bộ khớp 100% với PostgreSQL Supabase.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function filterTaxTable() {
+    const input = document.getElementById("taxSearchInput");
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById("taxCostTable");
+    const tr = table.getElementsByTagName("tr");
+
+    for (let i = 1; i < tr.length; i++) {
+        const rowText = tr[i].textContent.toLowerCase();
+        if (rowText.includes(filter)) {
+            tr[i].style.display = "";
+        } else {
+            tr[i].style.display = "none";
+        }
+    }
+}
+</script>
+{% endblock %}
