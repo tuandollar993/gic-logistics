@@ -632,13 +632,68 @@ body {
     font-size: 0.75rem;
 }
 
-/* Mobile Bottom Navigation Bar */
+/* Mobile Offcanvas Drawer */
+.gic-mobile-drawer {
+    background-color: #080e1a !important;
+    color: #f8fafc;
+    width: 295px !important;
+    box-shadow: 6px 0 28px rgba(0, 0, 0, 0.45);
+    z-index: 1060;
+}
+
+.gic-mobile-drawer .offcanvas-header {
+    background: #0b1528;
+    padding: 16px;
+}
+
+.gic-mobile-drawer .user-profile-tile {
+    margin: 14px 12px 6px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+}
+
+.gic-mobile-drawer .mobile-drawer-link {
+    color: #94a3b8;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    margin: 2px 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: all 0.15s ease-in-out;
+    text-decoration: none;
+}
+
+.gic-mobile-drawer .mobile-drawer-link:hover,
+.gic-mobile-drawer .mobile-drawer-link:active {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+.gic-mobile-drawer .mobile-drawer-link.active {
+    color: #ffffff;
+    background-color: rgba(2, 132, 199, 0.22);
+    border-left: 3px solid var(--gic-accent-light);
+    font-weight: 600;
+}
+
+.gic-mobile-drawer .mobile-drawer-link i {
+    font-size: 1rem;
+    width: 22px;
+    text-align: center;
+}
+
+/* Mobile Bottom Navigation Bar (6 quick access items) */
 .gic-bottom-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 64px;
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
     background-color: #0b1528;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
@@ -646,21 +701,22 @@ body {
     align-items: stretch;
     justify-content: space-around;
     z-index: 1050;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .gic-bottom-nav .bottom-nav-item {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     color: #94a3b8;
     text-decoration: none;
-    font-size: 0.72rem;
-    font-weight: 500;
-    padding: 6px 2px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    padding: 3px 1px;
     transition: all 0.15s ease-in-out;
     position: relative;
     user-select: none;
@@ -668,7 +724,7 @@ body {
 }
 
 .gic-bottom-nav .bottom-nav-item i {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     transition: transform 0.15s ease;
 }
 
@@ -685,8 +741,8 @@ body {
     content: '';
     position: absolute;
     top: 0;
-    left: 20%;
-    right: 20%;
+    left: 15%;
+    right: 15%;
     height: 3px;
     background: #38bdf8;
     border-radius: 0 0 3px 3px;
@@ -696,6 +752,41 @@ body {
 .gic-bottom-nav .bottom-nav-item.active i {
     transform: translateY(-2px);
     color: #38bdf8;
+}
+
+/* Horizontal scrolling tabs for in-page tabs on mobile */
+.nav-tabs-gic,
+.mobile-scroll-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap !important;
+    scrollbar-width: none;
+    border-bottom: 2px solid var(--gic-border);
+}
+
+.nav-tabs-gic::-webkit-scrollbar,
+.mobile-scroll-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.nav-tabs-gic .nav-link {
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--gic-text-muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    padding: 10px 16px;
+    transition: all 0.15s ease;
+}
+
+.nav-tabs-gic .nav-link.active {
+    color: var(--gic-accent);
+    border-bottom: 2px solid var(--gic-accent);
+    background: transparent;
 }
 
 /* Responsive Overrides on Mobile (< 992px) */
@@ -712,7 +803,7 @@ body {
 
     /* Main content padding for bottom nav & top bar */
     .gic-main-content {
-        padding: 14px 12px 85px !important;
+        padding: 14px 12px calc(75px + env(safe-area-inset-bottom, 0px)) !important;
         width: 100% !important;
         max-width: 100% !important;
         margin: 0 !important;

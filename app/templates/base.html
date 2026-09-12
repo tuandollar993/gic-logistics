@@ -102,6 +102,10 @@
                     <i class="fa-solid fa-boxes-stacked"></i>
                     <span>Lô Hàng Được Giao</span>
                 </a>
+                <a class="nav-link {% if request.endpoint and 'customers' in request.endpoint %}active{% endif %}" href="{{ url_for('customers.index') }}">
+                    <i class="fa-solid fa-building-user"></i>
+                    <span>Khách Hàng</span>
+                </a>
                 <a class="nav-link {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" href="{{ url_for('quotations.index') }}">
                     <i class="fa-solid fa-file-invoice-dollar"></i>
                     <span>Đề Xuất Báo Giá</span>
@@ -131,6 +135,9 @@
         <!-- Mobile Topbar Header (Visible only on screens < 992px) -->
         <header class="gic-mobile-topbar d-lg-none">
             <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-link text-white p-1 me-1 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavDrawer" aria-controls="mobileNavDrawer" title="Mở danh mục menu">
+                    <i class="fa-solid fa-bars fs-5"></i>
+                </button>
                 <div class="brand-icon-wrapper" style="width: 32px; height: 32px; font-size: 0.85rem; background: var(--gic-accent); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;">
                     <i class="fa-solid fa-ship text-white"></i>
                 </div>
@@ -153,6 +160,123 @@
                 {% endif %}
             </div>
         </header>
+
+        <!-- Mobile Offcanvas Drawer: Full Navigation Menu for Phones -->
+        <div class="offcanvas offcanvas-start gic-mobile-drawer border-0" tabindex="-1" id="mobileNavDrawer" aria-labelledby="mobileNavDrawerLabel">
+            <div class="offcanvas-header border-bottom border-secondary border-opacity-25 py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="brand-icon-wrapper" style="width: 34px; height: 34px; font-size: 0.9rem; background: var(--gic-accent); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-ship text-white"></i>
+                    </div>
+                    <div>
+                        <h6 class="offcanvas-title fw-bold text-white font-mono m-0" id="mobileNavDrawerLabel">GIC LOGISTICS</h6>
+                        <small class="text-secondary" style="font-size: 0.7rem;">Hệ Thống Điều Hành & Báo Cáo</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body p-0 d-flex flex-column">
+                <!-- User Profile Tile -->
+                <div class="user-profile-tile m-3 p-2 rounded-3" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="user-avatar" style="width: 36px; height: 36px; background: var(--gic-navy-700); color: #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">
+                            {{ current_user.full_name[:1] if current_user.is_authenticated else 'G' }}
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="text-white fw-bold text-truncate" style="font-size: 0.88rem;">
+                                {{ current_user.full_name if current_user.is_authenticated else 'Khách' }}
+                            </div>
+                            <span class="badge {% if current_user.is_authenticated and current_user.is_manager %}bg-primary{% else %}bg-secondary{% endif %}" style="font-size: 0.65rem; font-weight: 700;">
+                                {{ current_user.role.upper() if current_user.is_authenticated else 'GUEST' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complete Nav Items -->
+                <nav class="nav flex-column flex-grow-1 px-2">
+                    <div class="nav-section-label px-3 py-2 text-uppercase text-secondary fw-bold" style="font-size: 0.65rem; letter-spacing: 0.08em;">Tất Cả Danh Mục Chức Năng</div>
+
+                    {% if current_user.is_authenticated and current_user.is_manager %}
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}" href="{{ url_for('dashboard.index') }}">
+                        <i class="fa-solid fa-chart-simple"></i>
+                        <span>Dashboard Doanh Thu</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'reports' in request.endpoint %}active{% endif %}" href="{{ url_for('reports.index') }}">
+                        <i class="fa-solid fa-robot"></i>
+                        <span>Báo Cáo AI Thông Minh</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'advances' in request.endpoint %}active{% endif %}" href="{{ url_for('advances.index') }}">
+                        <i class="fa-solid fa-hand-holding-dollar"></i>
+                        <span>Dòng Tiền Tạm Ứng</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span>Quản Lý Lô Hàng</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'customers' in request.endpoint %}active{% endif %}" href="{{ url_for('customers.index') }}">
+                        <i class="fa-solid fa-building-user"></i>
+                        <span>Quản Lý Khách Hàng</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" href="{{ url_for('quotations.index') }}">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                        <span>Đề Xuất Báo Giá</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint == 'tasks.tracking' %}active{% endif %}" href="{{ url_for('tasks.tracking') }}">
+                        <i class="fa-solid fa-stopwatch"></i>
+                        <span>Theo Dõi Deadline CPVH</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}" href="{{ url_for('suppliers.index') }}">
+                        <i class="fa-solid fa-truck-field"></i>
+                        <span>Thông Tin Nhà Cung Cấp</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'users' in request.endpoint %}active{% endif %}" href="{{ url_for('users.index') }}">
+                        <i class="fa-solid fa-users-gear"></i>
+                        <span>Quản Lý Nhân Viên</span>
+                    </a>
+                    {% endif %}
+
+                    {% if current_user.is_authenticated and not current_user.is_manager %}
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint == 'tasks.my_tasks' %}active{% endif %}" href="{{ url_for('tasks.my_tasks') }}">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span>Nhiệm Vụ Của Tôi</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'advances' in request.endpoint %}active{% endif %}" href="{{ url_for('advances.index') }}">
+                        <i class="fa-solid fa-hand-holding-dollar"></i>
+                        <span>Dòng Tiền Tạm Ứng</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" href="{{ url_for('lots.index') }}">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                        <span>Lô Hàng Được Giao</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'customers' in request.endpoint %}active{% endif %}" href="{{ url_for('customers.index') }}">
+                        <i class="fa-solid fa-building-user"></i>
+                        <span>Quản Lý Khách Hàng</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" href="{{ url_for('quotations.index') }}">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                        <span>Đề Xuất Báo Giá</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}" href="{{ url_for('suppliers.index') }}">
+                        <i class="fa-solid fa-truck-field"></i>
+                        <span>Thông Tin Nhà Cung Cấp</span>
+                    </a>
+                    <a class="nav-link mobile-drawer-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}" href="{{ url_for('dashboard.index') }}">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>Xem Báo Cáo Chung</span>
+                    </a>
+                    {% endif %}
+                </nav>
+
+                <!-- Bottom Logout in Drawer -->
+                <div class="p-3 mt-auto border-top border-secondary border-opacity-25">
+                    <a href="#" onclick="event.preventDefault(); document.getElementById('globalLogoutForm').submit();" class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span>Đăng Xuất Tài Khoản</span>
+                    </a>
+                </div>
+            </div>
+        </div>
 
         <!-- Main Workspace -->
         <main class="gic-main-content">
@@ -182,47 +306,55 @@
     {% if current_user.is_authenticated %}
     <nav class="gic-bottom-nav d-lg-none">
         {% if current_user.is_manager %}
-            <a href="{{ url_for('dashboard.index') }}" class="bottom-nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+            <a href="{{ url_for('dashboard.index') }}" class="bottom-nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}" title="Báo cáo doanh thu">
                 <i class="fa-solid fa-chart-simple"></i>
                 <span>Báo Cáo</span>
             </a>
-            <a href="{{ url_for('lots.index') }}" class="bottom-nav-item {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}">
+            <a href="{{ url_for('lots.index') }}" class="bottom-nav-item {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" title="Quản lý lô hàng">
                 <i class="fa-solid fa-layer-group"></i>
                 <span>Lô Hàng</span>
             </a>
-            <a href="{{ url_for('tasks.tracking') }}" class="bottom-nav-item {% if request.endpoint == 'tasks.tracking' %}active{% endif %}">
-                <i class="fa-solid fa-stopwatch"></i>
-                <span>Hạn Chót</span>
+            <a href="{{ url_for('customers.index') }}" class="bottom-nav-item {% if request.endpoint and 'customers' in request.endpoint %}active{% endif %}" title="Quản lý khách hàng">
+                <i class="fa-solid fa-building-user"></i>
+                <span>Khách</span>
             </a>
-            <a href="{{ url_for('suppliers.index') }}" class="bottom-nav-item {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}">
-                <i class="fa-solid fa-truck-field"></i>
-                <span>Nhà CC</span>
+            <a href="{{ url_for('quotations.index') }}" class="bottom-nav-item {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" title="Đề xuất báo giá">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+                <span>Báo Giá</span>
             </a>
-            <a href="{{ url_for('users.index') }}" class="bottom-nav-item {% if request.endpoint and 'users' in request.endpoint %}active{% endif %}">
-                <i class="fa-solid fa-users-gear"></i>
-                <span>Nhân Sự</span>
+            <a href="{{ url_for('advances.index') }}" class="bottom-nav-item {% if request.endpoint and 'advances' in request.endpoint %}active{% endif %}" title="Dòng tiền tạm ứng">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+                <span>Tạm Ứng</span>
             </a>
+            <button type="button" class="bottom-nav-item border-0 bg-transparent {% if request.endpoint and ('reports' in request.endpoint or 'tasks' in request.endpoint or 'suppliers' in request.endpoint or 'users' in request.endpoint) %}active{% endif %}" data-bs-toggle="offcanvas" data-bs-target="#mobileNavDrawer" aria-controls="mobileNavDrawer" title="Xem tất cả menu">
+                <i class="fa-solid fa-bars"></i>
+                <span>Thêm</span>
+            </button>
         {% else %}
-            <a href="{{ url_for('tasks.my_tasks') }}" class="bottom-nav-item {% if request.endpoint == 'tasks.my_tasks' %}active{% endif %}">
+            <a href="{{ url_for('tasks.my_tasks') }}" class="bottom-nav-item {% if request.endpoint == 'tasks.my_tasks' %}active{% endif %}" title="Nhiệm vụ của tôi">
                 <i class="fa-solid fa-list-check"></i>
                 <span>Nhiệm Vụ</span>
             </a>
-            <a href="{{ url_for('lots.index') }}" class="bottom-nav-item {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}">
+            <a href="{{ url_for('lots.index') }}" class="bottom-nav-item {% if request.endpoint and 'lots' in request.endpoint %}active{% endif %}" title="Lô hàng được giao">
                 <i class="fa-solid fa-boxes-stacked"></i>
                 <span>Lô Hàng</span>
             </a>
-            <a href="{{ url_for('suppliers.index') }}" class="bottom-nav-item {% if request.endpoint and 'suppliers' in request.endpoint %}active{% endif %}">
-                <i class="fa-solid fa-truck-field"></i>
-                <span>Nhà CC</span>
+            <a href="{{ url_for('customers.index') }}" class="bottom-nav-item {% if request.endpoint and 'customers' in request.endpoint %}active{% endif %}" title="Quản lý khách hàng">
+                <i class="fa-solid fa-building-user"></i>
+                <span>Khách</span>
             </a>
-            <a href="{{ url_for('dashboard.index') }}" class="bottom-nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
-                <i class="fa-solid fa-chart-line"></i>
-                <span>Báo Cáo</span>
+            <a href="{{ url_for('quotations.index') }}" class="bottom-nav-item {% if request.endpoint and 'quotations' in request.endpoint %}active{% endif %}" title="Đề xuất báo giá">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+                <span>Báo Giá</span>
             </a>
-            <a href="#" onclick="event.preventDefault(); document.getElementById('globalLogoutForm').submit();" class="bottom-nav-item text-danger">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                <span>Thoát</span>
+            <a href="{{ url_for('advances.index') }}" class="bottom-nav-item {% if request.endpoint and 'advances' in request.endpoint %}active{% endif %}" title="Dòng tiền tạm ứng">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+                <span>Tạm Ứng</span>
             </a>
+            <button type="button" class="bottom-nav-item border-0 bg-transparent {% if request.endpoint and ('dashboard' in request.endpoint or 'suppliers' in request.endpoint) %}active{% endif %}" data-bs-toggle="offcanvas" data-bs-target="#mobileNavDrawer" aria-controls="mobileNavDrawer" title="Xem tất cả menu">
+                <i class="fa-solid fa-bars"></i>
+                <span>Thêm</span>
+            </button>
         {% endif %}
     </nav>
     {% endif %}
