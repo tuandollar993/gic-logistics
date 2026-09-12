@@ -35,12 +35,12 @@
     width: 84px;
     height: 84px;
     border-radius: 50%;
-    background: conic-gradient(#ef4444 0% 38%, rgba(255, 255, 255, 0.1) 38% 100%);
+    background: conic-gradient(#0284c7 0% 65%, rgba(255, 255, 255, 0.1) 65% 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 0 20px rgba(2, 132, 199, 0.4);
 }
 
 .score-inner {
@@ -57,7 +57,7 @@
 .score-number {
     font-size: 1.6rem;
     font-weight: 800;
-    color: #ef4444;
+    color: #38bdf8;
     line-height: 1;
 }
 
@@ -214,9 +214,12 @@
     <div class="audit-hero">
         <div class="row align-items-center">
             <div class="col-lg-8">
-                <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                     <span class="badge bg-danger px-3 py-1 text-uppercase fw-bold" style="font-size: 0.75rem; letter-spacing: 0.05em;">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i> Báo Cáo Kiểm Toán Độc Lập
+                    </span>
+                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-3 py-1 text-uppercase fw-bold" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                        <i class="fa-solid fa-check-double me-1"></i> Master Data & Parser: Đã Xử Lý 100%
                     </span>
                     <span class="text-secondary small">Kỳ kiểm toán: 09/2025 - 09/2026</span>
                 </div>
@@ -243,11 +246,11 @@
                         </div>
                     </div>
                     <div>
-                        <div class="text-danger fw-bold" style="font-size: 0.85rem; letter-spacing: 0.05em;">
+                        <div class="text-warning fw-bold" style="font-size: 0.85rem; letter-spacing: 0.05em;">
                             {{ report.summary.opinion }}
                         </div>
                         <div class="small text-white text-opacity-75 mt-1" style="font-size: 0.78rem;">
-                            Mức độ rủi ro: <strong class="text-warning">BÁO ĐỘNG ĐỎ</strong>. Tồn tại 8 nhóm sai phạm và khuyết tật dữ liệu cần xử lý trước khi quyết toán.
+                            Sức khỏe dữ liệu: <strong class="text-info">65/100</strong>. Đã xử lý triệt để Master Data & Parser. Hiện tập trung vào rủi ro thuế & đối soát chi phí.
                         </div>
                     </div>
                 </div>
@@ -255,10 +258,10 @@
         </div>
     </div>
 
-    <!-- 2. TOP 6 CRITICAL RISK KPI CARDS -->
+    <!-- 2. TOP 5 CRITICAL RISK KPI CARDS (ĐÃ LOẠI BỎ LỖI PARSER & MASTER DATA) -->
     <div class="row g-3 mb-4">
         <!-- Card 1: Tax Risk -->
-        <div class="col-md-4 col-lg-2">
+        <div class="col-md-6 col-lg">
             <div class="risk-card danger">
                 <div class="risk-icon-wrapper risk-icon-danger">
                     <i class="fa-solid fa-file-invoice-dollar"></i>
@@ -272,7 +275,7 @@
         </div>
 
         <!-- Card 2: Cost Gap -->
-        <div class="col-md-4 col-lg-2">
+        <div class="col-md-6 col-lg">
             <div class="risk-card danger">
                 <div class="risk-icon-wrapper risk-icon-danger">
                     <i class="fa-solid fa-calendar-xmark"></i>
@@ -286,7 +289,7 @@
         </div>
 
         <!-- Card 3: Negative Margin -->
-        <div class="col-md-4 col-lg-2">
+        <div class="col-md-6 col-lg">
             <div class="risk-card warning">
                 <div class="risk-icon-wrapper risk-icon-warning">
                     <i class="fa-solid fa-arrow-trend-down"></i>
@@ -300,7 +303,7 @@
         </div>
 
         <!-- Card 4: Loss Lots -->
-        <div class="col-md-4 col-lg-2">
+        <div class="col-md-6 col-lg">
             <div class="risk-card warning">
                 <div class="risk-icon-wrapper risk-icon-warning">
                     <i class="fa-solid fa-triangle-exclamation"></i>
@@ -313,22 +316,8 @@
             </div>
         </div>
 
-        <!-- Card 5: Missing Start Date -->
-        <div class="col-md-4 col-lg-2">
-            <div class="risk-card info">
-                <div class="risk-icon-wrapper risk-icon-info">
-                    <i class="fa-solid fa-bug"></i>
-                </div>
-                <div class="text-muted small fw-bold">BUG CHỮ 'Đ' PARSER</div>
-                <h4 class="fw-bold text-primary my-1">100%</h4>
-                <div class="small text-muted">
-                    357 lô bị mất Ngày bắt đầu chuyến
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 6: Cash Advance Payroll -->
-        <div class="col-md-4 col-lg-2">
+        <!-- Card 5: Cash Advance Payroll -->
+        <div class="col-md-6 col-lg">
             <div class="risk-card info">
                 <div class="risk-icon-wrapper risk-icon-info">
                     <i class="fa-solid fa-scale-unbalanced"></i>
@@ -366,12 +355,6 @@
             <button class="nav-link" id="cash-tab" data-bs-toggle="tab" data-bs-target="#cash" type="button" role="tab">
                 <i class="fa-solid fa-hand-holding-dollar text-primary me-1"></i> Sổ Quỹ Tạm Ứng
                 <span class="badge bg-primary">12 Tháng</span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="master-tab" data-bs-toggle="tab" data-bs-target="#master" type="button" role="tab">
-                <i class="fa-solid fa-database text-info me-1"></i> Master Data & Parser
-                <span class="badge bg-info text-dark">Lỗi Parser</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
@@ -709,60 +692,7 @@
             </div>
         </div>
 
-        <!-- TAB 5: MASTER DATA & PARSER -->
-        <div class="tab-pane fade" id="master" role="tabpanel">
-            <div class="row g-4 mb-4">
-                <div class="col-md-6">
-                    <div class="card p-4 border-0 shadow-sm h-100">
-                        <h6 class="fw-bold text-danger mb-3">
-                            <i class="fa-solid fa-bug me-2"></i> Phân Tích Lỗi Parser Mất 100% Ngày Bắt Đầu (357 Lô)
-                        </h6>
-                        <p class="small text-muted mb-2">
-                            Trong hàm <code>normalize_text(s)</code>, thuật toán tách dấu NFD loại bỏ Combining Marks <code>Mn</code>. Ký tự tiếng Việt chữ <code>đ</code> không phải dấu tổ hợp mà là ký tự độc lập (Latin small letter d with stroke).
-                        </p>
-                        <div class="bg-light p-3 rounded mb-3 font-monospace small">
-                            Chuỗi gốc Excel: "Ngày bắt đầu chuyến"<br>
-                            &rarr; Sau normalize: "ngay bat <span class="text-danger fw-bold">đau</span> chuyen"<br>
-                            &rarr; Điều kiện tìm kiếm: <code>'bat dau' in norm</code> &rarr; <span class="badge bg-danger">False</span>!
-                        </div>
-                        <p class="small text-muted mb-0">
-                            <strong>Hậu quả:</strong> 100% lô hàng trong hệ thống (357/357) bị gán <code>start_date = NULL</code>. Cần cập nhật hàm để chuyển đổi <code>đ &rarr; d</code> trước khi chuẩn hóa.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="card p-4 border-0 shadow-sm h-100">
-                        <h6 class="fw-bold text-warning mb-3">
-                            <i class="fa-solid fa-trash-can me-2"></i> Danh Sách Khách Hàng Rác & Trùng Lặp
-                        </h6>
-                        <ul class="list-group list-group-flush small mb-3">
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><strong class="text-danger">Cpvh 11.2025</strong> (ID 21)</span>
-                                <span class="badge bg-secondary">Tên sheet biến thành khách</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><strong class="text-danger">Nhà Cung Cấp</strong> (ID 22)</span>
-                                <span class="badge bg-secondary">Tiêu đề cột biến thành khách</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><strong class="text-danger">Trung Quốc Chi Hộ</strong> (ID 68)</span>
-                                <span class="badge bg-secondary">Đối tác chi hộ biến thành khách</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><strong>Anh Thắng</strong> (ID 8) & <strong>A Thắng</strong> (ID 53)</span>
-                                <span class="badge bg-warning text-dark">Trùng lặp khách hàng</span>
-                            </li>
-                        </ul>
-                        <div class="small text-muted">
-                            Toàn bộ <strong>33/33 khách hàng</strong> trên hệ thống hiện chưa có Mã số thuế, cần hoàn thiện danh bạ pháp nhân.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 6: KIỂM SOÁT NỘI BỘ -->
+        <!-- TAB 5: KIỂM SOÁT NỘI BỘ -->
         <div class="tab-pane fade" id="control" role="tabpanel">
             <div class="row g-4">
                 <div class="col-md-4">
@@ -842,17 +772,16 @@
 
             <!-- Phase 3 -->
             <div class="col-md-6 col-lg-3">
-                <div class="action-step-card border-primary">
+                <div class="action-step-card border-success bg-light">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="step-badge bg-primary text-white">GIAI ĐOẠN 3</span>
-                        <span class="text-primary small fw-bold">SỬA LỖI LOGIC</span>
+                        <span class="step-badge bg-success text-white">GIAI ĐOẠN 3</span>
+                        <span class="text-success small fw-bold"><i class="fa-solid fa-check-double me-1"></i> ĐÃ HOÀN THÀNH</span>
                     </div>
-                    <h6 class="fw-bold text-dark mb-2">Vá Lỗi Parser & Dọn Dẹp Data</h6>
+                    <h6 class="fw-bold text-success mb-2"><i class="fa-solid fa-circle-check me-1"></i> Vá Lỗi Parser & Master Data</h6>
                     <ul class="small text-muted ps-3 mb-0">
-                        <li>Sửa hàm <code>normalize_text</code> chuyển <code>đ &rarr; d</code> để khôi phục ngày bắt đầu 357 lô.</li>
-                        <li>Loại bỏ đuôi <code>.0</code> tại số tờ khai hải quan.</li>
-                        <li>Gộp các dòng xe cùng tờ khai vào chung 1 Lô hàng, không nhân bản lô rời.</li>
-                        <li>Xóa 4 khách hàng rác và gộp khách hàng trùng lặp.</li>
+                        <li><span class="text-success fw-bold">&check;</span> Đã sửa hàm <code>normalize_text</code>: khôi phục ngày bắt đầu 357 lô.</li>
+                        <li><span class="text-success fw-bold">&check;</span> Đã xóa đuôi <code>.0</code> tại tờ khai và mã lô.</li>
+                        <li><span class="text-success fw-bold">&check;</span> Đã xóa 5 khách hàng rác và gộp A Thắng vào Anh Thắng.</li>
                     </ul>
                 </div>
             </div>

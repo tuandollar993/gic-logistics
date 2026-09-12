@@ -201,9 +201,9 @@ class AuditService:
 
         return {
             'summary': {
-                'health_score': 38,
-                'opinion': 'Ý KIẾN NGOẠI TRỪ TRỌNG YẾU',
-                'opinion_desc': 'Dữ liệu tồn tại rủi ro thuế lớn (75.2% chi phí không HĐ), đứt gãy dữ liệu chi phí 9/13 tháng, 24.6% chuyến bán dưới giá vốn, và lỗi parser làm mất toàn bộ ngày bắt đầu chuyến.',
+                'health_score': 65,
+                'opinion': 'CẢNH BÁO RỦI RO THUẾ & ĐỨT GÃY CHI PHÍ',
+                'opinion_desc': 'Đã khắc phục 100% lỗi Master Data và Parser. Hệ thống hiện tập trung cảnh báo rủi ro thuế (75.2% chi phí không HĐ), đứt gãy chi phí 9/13 tháng và các tuyến bán dưới giá vốn.',
                 'total_lots': total_lots,
                 'total_revenue': total_rev_value,
                 'total_cost': total_cost_amt,

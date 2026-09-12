@@ -9,12 +9,13 @@ from app.models import Customer, Supplier, Target, Lot, RevenueItem, OperatingCo
 
 def normalize_text(s):
     """
-    Normalize string: strip accents (combining marks), lowercase, collapse whitespace.
-    Converts: 'TỔNG CỘNG' -> 'tong cong', 'TỔNG CƯỚC' -> 'tong cuoc', 'Tổng chi phí' -> 'tong chi phi'
+    Normalize string: replace đ/Đ with d, strip accents (combining marks), lowercase, collapse whitespace.
+    Converts: 'TỔNG CỘNG' -> 'tong cong', 'Ngày bắt đầu chuyến' -> 'ngay bat dau chuyen'
     """
     if s is None:
         return ''
-    s = unicodedata.normalize('NFD', str(s))
+    s = str(s).replace('đ', 'd').replace('Đ', 'd')
+    s = unicodedata.normalize('NFD', s)
     s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
     return ' '.join(s.lower().split())
 
@@ -22,6 +23,8 @@ def clean_str(val):
     if val is None:
         return ''
     s = str(val).strip()
+    if s.endswith('.0') and s[:-2].isdigit():
+        s = s[:-2]
     return s
 
 def clean_float(val):
@@ -389,6 +392,11 @@ class ExcelParserService:
                     # Enterprise company takes priority over individual contact (e.g. 'Anh Thắng' -> 'Sunluxe')
                     norm_c = cust_name.lower() if cust_name else ''
                     resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
+                    if resolved_cust.lower().strip() in ['cpvh', 'nhà cung cấp', 'nha cung cap', 'trung quốc chi hộ', 'chi hộ', 'trung quốc', 'cpvh 11.2025', 'a thắng', 'a thang']:
+                        if 'thắng' in resolved_cust.lower() or 'thang' in resolved_cust.lower():
+                            resolved_cust = 'Anh Thắng'
+                        else:
+                            resolved_cust = 'Khách vãng lai'
                     cust = get_or_create_customer(resolved_cust)
                     current_lot = Lot(
                         lot_label=lot_label or f"Lô {lot_counter}",

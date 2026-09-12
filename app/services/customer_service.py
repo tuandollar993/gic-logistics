@@ -16,6 +16,22 @@ CUSTOMER_ALIASES = {
     'keep_rise': ('Keep Rise', 'KEEPRISE', None),
     'keep-rise': ('Keep Rise', 'KEEPRISE', None),
 
+    # Anh Thắng variations
+    'anh thắng': ('Anh Thắng', 'ANHTHNG', 'Mr. Thắng'),
+    'anh thang': ('Anh Thắng', 'ANHTHNG', 'Mr. Thắng'),
+    'a thắng': ('Anh Thắng', 'ANHTHNG', 'Mr. Thắng'),
+    'a thang': ('Anh Thắng', 'ANHTHNG', 'Mr. Thắng'),
+
+    # Junk customer redirects to Khách vãng lai
+    'cpvh': ('Khách vãng lai', 'RETAIL', None),
+    'cpvh 11.2025': ('Khách vãng lai', 'RETAIL', None),
+    'nhà cung cấp': ('Khách vãng lai', 'RETAIL', None),
+    'nha cung cap': ('Khách vãng lai', 'RETAIL', None),
+    'trung quốc chi hộ': ('Khách vãng lai', 'RETAIL', None),
+    'trung quoc chi ho': ('Khách vãng lai', 'RETAIL', None),
+    'trung quốc': ('Khách vãng lai', 'RETAIL', None),
+    'trung quoc': ('Khách vãng lai', 'RETAIL', None),
+
     # Sunluxe variations
     'sunluxe': ('Sunluxe', 'SUNLUXE', 'Mr. Thắng'),
     'sun luxe': ('Sunluxe', 'SUNLUXE', 'Mr. Thắng'),
