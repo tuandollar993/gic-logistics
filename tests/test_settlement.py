@@ -194,3 +194,70 @@ def test_reminder_service_advance_refund(app, sample_transactions):
         res = ReminderService.run_advance_refund_reminder()
         assert isinstance(res, dict)
         assert 'reminded' in res
+
+
+def test_lot_reconciliation_and_export(auth_client_manager, app, sample_transactions):
+    from app.models import Lot, OperatingCost
+    from app.services.settlement_service import (
+        preview_lot_reconciliation,
+        apply_lot_reconciliation,
+        export_no_invoice_excel
+    )
+
+    with app.app_context():
+        # Create a sample Lot and OperatingCost matching tx2 (amount 200,000)
+        lot = Lot(month=11, year=2026, lot_label='Lô Test 11', company='GIC Test')
+        db.session.add(lot)
+        db.session.flush()
+
+        cost = OperatingCost(
+            lot_id=lot.id,
+            description='Chi mua nước uống tiền mặt',
+            total_amount=200000.0,
+            invoice_type='Không HĐ',
+            is_deleted=False
+        )
+        db.session.add(cost)
+        db.session.commit()
+
+        # Preview
+        matches = preview_lot_reconciliation(11, 2026)
+        assert len(matches) >= 1
+        m = [match for match in matches if match['trans_amount'] == 200000.0][0]
+        assert m['proposed_category'] == 'no_invoice'
+
+        # Apply
+        applied = apply_lot_reconciliation(11, 2026)
+        assert applied >= 1
+
+        tx2 = db.session.get(CashAdvanceTransaction, sample_transactions[1])
+        assert tx2.invoice_category == 'no_invoice'
+
+        # Test export no-invoice excel
+        fpath, fname, count, tot = export_no_invoice_excel(11, 2026)
+        assert count >= 1
+        assert tot >= 200000.0
+        import os
+        assert os.path.exists(fpath)
+
+    # Test export route
+    res = auth_client_manager.get('/advances/export-no-invoice?month=11&year=2026')
+    assert res.status_code == 200
+    assert 'spreadsheet' in res.content_type or 'excel' in res.content_type or 'octet-stream' in res.content_type
+
+    # Test preview API
+    res = auth_client_manager.get('/advances/reconciliation/preview/11/2026')
+    assert res.status_code == 200
+    assert res.json['success'] is True
+
+    # Test reset month
+    with auth_client_manager.session_transaction() as sess:
+        sess['_csrf_token'] = 'test-token'
+    res = auth_client_manager.post(
+        '/advances/settlement/reset-month/11/2026',
+        json={'csrf_token': 'test-token'},
+        headers={'X-CSRF-Token': 'test-token'}
+    )
+    assert res.status_code == 200
+    assert res.json['success'] is True
+

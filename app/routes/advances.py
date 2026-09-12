@@ -86,10 +86,11 @@ def index():
                q_lower in (t.accounting_status or '').lower()
         ]
 
-    # Settlement data
-    from app.services.settlement_service import calculate_settlement_summary, get_pending_exclusions
+    # Settlement data & Lot reconciliation
+    from app.services.settlement_service import calculate_settlement_summary, get_pending_exclusions, preview_lot_reconciliation
     settlement_summary = calculate_settlement_summary(selected_month, selected_year)
     pending_exclusions = get_pending_exclusions()
+    recon_matches = preview_lot_reconciliation(selected_month, selected_year)
 
     return render_template(
         'advances.html',
@@ -101,7 +102,8 @@ def index():
         transactions=transactions,
         query=query,
         settlement=settlement_summary,
-        pending_exclusions=pending_exclusions
+        pending_exclusions=pending_exclusions,
+        recon_matches=recon_matches
     )
 
 
@@ -819,3 +821,76 @@ def reopen_settlement(month, year):
         return jsonify({'success': True, 'settlement': settlement.to_dict()})
     flash(f"Đã MỞ LẠI chốt kế toán Tháng {month:02d}/{year}.", "info")
     return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/export-no-invoice', methods=['GET'])
+@login_required
+@manager_required
+def export_no_invoice():
+    """Xuất file Excel danh sách các khoản Không HĐ để kế toán mail xin Sếp tổng duyệt."""
+    from app.services.settlement_service import export_no_invoice_excel
+    month = request.args.get('month', type=int, default=8)
+    year = request.args.get('year', type=int, default=2026)
+    try:
+        file_path, filename, count, total_amt = export_no_invoice_excel(month, year)
+        return send_file(file_path, as_attachment=True, download_name=filename)
+    except Exception as e:
+        flash(f"Lỗi xuất file Excel các khoản không HĐ: {e}", "danger")
+        return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/reconciliation/preview/<int:month>/<int:year>', methods=['GET'])
+@login_required
+@manager_required
+def reconciliation_preview(month, year):
+    """API xem trước các khoản chi phí Lô hàng khớp với dòng tiền tạm ứng."""
+    from app.services.settlement_service import preview_lot_reconciliation
+    matches = preview_lot_reconciliation(month, year)
+    return jsonify({'success': True, 'count': len(matches), 'matches': matches})
+
+
+@advances_bp.route('/reconciliation/apply/<int:month>/<int:year>', methods=['POST'])
+@login_required
+@manager_required
+def reconciliation_apply(month, year):
+    """Áp dụng đối chiếu từ Chi phí Lô hàng sang Dòng tiền tạm ứng."""
+    from app.services.settlement_service import apply_lot_reconciliation
+    payload = request.get_json(silent=True) or request.form.to_dict() or {}
+    selected_ids = payload.get('selected_trans_ids')
+    if isinstance(selected_ids, str):
+        selected_ids = [int(x.strip()) for x in selected_ids.split(',') if x.strip().isdigit()]
+
+    count = apply_lot_reconciliation(month, year, selected_ids)
+    log_audit('apply_lot_reconciliation', 'settlement', f"{month}/{year}",
+              f"Applied lot reconciliation for {count} transactions")
+    db.session.flush()
+    db.session.commit()
+    msg = f"Đã tự động đối chiếu và cập nhật thành công {count} khoản chi từ Lô hàng!"
+    if request.is_json:
+        return jsonify({'success': True, 'applied_count': count, 'message': msg})
+    flash(msg, "success")
+    return redirect(url_for('advances.index', month=month, year=year))
+
+
+@advances_bp.route('/settlement/reset-month/<int:month>/<int:year>', methods=['POST'])
+@login_required
+@manager_required
+def reset_month_classification(month, year):
+    """Đặt lại trạng thái phân loại HĐ của toàn bộ giao dịch trong tháng về 'Chưa xác định'."""
+    CashAdvanceTransaction.query.filter_by(
+        month=month, year=year, is_deleted=False
+    ).update({
+        'invoice_category': 'unknown',
+        'refund_status': 'pending',
+        'refund_deadline': None,
+        'exclusion_status': None
+    })
+    log_audit('reset_classification', 'settlement', f"{month}/{year}", f"Reset classification for {month}/{year}")
+    db.session.flush()
+    db.session.commit()
+    msg = f"Đã đặt lại toàn bộ giao dịch Tháng {month:02d}/{year} về trạng thái 'Chưa xác định'."
+    if request.is_json:
+        return jsonify({'success': True, 'message': msg})
+    flash(msg, "info")
+    return redirect(url_for('advances.index', month=month, year=year))
+

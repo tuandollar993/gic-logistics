@@ -191,16 +191,46 @@
                     <span class="badge bg-warning text-dark"><i class="fa-solid fa-lock-open me-1"></i>ĐANG MỞ</span>
                 {% endif %}
             </div>
-            <div class="d-flex gap-2 flex-wrap">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <!-- Nút Đối chiếu từ Chi phí Lô hàng -->
+                <button type="button" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 shadow-sm" data-bs-toggle="modal" data-bs-target="#lotReconModal" title="Tự động đối chiếu chi phí Lô hàng sang Bảng dòng tiền tạm ứng">
+                    <i class="fa-solid fa-boxes-stacked text-primary"></i>
+                    <span>Đối chiếu từ Lô hàng</span>
+                    {% if recon_matches %}
+                        <span class="badge bg-primary text-white rounded-pill px-1" style="font-size: 0.65rem;">{{ recon_matches|length }}</span>
+                    {% endif %}
+                </button>
+
+                <!-- Nút Tải bảng kê Không HĐ gửi Sếp tổng -->
+                <a href="{{ url_for('advances.export_no_invoice', month=selected_month, year=selected_year) }}" 
+                   class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-sm text-decoration-none"
+                   title="Xuất file Excel bảng kê các khoản không có HĐ để kế toán mail xin Sếp tổng duyệt loại trừ">
+                    <i class="fa-solid fa-file-excel text-danger"></i>
+                    <span>Tải DS Không HĐ (Gửi Sếp)</span>
+                </a>
+
+                <!-- Nút Mẫu Email gửi Sếp -->
+                <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 shadow-sm" data-bs-toggle="modal" data-bs-target="#bossEmailModal" title="Xem & copy mẫu email gửi Sếp tổng">
+                    <i class="fa-solid fa-envelope text-info"></i>
+                    <span>Mẫu Mail Gửi Sếp</span>
+                </button>
+
                 <!-- Nút Chốt tháng -->
                 {% if settlement and settlement.get('settlement', {}).get('status') != 'closed' %}
                 <form method="POST" action="{{ url_for('advances.close_settlement', month=selected_month, year=selected_year) }}" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn CHỐT KẾ TOÁN tháng {{ selected_month }}/{{ selected_year }}?')">
                     <button type="submit" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 shadow-sm">
                         <i class="fa-solid fa-check-double"></i>
-                        <span>Chốt Kế Toán Tháng Này</span>
+                        <span>Chốt Tháng</span>
                     </button>
                 </form>
                 {% endif %}
+
+                <!-- Nút Reset phân loại tháng này -->
+                <form method="POST" action="{{ url_for('advances.reset_month_classification', month=selected_month, year=selected_year) }}" class="d-inline" onsubmit="return confirm('Đặt lại toàn bộ phân loại HĐ của tháng {{ selected_month }}/{{ selected_year }} về Chưa xác định?')">
+                    <button type="submit" class="btn btn-sm btn-light border py-1 px-2 text-muted shadow-sm" title="Đặt lại phân loại HĐ tháng này về Chưa xác định">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -872,6 +902,176 @@
     </div>
 </div>
 
+<!-- Modal: Đối Chiếu Chi Phí Lô Hàng Sang Bảng Dòng Tiền -->
+<div class="modal fade" id="lotReconModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-boxes-stacked fs-5"></i>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0">Đối Chiếu Chi Phí Lô Hàng Sang Dòng Tiền Tạm Ứng</h6>
+                        <small style="font-size: 0.75rem; opacity: 0.9;">Kỳ đối soát: Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-info py-2 px-3 d-flex align-items-start gap-2 mb-3" style="font-size: 0.8rem;">
+                    <i class="fa-solid fa-circle-info text-info mt-1"></i>
+                    <div>
+                        <strong>Cơ chế tự động đối chiếu thông minh:</strong> Hệ thống so khớp các khoản chi tiền tạm ứng với các khoản chi phí vận hành lô hàng trong tháng theo số tiền và nội dung. Bấm nút <strong>"Áp dụng tất cả"</strong> để tự động gán loại hóa đơn (Có HĐ / Không HĐ) từ Lô hàng sang Dòng tiền mà không phải bấm tay từng dòng!
+                    </div>
+                </div>
+
+                {% if recon_matches %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-bordered align-middle" style="font-size: 0.8rem;">
+                        <thead class="table-light">
+                            <tr class="text-center align-middle">
+                                <th>#</th>
+                                <th>Bút toán Dòng tiền</th>
+                                <th>Số tiền chi</th>
+                                <th>Chi phí Lô hàng tương ứng</th>
+                                <th>Lô hàng</th>
+                                <th>Loại HĐ của Lô</th>
+                                <th>Đề xuất gán</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in recon_matches %}
+                            <tr>
+                                <td class="text-center text-muted">{{ loop.index }}</td>
+                                <td>
+                                    <div class="fw-semibold text-dark">{{ m.trans_content }}</div>
+                                    <small class="text-muted">{{ m.trans_date }}</small>
+                                </td>
+                                <td class="text-end font-mono fw-bold text-danger">
+                                    {{ m.trans_amount|format_money }}
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ m.cost_desc }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                        {{ m.lot_label }}
+                                    </span>
+                                    <div class="text-muted" style="font-size: 0.7rem;">{{ m.lot_customer }}</div>
+                                </td>
+                                <td class="text-center">
+                                    {% if 'không' in m.cost_invoice_type.lower() %}
+                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">
+                                            {{ m.cost_invoice_type }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">
+                                            {{ m.cost_invoice_type }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if m.proposed_category == 'no_invoice' %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fa-solid fa-ban me-1"></i>Không HĐ
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success text-white">
+                                            <i class="fa-solid fa-file-invoice me-1"></i>Có HĐ
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="fa-solid fa-magnifying-glass fs-2 mb-2 d-block text-secondary"></i>
+                    Không tìm thấy cặp chi phí nào khớp tự động trong Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}.<br>
+                    Hãy kiểm tra các lô hàng trong tháng đã được nhập chi phí vận hành chưa.
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer bg-light p-2 d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary-gic btn-sm" data-bs-dismiss="modal">Đóng</button>
+                {% if recon_matches %}
+                <form method="POST" action="{{ url_for('advances.reconciliation_apply', month=selected_month, year=selected_year) }}">
+                    <button type="submit" class="btn btn-primary-gic btn-sm">
+                        <i class="fa-solid fa-check-double me-1"></i> Áp Dụng Cho Tất Cả {{ recon_matches|length }} Khoản Khớp
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Mẫu Email Gửi Sếp Tổng Phê Duyệt Loại Trừ -->
+<div class="modal fade" id="bossEmailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-envelope-open-text fs-5 text-warning"></i>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0">Mẫu Email Kế Toán Xin Sếp Tổng Duyệt Loại Trừ</h6>
+                        <small style="font-size: 0.75rem; opacity: 0.85;">Kỳ tháng: {{ "%02d"|format(selected_month) }}/{{ selected_year }}</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark">Tiêu đề Email gợi ý:</label>
+                    <div class="input-group input-group-sm">
+                        <input type="text" id="emailSubject" class="form-control fw-semibold" readonly 
+                               value="[GIC Logistics] Kính trình Sếp phê duyệt bảng kê chi phí không có HĐ - Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}">
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyEmailField('emailSubject', this)">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark">Nội dung Email (Đã điền sẵn số liệu tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}):</label>
+                    <textarea id="emailBodyText" class="form-control font-mono" rows="11" style="font-size: 0.82rem;" readonly>Kính gửi Sếp Tổng,
+
+Em xin gửi bảng kê tổng hợp các khoản chi phí hoạt động thực tế phát sinh trong Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }} không có hóa đơn GTGT (chi tiền mặt bốc xếp, hạ hàng, xe ngoài, chi phí bến bãi không có HĐ...).
+
+📊 TỔNG HỢP SỐ LIỆU ĐỀ XUẤT:
+• Kỳ báo cáo: Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}
+• Số lượng khoản chi không có HĐ: {{ settlement.count_no_invoice or 0 }} khoản
+• Tổng số tiền đề xuất loại trừ: {{ (settlement.total_no_invoice or 0)|format_money }}
+
+Danh sách chi tiết được đính kèm trong file Excel: Bang_ke_chi_phi_khong_HD_T{{ "%02d"|format(selected_month) }}_{{ selected_year }}.xlsx (xuất từ phần mềm hệ thống).
+
+Kính đề nghị Sếp xem xét và phê duyệt loại trừ các khoản chi này khỏi số tiền phải hoàn ứng về, để bộ phận kế toán kịp thời chốt hoàn ứng theo đúng hạn quy định cuối tháng.
+
+Em trân trọng cảm ơn Sếp!
+Bộ phận Kế toán & Dòng tiền GIC Logistics.</textarea>
+                </div>
+
+                <div class="alert alert-light border py-2 px-3 small d-flex align-items-center justify-content-between">
+                    <div>
+                        <i class="fa-solid fa-paperclip text-muted me-1"></i> File đính kèm: 
+                        <strong>Bang_ke_chi_phi_khong_HD_T{{ "%02d"|format(selected_month) }}_{{ selected_year }}.xlsx</strong>
+                    </div>
+                    <a href="{{ url_for('advances.export_no_invoice', month=selected_month, year=selected_year) }}" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.75rem;">
+                        <i class="fa-solid fa-download me-1"></i> Tải ngay
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer bg-light p-2 d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary-gic btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-primary-gic btn-sm" id="btnCopyEmailBody" onclick="copyEmailBody()">
+                    <i class="fa-regular fa-copy me-1"></i> Sao Chép Nội Dung Email
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Xem Ảnh Hóa Đơn / Chứng Từ Chuyển Khoản (Supabase Storage) -->
 <div class="modal fade" id="billPreviewModal" tabindex="-1" aria-labelledby="billPreviewModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -1239,5 +1439,33 @@ function onBillImageError() {
         });
     }
 })();
+
+function copyEmailField(id, btn) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.value).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check text-success"></i>';
+        setTimeout(() => btn.innerHTML = orig, 2000);
+    });
+}
+
+function copyEmailBody() {
+    const el = document.getElementById('emailBodyText');
+    if (!el) return;
+    navigator.clipboard.writeText(el.value).then(() => {
+        const btn = document.getElementById('btnCopyEmailBody');
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Đã sao chép vào bộ nhớ tạm!';
+        btn.classList.remove('btn-primary-gic');
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-primary-gic');
+        }, 2500);
+    });
+}
 </script>
 {% endblock %}
