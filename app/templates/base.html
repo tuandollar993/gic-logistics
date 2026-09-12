@@ -46,8 +46,8 @@
                 </div>
             </div>
 
-            <!-- Nav Items -->
-            <nav class="nav flex-column mt-2 flex-grow-1">
+            <!-- Nav Items (Scrollable Middle Section) -->
+            <nav class="nav flex-column mt-2 gic-sidebar-nav">
                 <div class="nav-section-label">Báo Cáo & Quản Trị</div>
 
                 {% if current_user.is_authenticated and current_user.is_manager %}
@@ -129,17 +129,18 @@
                     <span>Xem Báo Cáo Chung</span>
                 </a>
                 {% endif %}
-
-                <div class="mt-auto p-3">
-                    <form id="globalLogoutForm" method="POST" action="{{ url_for('auth.logout') }}" style="display:none;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    </form>
-                    <a href="#" onclick="event.preventDefault(); document.getElementById('globalLogoutForm').submit();" class="nav-link text-danger bg-danger bg-opacity-10 border border-danger border-opacity-25" style="margin: 0;">
-                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                        <span>Đăng xuất</span>
-                    </a>
-                </div>
             </nav>
+
+            <!-- Fixed Bottom Logout Section -->
+            <div class="gic-sidebar-footer">
+                <form id="globalLogoutForm" method="POST" action="{{ url_for('auth.logout') }}" style="display:none;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                </form>
+                <a href="#" onclick="event.preventDefault(); document.getElementById('globalLogoutForm').submit();" class="nav-link text-danger bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded d-flex align-items-center justify-content-center gap-2 py-2 w-100" style="margin: 0; font-weight: 600; text-decoration: none;">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    <span>Đăng xuất</span>
+                </a>
+            </div>
         </aside>
 
         <!-- Mobile Topbar Header (Visible only on screens < 992px) -->
