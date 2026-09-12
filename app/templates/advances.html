@@ -6,7 +6,7 @@
 <!-- Top Action Bar -->
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <h2 class="fw-bold m-0 text-dark" style="letter-spacing: -0.02em;">Theo Dõi Dòng Tiền Tạm Ứng</h2>
             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1" style="font-size: 0.75rem;">
                 <i class="fa-brands fa-google text-danger me-1"></i> Google Sheets Live Sync
@@ -181,7 +181,7 @@
 <!-- Main Data Table Card -->
 <div class="data-table-card mb-4">
     <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <i class="fa-solid fa-hand-holding-dollar text-primary fs-5"></i>
             <span class="fw-bold text-dark fs-6">Bảng Kê Chi Tiết Tạm Ứng Tiền Mặt GIDO - Tháng {{ "%02d"|format(selected_month) }}/{{ selected_year }}</span>
             <span class="badge bg-light text-dark border font-mono ms-1">{{ transactions|length }} dòng</span>

@@ -3,19 +3,18 @@
 {% block title %}Đề Xuất Báo Giá & Cơ Sở Định Giá - GIC Logistics{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 px-lg-4">
-    <!-- Page Header -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
-        <div>
-            <h4 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
-                <i class="fa-solid fa-file-invoice-dollar text-primary"></i>
-                Đề Xuất Báo Giá & Cơ Sở Định Giá
-            </h4>
-            <div class="text-muted small mt-1">
-                Biểu cước định mức chi tiết & cơ sở đối chứng thực tế từ lịch sử vận hành GIC Logistics
-            </div>
+<!-- Page Header -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+    <div>
+        <h4 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-file-invoice-dollar text-primary"></i>
+            Đề Xuất Báo Giá & Cơ Sở Định Giá
+        </h4>
+        <div class="text-muted small mt-1">
+            Biểu cước định mức chi tiết & cơ sở đối chứng thực tế từ lịch sử vận hành GIC Logistics
         </div>
-        <div class="d-flex align-items-center gap-2">
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
             <a href="{{ url_for('quotations.download_standard_excel') }}" class="btn btn-success d-flex align-items-center gap-2 shadow-sm px-3 py-2 fw-semibold" style="height: 38px;">
                 <i class="fa-solid fa-file-excel fa-lg"></i>
                 <span>Tải Báo Giá Chuẩn (.xlsx)</span>
@@ -353,7 +352,7 @@
                                 <i class="fa-solid fa-file-invoice-dollar text-primary"></i>
                                 3. Bảng Báo Giá Gửi Khách (Xem Trước Chuẩn B2B)
                             </h6>
-                            <div class="d-flex gap-2">
+                            <div class="d-flex flex-wrap gap-2">
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearAllQuotation()" title="Xóa toàn bộ để làm lại báo giá mới">
                                     <i class="fa-solid fa-rotate-left me-1"></i> Làm Mới
                                 </button>
@@ -373,7 +372,7 @@
                             <!-- Printable Document Paper -->
                             <div id="quotationSheet" class="bg-white p-3 p-md-4 rounded shadow-sm border" style="min-height: 520px; font-family: inherit;">
                                 <!-- Header of Quote -->
-                                <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
+                                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 border-bottom pb-3 mb-3">
                                     <div class="d-flex align-items-center gap-3">
                                         <div style="width: 46px; height: 46px; background: var(--gic-accent); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
                                             <i class="fa-solid fa-ship text-white fs-4"></i>
@@ -536,7 +535,7 @@
                             Chuẩn hóa theo 12 phân hạng tải trọng / kích thước thùng xe và thời hiệu giao hàng. Bấm vào bất kỳ ô giá để chọn báo giá.
                         </div>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
                         <a href="{{ url_for('quotations.download_standard_excel') }}" class="btn btn-sm btn-outline-success fw-semibold">
                             <i class="fa-solid fa-file-excel me-1"></i> Xuất File Excel (.xlsx)
                         </a>
@@ -933,7 +932,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">

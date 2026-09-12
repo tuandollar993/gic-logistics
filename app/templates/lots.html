@@ -10,7 +10,7 @@
     </div>
 
     {% if current_user.is_manager %}
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
         <a href="{{ url_for('lots.export_excel', month=selected_month, year=selected_year) }}" 
            class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
            title="Xuất Excel danh sách lô và chi phí Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">

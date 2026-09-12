@@ -68,14 +68,14 @@
 
 <!-- List of Currently Entered Operating Costs -->
 <div class="data-table-card mb-4">
-    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white">
-        <div class="d-flex align-items-center gap-2">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <i class="fa-solid fa-receipt text-warning"></i>
             <h6 class="fw-bold m-0 text-dark">
                 Danh Sách Chi Phí Đã Nhập Cho Lô Này (<span id="costCountBadge" class="font-mono">{{ lot.active_operating_costs|length }}</span> mục)
             </h6>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <span class="text-muted small">Tổng tiền chi phí:</span>
             <strong class="text-danger fs-5 font-mono tabular-nums" id="totalCostDisplay">{{ lot.total_operating_cost | format_money }}</strong>
         </div>

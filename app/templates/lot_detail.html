@@ -6,7 +6,7 @@
 <!-- Top Header -->
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
             <a href="{{ url_for('lots.index', month=lot.month, year=lot.year) }}" class="btn-secondary-gic py-1 px-2" style="font-size: 0.8rem;">
                 <i class="fa-solid fa-arrow-left"></i> Quay lại
             </a>
@@ -137,14 +137,14 @@
 <!-- Unified Section: Bảng Tổng Hợp Chi Phí Mua Vào & Doanh Thu Bán Ra -->
 <div class="data-table-card mb-4">
     <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <i class="fa-solid fa-table-list text-primary fs-5"></i>
             <div>
                 <h6 class="fw-bold m-0 text-dark">Bảng Chi Tiết Doanh Thu Bán Ra & Chi Phí Mua Vào</h6>
                 <small class="text-muted">Quản lý và đối soát tập trung toàn bộ cước vận tải, giá bán, giá mua và chi phí vận hành trong cùng 1 bảng</small>
             </div>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <span class="badge bg-light text-dark border font-mono">
                 Tổng: {{ lot.active_revenue_items|length + lot.active_operating_costs|length }} mục
             </span>

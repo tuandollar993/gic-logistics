@@ -73,6 +73,12 @@
     box-sizing: border-box;
 }
 
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+}
+
 body {
     font-family: var(--font-sans);
     background-color: var(--gic-bg);
@@ -82,6 +88,10 @@ body {
     min-height: 100vh;
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
+}
+
+.col, [class*="col-"] {
+    min-width: 0;
 }
 
 .font-mono, .font-monospace {
@@ -799,6 +809,9 @@ body {
     /* Wrap content in full-width vertical layout */
     .d-flex.min-vh-100 {
         flex-direction: column !important;
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100% !important;
     }
 
     /* Main content padding for bottom nav & top bar */
@@ -808,6 +821,22 @@ body {
         max-width: 100% !important;
         margin: 0 !important;
         overflow-x: hidden;
+    }
+
+    /* Prevent overflow blowout in cards and containers */
+    .card, .kpi-card, .data-table-card, .executive-summary-panel {
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .executive-summary-panel .panel-header {
+        flex-wrap: wrap !important;
+        gap: 12px !important;
+        padding: 14px 16px !important;
+    }
+
+    .executive-summary-panel .panel-body {
+        padding: 14px 16px !important;
     }
 
     /* KPI Cards & Headers on Mobile */
@@ -828,6 +857,8 @@ body {
     .table-responsive {
         border-radius: var(--radius-sm);
         margin: 0;
+        width: 100% !important;
+        max-width: 100% !important;
         -webkit-overflow-scrolling: touch;
     }
 
@@ -840,6 +871,36 @@ body {
     /* Modals on Mobile */
     .modal-dialog {
         margin: 12px !important;
+    }
+}
+
+/* Small Screens (< 576px, e.g. phones 360px - 430px) */
+@media (max-width: 575.98px) {
+    h2 {
+        font-size: 1.35rem !important;
+    }
+    h4 {
+        font-size: 1.15rem !important;
+    }
+    .kpi-card {
+        padding: 12px 14px !important;
+    }
+    .kpi-card .kpi-value-stat {
+        font-size: 1.25rem !important;
+    }
+    .fs-3.tabular-nums, .fs-3.font-mono,
+    .fs-4.tabular-nums, .fs-4.font-mono {
+        font-size: 1.15rem !important;
+    }
+    #quotationSheet, #printableQuote {
+        padding: 14px 12px !important;
+    }
+    .word-doc-page {
+        padding: 24px 16px !important;
+    }
+    .container-fluid {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
     }
 }
 

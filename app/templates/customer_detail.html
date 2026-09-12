@@ -3,29 +3,28 @@
 {% block title %}{{ customer.name }} - Hồ Sơ Khách Hàng - GIC Logistics{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 px-lg-4">
-    <!-- Top Action & Navigation Bar -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('customers.index') }}" class="btn btn-sm btn-outline-secondary">
-                <i class="fa-solid fa-arrow-left me-1"></i> Danh sách khách hàng
-            </a>
-            <h4 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
-                <span>{{ customer.name }}</span>
-                {% if customer.code %}
-                    <span class="badge bg-light text-dark border font-mono fs-6">{{ customer.code }}</span>
-                {% endif %}
-            </h4>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editCustomerModal">
-                <i class="fa-solid fa-pen-to-square me-1"></i> Sửa Thông Tin
-            </button>
-            <a href="{{ url_for('quotations.index') }}" class="btn btn-sm btn-primary-gic">
-                <i class="fa-solid fa-calculator me-1"></i> Lập Báo Giá Cho Khách Này
-            </a>
-        </div>
+<!-- Top Action & Navigation Bar -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="{{ url_for('customers.index') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i> Danh sách khách hàng
+        </a>
+        <h4 class="fw-bold text-dark m-0 d-flex align-items-center gap-2 flex-wrap">
+            <span>{{ customer.name }}</span>
+            {% if customer.code %}
+                <span class="badge bg-light text-dark border font-mono fs-6">{{ customer.code }}</span>
+            {% endif %}
+        </h4>
     </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editCustomerModal">
+            <i class="fa-solid fa-pen-to-square me-1"></i> Sửa Thông Tin
+        </button>
+        <a href="{{ url_for('quotations.index') }}" class="btn btn-sm btn-primary-gic">
+            <i class="fa-solid fa-calculator me-1"></i> Lập Báo Giá Cho Khách Này
+        </a>
+    </div>
+</div>
 
     <!-- Customer Business Card & KPI Cards -->
     <div class="row g-3 mb-4">
@@ -275,7 +274,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- MODAL: SỬA THÔNG TIN KHÁCH HÀNG -->
 <div class="modal fade" id="editCustomerModal" tabindex="-1" aria-labelledby="editCustomerModalLabel" aria-hidden="true">
