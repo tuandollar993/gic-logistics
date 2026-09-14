@@ -164,12 +164,25 @@ def create_app(config_class=Config):
             with db.engine.connect() as conn:
                 db_url = str(db.engine.url)
                 if 'sqlite' in db_url:
-                    cols = [row[1] for row in conn.execute(text("PRAGMA table_info(operating_costs)")).fetchall()]
-                    if cols and 'invoice_classification' not in cols:
-                        conn.execute(text("ALTER TABLE operating_costs ADD COLUMN invoice_classification VARCHAR(50)"))
-                        conn.commit()
+                    op_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(operating_costs)")).fetchall()]
+                    rev_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(revenue_items)")).fetchall()]
+                    for col, typ in [('invoice_classification', 'VARCHAR(50)'), ('revenue_month', 'INT'), ('revenue_year', 'INT'), ('revenue_invoice_date', 'DATE'), ('revenue_invoice_number', 'VARCHAR(100)')]:
+                        if op_cols and col not in op_cols:
+                            conn.execute(text(f"ALTER TABLE operating_costs ADD COLUMN {col} {typ}"))
+                    for col, typ in [('revenue_month', 'INT'), ('revenue_year', 'INT'), ('revenue_invoice_date', 'DATE'), ('revenue_invoice_number', 'VARCHAR(100)')]:
+                        if rev_cols and col not in rev_cols:
+                            conn.execute(text(f"ALTER TABLE revenue_items ADD COLUMN {col} {typ}"))
+                    conn.commit()
                 elif 'postgres' in db_url:
-                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS invoice_classification VARCHAR(50)"))
+                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS invoice_classification VARCHAR(50);"))
+                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS revenue_month INT;"))
+                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS revenue_year INT;"))
+                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS revenue_invoice_date DATE;"))
+                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS revenue_invoice_number VARCHAR(100);"))
+                    conn.execute(text("ALTER TABLE revenue_items ADD COLUMN IF NOT EXISTS revenue_month INT;"))
+                    conn.execute(text("ALTER TABLE revenue_items ADD COLUMN IF NOT EXISTS revenue_year INT;"))
+                    conn.execute(text("ALTER TABLE revenue_items ADD COLUMN IF NOT EXISTS revenue_invoice_date DATE;"))
+                    conn.execute(text("ALTER TABLE revenue_items ADD COLUMN IF NOT EXISTS revenue_invoice_number VARCHAR(100);"))
                     conn.commit()
     except Exception as e:
         app.logger.warning(f"Auto schema update warning: {e}")

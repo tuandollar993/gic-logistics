@@ -21,12 +21,65 @@ class CalculatorService:
         return CalculatorService._cached_months
 
     @staticmethod
+    def get_deferred_in_revenue(month, year):
+        """
+        Tổng doanh thu từ các lô của tháng khác nhưng xuất HĐ và ghi nhận doanh thu vào kỳ (month, year).
+        Gồm:
+        - RevenueItem của Sales Lot tháng khác có effective_revenue_month/year == month/year
+        - OperatingCost (sell_price > 0) của Sales Lot tháng khác có effective_revenue_month/year == month/year
+        """
+        from sqlalchemy import or_, and_, func
+
+        # 1. Deferred RevenueItem
+        deferred_ri = RevenueItem.query.join(Lot).filter(
+            Lot.is_deleted == False,
+            Lot.source_type != 'cpvh',
+            RevenueItem.is_deleted == False,
+            or_(Lot.month != month, Lot.year != year),
+            or_(
+                and_(
+                    RevenueItem.revenue_month == month,
+                    or_(RevenueItem.revenue_year == year, and_(RevenueItem.revenue_year.is_(None), Lot.year == year))
+                ),
+                and_(
+                    RevenueItem.revenue_month.is_(None),
+                    func.extract('month', RevenueItem.revenue_invoice_date) == month,
+                    func.extract('year', RevenueItem.revenue_invoice_date) == year
+                )
+            )
+        ).all()
+        ri_amount = sum(item.total_sell_price for item in deferred_ri)
+
+        # 2. Deferred OperatingCost with sell_price > 0
+        deferred_ops = OperatingCost.query.join(Lot).filter(
+            Lot.is_deleted == False,
+            Lot.source_type != 'cpvh',
+            OperatingCost.is_deleted == False,
+            OperatingCost.sell_price > 0,
+            or_(Lot.month != month, Lot.year != year),
+            or_(
+                and_(
+                    OperatingCost.revenue_month == month,
+                    or_(OperatingCost.revenue_year == year, and_(OperatingCost.revenue_year.is_(None), Lot.year == year))
+                ),
+                and_(
+                    OperatingCost.revenue_month.is_(None),
+                    func.extract('month', OperatingCost.revenue_invoice_date) == month,
+                    func.extract('year', OperatingCost.revenue_invoice_date) == year
+                )
+            )
+        ).all()
+        ops_amount = sum(c.sell_price or 0 for c in deferred_ops)
+
+        return ri_amount + ops_amount
+
+    @staticmethod
     def get_monthly_kpi(month, year):
         """
         Calculate total revenue, costs, profit, and target progress for given month & year.
         Đảm bảo đúng quy tắc tài chính:
         - Số lô = số Sales Lot active (không cộng nhóm CPVH chưa đối soát).
-        - Doanh thu bán = tổng doanh thu của Sales Lot.
+        - Doanh thu bán = Doanh thu ghi nhận theo kỳ xuất HĐ (recognized revenue), bao gồm doanh thu từ lô tháng trước dời sang xuất HĐ tháng này.
         - Giá mua = tổng giá mua của Sales Lot.
         - CPVH kỳ = tổng CPVH đã ghép của Sales Lot + tổng CPVH chưa đối soát hợp lệ (mỗi khoản tính đúng 1 lần).
         - Lợi nhuận kỳ = Doanh thu bán - Giá mua - Tổng CPVH kỳ.
@@ -40,12 +93,24 @@ class CalculatorService:
             selectinload(Lot.operating_costs)
         ).all()
         
-        total_sell = sum(lot.total_sell_revenue for lot in sales_lots)
+        # Doanh thu nghiệp vụ theo ngày đi hàng / Lô gốc
+        operational_sell = sum(lot.total_sell_revenue for lot in sales_lots)
         total_buy = sum(lot.total_buy_cost for lot in sales_lots)
         
         sales_ops = sum(lot.total_operating_cost for lot in sales_lots)
         unresolved_ops = sum(lot.total_operating_cost for lot in unresolved_lots)
         total_ops = sales_ops + unresolved_ops
+
+        # Doanh thu ghi nhận theo kỳ xuất HĐ:
+        # 1. Doanh thu các lô tháng này được ghi nhận ngay trong tháng này
+        current_lot_rev = sum(lot.get_recognized_revenue(month, year) for lot in sales_lots)
+        deferred_out_sell = operational_sell - current_lot_rev
+        
+        # 2. Doanh thu từ các lô tháng khác chuyển sang xuất HĐ kỳ này
+        deferred_in_sell = CalculatorService.get_deferred_in_revenue(month, year)
+
+        # Doanh thu chính thức tính KPI & Lợi nhuận kỳ này
+        total_sell = current_lot_rev + deferred_in_sell
         
         gross_profit = total_sell - total_buy
         net_profit = total_sell - total_buy - total_ops
@@ -75,7 +140,7 @@ class CalculatorService:
             selectinload(Lot.revenue_items),
             selectinload(Lot.operating_costs)
         ).all()
-        prev_sell = sum(lot.total_sell_revenue for lot in prev_sales)
+        prev_sell = sum(lot.get_recognized_revenue(prev_m, prev_y) for lot in prev_sales) + CalculatorService.get_deferred_in_revenue(prev_m, prev_y)
         prev_buy = sum(lot.total_buy_cost for lot in prev_sales)
         
         has_prev_data = prev_sell > 0
@@ -89,6 +154,9 @@ class CalculatorService:
             'month': month,
             'year': year,
             'revenue': total_sell,
+            'operational_revenue': operational_sell,
+            'deferred_in_revenue': deferred_in_sell,
+            'deferred_out_revenue': deferred_out_sell,
             'buy_cost': total_buy,
             'operating_cost': total_ops,
             'sales_operating_cost': sales_ops,
@@ -119,6 +187,7 @@ class CalculatorService:
     def get_year_trend(year):
         """
         Get 12-month series of revenue, costs, and target for charts.
+        Doanh thu theo chuẩn kỳ ghi nhận xuất HĐ (recognized revenue).
         """
         sales_year_lots = Lot.sales_lots_query().filter_by(year=year).options(
             selectinload(Lot.revenue_items),
@@ -135,7 +204,9 @@ class CalculatorService:
         for m in range(1, 13):
             s_lots = [l for l in sales_year_lots if l.month == m]
             u_lots = [l for l in unresolved_year_lots if l.month == m]
-            sell = sum(lot.total_sell_revenue for lot in s_lots)
+            current_recognized = sum(lot.get_recognized_revenue(m, year) for lot in s_lots)
+            deferred_in = CalculatorService.get_deferred_in_revenue(m, year)
+            sell = current_recognized + deferred_in
             buy = sum(lot.total_buy_cost for lot in s_lots)
             ops = sum(lot.total_operating_cost for lot in s_lots) + sum(lot.total_operating_cost for lot in u_lots)
             target_val = target_map.get(m, 0.0)
@@ -157,23 +228,80 @@ class CalculatorService:
         """
         Get revenue and lot share grouped by customer.
         Returns Top 5 customers + 'Khác', summing to exactly 100%.
-        Chỉ lấy từ Sales Lot thực tế.
+        Tính theo doanh thu ghi nhận chuẩn kỳ (recognized revenue).
         """
+        from sqlalchemy import or_, and_, func
+
         lots = Lot.sales_lots_query().filter_by(month=month, year=year).options(
             joinedload(Lot.customer),
-            selectinload(Lot.revenue_items)
+            selectinload(Lot.revenue_items),
+            selectinload(Lot.operating_costs)
         ).all()
         cust_map = {}
         total_rev = 0
         
         for lot in lots:
             cname = lot.customer.name if lot.customer else "Khách vãng lai"
-            rev = lot.total_sell_revenue
+            rev = lot.get_recognized_revenue(month, year)
             total_rev += rev
             if cname not in cust_map:
                 cust_map[cname] = {'name': cname, 'revenue': 0, 'lot_count': 0}
             cust_map[cname]['revenue'] += rev
             cust_map[cname]['lot_count'] += 1
+
+        # Doanh thu từ các lô tháng khác chuyển sang xuất HĐ kỳ này
+        deferred_ri = RevenueItem.query.join(Lot).filter(
+            Lot.is_deleted == False,
+            Lot.source_type != 'cpvh',
+            RevenueItem.is_deleted == False,
+            or_(Lot.month != month, Lot.year != year),
+            or_(
+                and_(
+                    RevenueItem.revenue_month == month,
+                    or_(RevenueItem.revenue_year == year, and_(RevenueItem.revenue_year.is_(None), Lot.year == year))
+                ),
+                and_(
+                    RevenueItem.revenue_month.is_(None),
+                    func.extract('month', RevenueItem.revenue_invoice_date) == month,
+                    func.extract('year', RevenueItem.revenue_invoice_date) == year
+                )
+            )
+        ).options(joinedload(RevenueItem.lot).joinedload(Lot.customer)).all()
+
+        for item in deferred_ri:
+            cname = item.lot.customer.name if item.lot and item.lot.customer else "Khách vãng lai"
+            rev = item.total_sell_price
+            total_rev += rev
+            if cname not in cust_map:
+                cust_map[cname] = {'name': cname, 'revenue': 0, 'lot_count': 0}
+            cust_map[cname]['revenue'] += rev
+
+        deferred_ops = OperatingCost.query.join(Lot).filter(
+            Lot.is_deleted == False,
+            Lot.source_type != 'cpvh',
+            OperatingCost.is_deleted == False,
+            OperatingCost.sell_price > 0,
+            or_(Lot.month != month, Lot.year != year),
+            or_(
+                and_(
+                    OperatingCost.revenue_month == month,
+                    or_(OperatingCost.revenue_year == year, and_(OperatingCost.revenue_year.is_(None), Lot.year == year))
+                ),
+                and_(
+                    OperatingCost.revenue_month.is_(None),
+                    func.extract('month', OperatingCost.revenue_invoice_date) == month,
+                    func.extract('year', OperatingCost.revenue_invoice_date) == year
+                )
+            )
+        ).options(joinedload(OperatingCost.lot).joinedload(Lot.customer)).all()
+
+        for cost in deferred_ops:
+            cname = cost.lot.customer.name if cost.lot and cost.lot.customer else "Khách vãng lai"
+            rev = cost.sell_price or 0
+            total_rev += rev
+            if cname not in cust_map:
+                cust_map[cname] = {'name': cname, 'revenue': 0, 'lot_count': 0}
+            cust_map[cname]['revenue'] += rev
             
         customers = list(cust_map.values())
         customers.sort(key=lambda x: x['revenue'], reverse=True)

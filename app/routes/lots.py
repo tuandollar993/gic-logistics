@@ -413,6 +413,41 @@ def export_monthly_problematic_costs():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
+def parse_revenue_period_from_form(form, lot):
+    """Trích xuất và chuẩn hóa kỳ xuất HĐ / ghi nhận doanh thu từ form"""
+    rev_period_option = form.get('revenue_period_option', 'current')
+    rev_inv_date = None
+    rev_inv_date_raw = form.get('revenue_invoice_date')
+    if rev_inv_date_raw:
+        try:
+            rev_inv_date = datetime.strptime(rev_inv_date_raw.strip(), '%Y-%m-%d').date()
+        except Exception:
+            pass
+
+    rev_inv_num = form.get('revenue_invoice_number', '').strip()
+
+    if rev_period_option == 'next':
+        rev_m = 1 if lot.month == 12 else lot.month + 1
+        rev_y = lot.year + 1 if lot.month == 12 else lot.year
+    elif rev_period_option == 'custom':
+        try:
+            rev_m = int(form.get('revenue_month')) if form.get('revenue_month') else lot.month
+        except (ValueError, TypeError):
+            rev_m = lot.month
+        try:
+            rev_y = int(form.get('revenue_year')) if form.get('revenue_year') else lot.year
+        except (ValueError, TypeError):
+            rev_y = lot.year
+    else:  # 'current'
+        if rev_inv_date:
+            rev_m = rev_inv_date.month
+            rev_y = rev_inv_date.year
+        else:
+            rev_m = lot.month
+            rev_y = lot.year
+
+    return rev_m, rev_y, rev_inv_date, rev_inv_num
+
 @lots_bp.route('/<int:lot_id>/items/add', methods=['POST'])
 @login_required
 def add_revenue_item(lot_id):
@@ -441,6 +476,8 @@ def add_revenue_item(lot_id):
     sell_price = clean_money_input(request.form.get('sell_price', 0))
     surcharges = clean_money_input(request.form.get('surcharges', 0))
 
+    rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
+
     cost = OperatingCost(
         lot_id=lot.id,
         cost_type=weight_class or 'Khoản mục chi phí',
@@ -453,7 +490,11 @@ def add_revenue_item(lot_id):
         invoice_type=invoice_type,
         invoice_number=invoice_number,
         supplier_name=supplier,
-        filled_by=current_user.id
+        filled_by=current_user.id,
+        revenue_month=rev_m,
+        revenue_year=rev_y,
+        revenue_invoice_date=rev_inv_date,
+        revenue_invoice_number=rev_inv_num
     )
     db.session.add(cost)
     db.session.commit()
@@ -500,6 +541,12 @@ def edit_revenue_item(lot_id, item_id):
         
     item.total_buy_price_excel = item.buy_price
     item.total_sell_price_excel = (item.sell_price or 0.0) + (item.other_surcharge or 0.0)
+
+    rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
+    item.revenue_month = rev_m
+    item.revenue_year = rev_y
+    item.revenue_invoice_date = rev_inv_date
+    item.revenue_invoice_number = rev_inv_num
     
     db.session.commit()
     flash('Đã cập nhật mục doanh thu và chi phí thành công!', 'success')
@@ -598,6 +645,12 @@ def edit_cost_item(lot_id, cost_id):
     sell_raw = request.form.get('sell_price')
     if sell_raw is not None and sell_raw != '':
         cost.sell_price = clean_money_input(sell_raw)
+
+    rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
+    cost.revenue_month = rev_m
+    cost.revenue_year = rev_y
+    cost.revenue_invoice_date = rev_inv_date
+    cost.revenue_invoice_number = rev_inv_num
         
     db.session.commit()
     flash('Đã cập nhật chi phí vận hành thành công!', 'success')

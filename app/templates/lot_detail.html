@@ -372,6 +372,11 @@
                                     </td>
                                     <td class="text-end font-mono fw-bold text-success tabular-nums">
                                         {{ item.total_sell_price | format_money }}
+                                        {% if item.is_deferred_revenue %}
+                                            <span class="badge bg-info-subtle text-primary border border-primary-subtle d-block mt-1 font-mono" style="font-size: 0.65rem;" title="Doanh thu xuất HĐ kỳ T{{ "%02d"|format(item.effective_revenue_month) }}/{{ item.effective_revenue_year }}">
+                                                <i class="fa-solid fa-clock-rotate-left me-1"></i>HĐ: T{{ "%02d"|format(item.effective_revenue_month) }}/{{ item.effective_revenue_year }}
+                                            </span>
+                                        {% endif %}
                                         {% if item.other_surcharge and item.other_surcharge > 0 %}
                                             <div class="small text-muted font-normal" style="font-size: 0.7rem;">+{{ item.other_surcharge | format_money }} phụ phí</div>
                                         {% endif %}
@@ -392,6 +397,11 @@
                                                 data-buy="{{ ((item.buy_price or item.total_buy_price or 0) | round | int) }}"
                                                 data-sell="{{ ((item.sell_price or 0) | round | int) }}"
                                                 data-surcharge="{{ ((item.other_surcharge or 0) | round | int) }}"
+                                                data-rev-month="{{ item.effective_revenue_month or '' }}"
+                                                data-rev-year="{{ item.effective_revenue_year or '' }}"
+                                                data-rev-inv-date="{{ item.revenue_invoice_date.strftime('%Y-%m-%d') if item.revenue_invoice_date else '' }}"
+                                                data-rev-inv-num="{{ item.revenue_invoice_number or '' }}"
+                                                data-is-deferred="{{ '1' if item.is_deferred_revenue else '0' }}"
                                                 title="Sửa dòng này">
                                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                                             </button>
@@ -449,6 +459,11 @@
                                     </td>
                                     <td class="text-end font-mono fw-bold {% if cost.sell_price and cost.sell_price > 0 %}text-success{% else %}text-muted{% endif %} tabular-nums">
                                         {{ (cost.sell_price or 0) | format_money }}
+                                        {% if cost.sell_price and cost.sell_price > 0 and cost.is_deferred_revenue %}
+                                            <span class="badge bg-info-subtle text-primary border border-primary-subtle d-block mt-1 font-mono" style="font-size: 0.65rem;" title="Doanh thu xuất HĐ kỳ T{{ "%02d"|format(cost.effective_revenue_month) }}/{{ cost.effective_revenue_year }}">
+                                                <i class="fa-solid fa-clock-rotate-left me-1"></i>HĐ: T{{ "%02d"|format(cost.effective_revenue_month) }}/{{ cost.effective_revenue_year }}
+                                            </span>
+                                        {% endif %}
                                     </td>
                                     {% set cost_diff = (cost.sell_price or 0) - (cost.total_amount or 0) %}
                                     <td class="text-end font-mono fw-semibold tabular-nums {% if cost_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
@@ -521,6 +536,11 @@
                                                 data-invoice-classification="{{ cost.invoice_classification }}"
                                                 data-has-file="{{ '1' if cost.has_invoice_file else '0' }}"
                                                 data-media-id="{{ latest_media.id if latest_media else '' }}"
+                                                data-rev-month="{{ cost.effective_revenue_month or '' }}"
+                                                data-rev-year="{{ cost.effective_revenue_year or '' }}"
+                                                data-rev-inv-date="{{ cost.revenue_invoice_date.strftime('%Y-%m-%d') if cost.revenue_invoice_date else '' }}"
+                                                data-rev-inv-num="{{ cost.revenue_invoice_number or '' }}"
+                                                data-is-deferred="{{ '1' if cost.is_deferred_revenue else '0' }}"
                                                 title="Sửa chi phí này">
                                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                                             </button>
@@ -758,6 +778,47 @@
                         <small class="text-muted" style="font-size: 0.72rem;">Lưu ca, nâng hạ, phụ phí khác</small>
                     </div>
 
+                    <!-- Kỳ Xuất Hóa Đơn / Ghi Nhận Doanh Thu Bán Ra -->
+                    <div class="col-12">
+                        <div class="p-3 rounded bg-light border">
+                            <label class="form-label small fw-bold text-dark text-uppercase d-flex align-items-center justify-content-between mb-2" style="font-size: 0.72rem;">
+                                <span><i class="fa-solid fa-calendar-check me-1 text-primary"></i> Kỳ Xuất Hóa Đơn & Ghi Nhận Doanh Thu Bán Ra:</span>
+                                <small class="text-muted fw-normal">Dùng khi CP phát sinh tháng này nhưng xuất HĐ cho khách vào tháng sau</small>
+                            </label>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-5">
+                                    <select class="form-select form-select-sm font-mono" id="addRevPeriodSelect" name="revenue_period_option">
+                                        <option value="current" selected>Cùng kỳ với Lô (Tháng {{ "%02d"|format(lot.month) }}/{{ lot.year }})</option>
+                                        {% set next_m = 1 if lot.month == 12 else lot.month + 1 %}
+                                        {% set next_y = lot.year + 1 if lot.month == 12 else lot.year %}
+                                        <option value="next">Tháng kế tiếp (Tháng {{ "%02d"|format(next_m) }}/{{ next_y }})</option>
+                                        <option value="custom">Chọn tháng khác...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-7" id="addCustomRevPeriodGroup" style="display: none;">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Tháng</span>
+                                        <input type="number" min="1" max="12" name="revenue_month" id="addRevMonth" class="form-control font-mono" placeholder="MM" value="{{ lot.month }}">
+                                        <span class="input-group-text">Năm</span>
+                                        <input type="number" min="2020" max="2035" name="revenue_year" id="addRevYear" class="form-control font-mono" placeholder="YYYY" value="{{ lot.year }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" style="font-size: 0.72rem;"><i class="fa-regular fa-calendar me-1"></i> Ngày xuất HĐ:</span>
+                                        <input type="date" name="revenue_invoice_date" id="addRevInvoiceDate" class="form-control font-mono">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" style="font-size: 0.72rem;"><i class="fa-solid fa-receipt me-1"></i> Số HĐ đầu ra:</span>
+                                        <input type="text" name="revenue_invoice_number" id="addRevInvoiceNumber" class="form-control font-mono" placeholder="Số hóa đơn xuất cho khách...">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Hóa Đơn & Chứng Từ -->
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / Hóa Đơn</label>
@@ -881,6 +942,47 @@
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
                         <small class="text-muted" style="font-size: 0.72rem;">Lưu ca, nâng hạ, phụ phí khác</small>
+                    </div>
+
+                    <!-- Kỳ Xuất Hóa Đơn / Ghi Nhận Doanh Thu Bán Ra -->
+                    <div class="col-12">
+                        <div class="p-3 rounded bg-light border">
+                            <label class="form-label small fw-bold text-dark text-uppercase d-flex align-items-center justify-content-between mb-2" style="font-size: 0.72rem;">
+                                <span><i class="fa-solid fa-calendar-check me-1 text-primary"></i> Kỳ Xuất Hóa Đơn & Ghi Nhận Doanh Thu Bán Ra:</span>
+                                <small class="text-muted fw-normal">Dùng khi CP phát sinh tháng này nhưng xuất HĐ cho khách vào tháng sau</small>
+                            </label>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-5">
+                                    <select class="form-select form-select-sm font-mono" id="editRevPeriodSelect" name="revenue_period_option">
+                                        <option value="current" selected>Cùng kỳ với Lô (Tháng {{ "%02d"|format(lot.month) }}/{{ lot.year }})</option>
+                                        {% set next_m = 1 if lot.month == 12 else lot.month + 1 %}
+                                        {% set next_y = lot.year + 1 if lot.month == 12 else lot.year %}
+                                        <option value="next">Tháng kế tiếp (Tháng {{ "%02d"|format(next_m) }}/{{ next_y }})</option>
+                                        <option value="custom">Chọn tháng khác...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-7" id="editCustomRevPeriodGroup" style="display: none;">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Tháng</span>
+                                        <input type="number" min="1" max="12" name="revenue_month" id="editRevMonth" class="form-control font-mono" placeholder="MM" value="{{ lot.month }}">
+                                        <span class="input-group-text">Năm</span>
+                                        <input type="number" min="2020" max="2035" name="revenue_year" id="editRevYear" class="form-control font-mono" placeholder="YYYY" value="{{ lot.year }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" style="font-size: 0.72rem;"><i class="fa-regular fa-calendar me-1"></i> Ngày xuất HĐ:</span>
+                                        <input type="date" name="revenue_invoice_date" id="editRevInvoiceDate" class="form-control font-mono">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" style="font-size: 0.72rem;"><i class="fa-solid fa-receipt me-1"></i> Số HĐ đầu ra:</span>
+                                        <input type="text" name="revenue_invoice_number" id="editRevInvoiceNumber" class="form-control font-mono" placeholder="Số hóa đơn xuất cho khách...">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Xác Nhận Tình Trạng Hóa Đơn & Chứng Từ (Bắt buộc Kế toán/Nhân viên tự xác nhận) -->
@@ -1362,6 +1464,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Toggle custom revenue period group in add/edit modals
+    const addRevSelect = document.getElementById('addRevPeriodSelect');
+    const addCustomRevGroup = document.getElementById('addCustomRevPeriodGroup');
+    if (addRevSelect && addCustomRevGroup) {
+        addRevSelect.addEventListener('change', function() {
+            addCustomRevGroup.style.display = this.value === 'custom' ? 'block' : 'none';
+        });
+    }
+
+    const editRevSelect = document.getElementById('editRevPeriodSelect');
+    const editCustomRevGroup = document.getElementById('editCustomRevPeriodGroup');
+    if (editRevSelect && editCustomRevGroup) {
+        editRevSelect.addEventListener('change', function() {
+            editCustomRevGroup.style.display = this.value === 'custom' ? 'block' : 'none';
+        });
+    }
+
     // Unified Edit Row Modal
     const editModalEl = document.getElementById('editUnifiedModal');
     if (editModalEl) {
@@ -1404,6 +1523,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const hasFile = this.getAttribute('data-has-file') === '1';
                 const mediaId = this.getAttribute('data-media-id') || '';
 
+                const revMonth = this.getAttribute('data-rev-month') || '';
+                const revYear = this.getAttribute('data-rev-year') || '';
+                const revInvDate = this.getAttribute('data-rev-inv-date') || '';
+                const revInvNum = this.getAttribute('data-rev-inv-num') || '';
+                const isDeferred = this.getAttribute('data-is-deferred') === '1';
+
                 document.getElementById('editSupplier').value = supplier;
                 document.getElementById('editPlate').value = plate;
                 document.getElementById('editDesc').value = desc;
@@ -1414,6 +1539,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('editInvoiceNumber').value = invNum;
                 const symEl = document.getElementById('editInvoiceSymbol');
                 if (symEl) symEl.value = invSymbol;
+
+                const editRevMonth = document.getElementById('editRevMonth');
+                const editRevYear = document.getElementById('editRevYear');
+                const editRevInvDate = document.getElementById('editRevInvoiceDate');
+                const editRevInvNum = document.getElementById('editRevInvoiceNumber');
+
+                if (editRevInvDate) editRevInvDate.value = revInvDate;
+                if (editRevInvNum) editRevInvNum.value = revInvNum;
+
+                if (editRevSelect && editRevMonth && editRevYear) {
+                    const lotMonth = {{ lot.month }};
+                    const lotYear = {{ lot.year }};
+                    const nextM = lotMonth === 12 ? 1 : lotMonth + 1;
+                    const nextY = lotMonth === 12 ? lotYear + 1 : lotYear;
+
+                    if (!isDeferred || !revMonth) {
+                        editRevSelect.value = 'current';
+                        if (editCustomRevGroup) editCustomRevGroup.style.display = 'none';
+                        editRevMonth.value = lotMonth;
+                        editRevYear.value = lotYear;
+                    } else if (parseInt(revMonth) === nextM && parseInt(revYear) === nextY) {
+                        editRevSelect.value = 'next';
+                        if (editCustomRevGroup) editCustomRevGroup.style.display = 'none';
+                        editRevMonth.value = nextM;
+                        editRevYear.value = nextY;
+                    } else {
+                        editRevSelect.value = 'custom';
+                        if (editCustomRevGroup) editCustomRevGroup.style.display = 'block';
+                        editRevMonth.value = revMonth;
+                        editRevYear.value = revYear;
+                    }
+                }
 
                 // Handle Invoice Classification & File upload requirement in Unified Modal
                 const editRadioHas = document.getElementById('editInvClsHas');

@@ -201,6 +201,24 @@ class Lot(db.Model):
         )
         return revenue_items_total + operating_costs_sell
     
+    def get_recognized_revenue(self, month, year):
+        """Doanh thu của lô này được ghi nhận trong một kỳ tháng/năm cụ thể theo kỳ xuất HĐ"""
+        ri_rev = sum(
+            item.total_sell_price for item in self.active_revenue_items
+            if item.effective_revenue_month == month and item.effective_revenue_year == year
+        )
+        ops_rev = sum(
+            cost.sell_price or 0 for cost in self.active_operating_costs
+            if cost.effective_revenue_month == month and cost.effective_revenue_year == year
+        )
+        return ri_rev + ops_rev
+
+    @property
+    def has_deferred_revenue(self):
+        """Kiểm tra xem trong lô có khoản doanh thu nào bị lệch kỳ xuất HĐ hay không"""
+        return any(item.is_deferred_revenue for item in self.active_revenue_items) or \
+               any(cost.is_deferred_revenue for cost in self.active_operating_costs)
+    
     @property
     def total_buy_cost(self):
         """Tổng chi phí mua (đã có VAT) từ báo cáo bán hàng"""
@@ -739,6 +757,37 @@ class RevenueItem(db.Model):
     deleted_at = db.Column(db.DateTime, nullable=True)
     deleted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
+    # Kỳ ghi nhận doanh thu & Xuất hóa đơn đầu ra
+    revenue_month = db.Column(db.Integer, nullable=True)        # Tháng xuất HĐ / ghi nhận doanh thu (1-12)
+    revenue_year = db.Column(db.Integer, nullable=True)         # Năm xuất HĐ (VD: 2026)
+    revenue_invoice_date = db.Column(db.Date, nullable=True)     # Ngày xuất HĐ đầu ra
+    revenue_invoice_number = db.Column(db.String(100), nullable=True) # Số HĐ đầu ra
+
+    @property
+    def effective_revenue_month(self):
+        """Tháng ghi nhận doanh thu: ưu tiên revenue_month, hoặc tháng của ngày HĐ, hoặc tháng của Lô"""
+        if self.revenue_month:
+            return self.revenue_month
+        if self.revenue_invoice_date:
+            return self.revenue_invoice_date.month
+        return self.lot.month if self.lot else None
+
+    @property
+    def effective_revenue_year(self):
+        """Năm ghi nhận doanh thu: ưu tiên revenue_year, hoặc năm của ngày HĐ, hoặc năm của Lô"""
+        if self.revenue_year:
+            return self.revenue_year
+        if self.revenue_invoice_date:
+            return self.revenue_invoice_date.year
+        return self.lot.year if self.lot else None
+
+    @property
+    def is_deferred_revenue(self):
+        """Kiểm tra khoản doanh thu này có bị xuất HĐ lệch tháng so với tháng của Lô hay không"""
+        if not self.lot:
+            return False
+        return (self.effective_revenue_month, self.effective_revenue_year) != (self.lot.month, self.lot.year)
+    
     @property
     def total_buy_price(self):
         """Tổng tiền mua: ưu tiên lấy từ cột Tổng tiền mua trong Excel nếu có"""
@@ -803,7 +852,12 @@ class RevenueItem(db.Model):
             'customs_inspection': self.customs_inspection or 0,
             'infrastructure_fee': self.infrastructure_fee or 0,
             'ticket_fee': self.ticket_fee or 0,
-            'loading_fee': self.loading_fee or 0
+            'loading_fee': self.loading_fee or 0,
+            'revenue_month': self.effective_revenue_month,
+            'revenue_year': self.effective_revenue_year,
+            'is_deferred_revenue': self.is_deferred_revenue,
+            'revenue_invoice_date': self.revenue_invoice_date.strftime('%d/%m/%Y') if self.revenue_invoice_date else '',
+            'revenue_invoice_number': self.revenue_invoice_number or ''
         }
 
 class OperatingCost(db.Model):
@@ -819,6 +873,12 @@ class OperatingCost(db.Model):
     unit_price = db.Column(db.Float, default=0.0)
     total_amount = db.Column(db.Float, default=0.0)        # Đơn giá * SL xe (Giá Mua Vào)
     sell_price = db.Column(db.Float, default=0.0)          # Giá Bán Ra thu khách (nếu có)
+    
+    # Kỳ xuất HĐ / ghi nhận doanh thu bán ra nếu có
+    revenue_month = db.Column(db.Integer, nullable=True)
+    revenue_year = db.Column(db.Integer, nullable=True)
+    revenue_invoice_date = db.Column(db.Date, nullable=True)
+    revenue_invoice_number = db.Column(db.String(100), nullable=True)
     
     # Chứng từ (bắt buộc khi hoàn thành)
     invoice_type = db.Column(db.String(100), nullable=True)  # Hóa đơn GTGT, Phiếu thu, Vé xe...
@@ -918,6 +978,31 @@ class OperatingCost(db.Model):
         except Exception:
             return None
 
+    @property
+    def effective_revenue_month(self):
+        """Tháng ghi nhận doanh thu bán ra: ưu tiên revenue_month, hoặc tháng của ngày HĐ, hoặc tháng của Lô"""
+        if self.revenue_month:
+            return self.revenue_month
+        if self.revenue_invoice_date:
+            return self.revenue_invoice_date.month
+        return self.lot.month if self.lot else None
+
+    @property
+    def effective_revenue_year(self):
+        """Năm ghi nhận doanh thu bán ra: ưu tiên revenue_year, hoặc năm của ngày HĐ, hoặc năm của Lô"""
+        if self.revenue_year:
+            return self.revenue_year
+        if self.revenue_invoice_date:
+            return self.revenue_invoice_date.year
+        return self.lot.year if self.lot else None
+
+    @property
+    def is_deferred_revenue(self):
+        """Kiểm tra khoản doanh thu bán ra này có bị xuất HĐ lệch tháng so với tháng của Lô hay không"""
+        if not self.lot or not self.sell_price or self.sell_price <= 0:
+            return False
+        return (self.effective_revenue_month, self.effective_revenue_year) != (self.lot.month, self.lot.year)
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -930,6 +1015,7 @@ class OperatingCost(db.Model):
             'vehicle_count': self.vehicle_count or 1,
             'unit_price': self.unit_price or 0,
             'total_amount': self.total_amount or 0,
+            'sell_price': self.sell_price or 0,
             'invoice_type': self.invoice_type or '',
             'invoice_symbol': self.invoice_symbol or '',
             'invoice_number': self.invoice_number or '',
@@ -945,7 +1031,12 @@ class OperatingCost(db.Model):
             'has_invoice_file': self.has_invoice_file,
             'invoice_media_id': self.latest_invoice_media.id if self.latest_invoice_media else None,
             'cost_amount': self.cost_amount or 0,
-            'vat_amount': self.vat_amount or 0
+            'vat_amount': self.vat_amount or 0,
+            'revenue_month': self.effective_revenue_month,
+            'revenue_year': self.effective_revenue_year,
+            'is_deferred_revenue': self.is_deferred_revenue,
+            'revenue_invoice_date': self.revenue_invoice_date.strftime('%d/%m/%Y') if self.revenue_invoice_date else '',
+            'revenue_invoice_number': self.revenue_invoice_number or ''
         }
 
 class CostEntryTask(db.Model):

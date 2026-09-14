@@ -82,7 +82,19 @@
                     <span class="delta-pill delta-neutral text-muted" style="font-size: 0.72rem;">N/A - chưa có dữ liệu tháng trước</span>
                 {% endif %}
             </div>
-            <div class="kpi-caption-note font-mono">Giá bán chưa VAT</div>
+            <div class="kpi-caption-note font-mono">
+                {% if kpi.deferred_in_revenue and kpi.deferred_in_revenue > 0 %}
+                    <span class="text-primary fw-semibold" title="Bao gồm {{ kpi.deferred_in_revenue | format_money }} từ các lô tháng trước xuất HĐ kỳ này">
+                        <i class="fa-solid fa-clock-rotate-left me-1"></i>+{{ kpi.deferred_in_revenue | format_compact_money }} từ kỳ trước
+                    </span>
+                {% elif kpi.deferred_out_revenue and kpi.deferred_out_revenue > 0 %}
+                    <span class="text-muted" title="{{ kpi.deferred_out_revenue | format_money }} doanh thu dời sang xuất HĐ kỳ sau">
+                        <i class="fa-solid fa-clock me-1"></i>Dời {{ kpi.deferred_out_revenue | format_compact_money }} sang kỳ sau
+                    </span>
+                {% else %}
+                    Giá bán chưa VAT
+                {% endif %}
+            </div>
         </div>
     </div>
 
