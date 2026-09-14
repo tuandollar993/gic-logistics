@@ -283,7 +283,7 @@
                 {% for lot in kpi.top_lots %}
                 <tr>
                     <td class="border-0">
-                        <a href="{{ url_for('lots.lot_detail', lot_id=lot.id) }}" class="text-decoration-none fw-semibold text-primary">{{ lot.label }}</a>
+                        <a href="{{ url_for('lots.detail', lot_id=lot.id) }}" class="text-decoration-none fw-semibold text-primary">{{ lot.label }}</a>
                     </td>
                     <td class="border-0 text-dark">{{ lot.customer }}</td>
                     <td class="border-0 text-end font-mono fw-bold text-dark">{{ lot.revenue | format_compact_money }}</td>
