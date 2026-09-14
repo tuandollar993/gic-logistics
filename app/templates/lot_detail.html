@@ -23,6 +23,21 @@
     </div>
 
     <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn-secondary-gic" data-bs-toggle="modal" data-bs-target="#excelCostSheetModal" title="Xem bảng chi phí chi tiết 15 cột chuẩn mẫu Excel">
+            <i class="fa-solid fa-file-excel text-success"></i>
+            <span>Bảng Kê CPVH (Chuẩn Excel)</span>
+        </button>
+
+        {% if current_user.is_manager and lot.active_operating_costs|length == 0 %}
+        <form method="POST" action="{{ url_for('lots.init_template_costs', lot_id=lot.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-primary-gic py-1 px-3 d-inline-flex align-items-center gap-2" style="font-size: 0.85rem;" title="Tự động nạp 16 hạng mục chi phí mẫu (Cửa khẩu, Thông quan, Bến bãi)">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Nạp 16 CP Mẫu</span>
+            </button>
+        </form>
+        {% endif %}
+
         <button type="button" class="btn-secondary-gic" data-bs-toggle="modal" data-bs-target="#editLotInfoModal" title="Chỉnh sửa tên lô, khách hàng, số tờ khai HQ, trạng thái">
             <i class="fa-solid fa-pen-to-square text-primary"></i>
             <span>Sửa Thông Tin Lô</span>
@@ -73,6 +88,15 @@
                 <div class="d-flex justify-content-between py-2 border-bottom border-light">
                     <span class="text-muted">Kỳ báo cáo:</span>
                     <span class="text-dark font-mono">Tháng {{ "%02d"|format(lot.month) }} / {{ lot.year }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-2 border-bottom border-light">
+                    <span class="text-muted">Tổng số xe chạy:</span>
+                    <span class="text-end">
+                        <span class="font-mono fw-bold text-dark"><i class="fa-solid fa-truck text-primary me-1"></i>{{ lot.total_vehicle_count }} xe</span>
+                        {% if lot.distinct_vehicles %}
+                            <small class="text-muted d-block font-mono" style="font-size: 0.68rem;">({{ lot.distinct_vehicles|map(attribute='plate')|join(', ') }})</small>
+                        {% endif %}
+                    </span>
                 </div>
                 <div class="d-flex justify-content-between py-2 border-bottom border-light">
                     <span class="text-muted">Nhân viên phụ trách:</span>
@@ -154,8 +178,51 @@
             </button>
         </div>
     </div>
+
+    <!-- Thanh Lọc Phân Bổ Chi Tiết Theo Từng Xe -->
+    {% if lot.distinct_vehicles or lot.active_operating_costs %}
+    <div class="d-flex align-items-center gap-2 flex-wrap px-3 py-2 bg-light border-bottom" id="vehicleFilterBar">
+        <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.68rem;">
+            <i class="fa-solid fa-truck-moving text-primary me-1"></i>Xem chi phí theo xe:
+        </span>
+        <button type="button" class="btn btn-xs py-1 px-3 rounded-pill btn-dark active filter-vehicle-btn" data-plate="all">
+            Tất cả các xe ({{ lot.total_vehicle_count }} xe)
+        </button>
+        {% for v in lot.distinct_vehicles %}
+        <button type="button" class="btn btn-xs py-1 px-3 rounded-pill btn-outline-secondary filter-vehicle-btn" data-plate="{{ v.plate|lower }}">
+            <i class="fa-solid fa-truck text-primary me-1"></i>{{ v.label }}
+        </button>
+        {% endfor %}
+        <button type="button" class="btn btn-xs py-1 px-3 rounded-pill btn-outline-secondary filter-vehicle-btn" data-plate="general">
+            <i class="fa-solid fa-layer-group text-secondary me-1"></i>Chi phí chung lô
+        </button>
+        <span class="small text-muted ms-auto font-mono" id="vehicleFilterCount">
+            Hiển thị: {{ lot.active_revenue_items|length + lot.active_operating_costs|length }} mục
+        </span>
+    </div>
+    {% endif %}
+
+    {% if lot.active_operating_costs|length == 0 %}
+    <div class="alert alert-warning border border-warning-subtle d-flex align-items-center justify-content-between m-3 p-3 rounded-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-warning fs-4"></i>
+            <div>
+                <strong class="text-dark">Lô hàng này chưa có danh mục chi phí vận hành.</strong>
+                <div class="small text-muted">Bấm nút bên cạnh để tự động nạp sẵn 16 hạng mục chi phí chuẩn (Cửa khẩu, Thông quan, Bến bãi). Bạn có thể bấm dấu [X] để loại bỏ mục nào không phát sinh.</div>
+            </div>
+        </div>
+        <form method="POST" action="{{ url_for('lots.init_template_costs', lot_id=lot.id) }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Nạp 16 Chi Phí Mẫu</span>
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
     <div class="table-responsive">
-        <table class="table-custom-clean align-middle">
+        <table class="table-custom-clean align-middle" id="mainUnifiedTable">
             <thead>
                 <tr>
                     <th style="width: 40px;" class="text-center">#</th>
@@ -174,7 +241,7 @@
                 <!-- 1. Dịch Vụ Cước & Doanh Thu Bán Ra -->
                 {% for item in lot.active_revenue_items %}
                 {% set profit = item.total_sell_price - item.total_buy_price %}
-                <tr>
+                <tr class="item-row revenue-item-row" data-vehicle="{{ (item.vehicle_plate_vn or item.vehicle_plate_cn or 'general')|lower }}">
                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
                     <td>
                         {% set cat = item.category %}
@@ -251,7 +318,7 @@
 
                 <!-- 2. Chi Phí Vận Hành Thực Tế (Mua vào / Trả NCC) -->
                 {% for cost in lot.active_operating_costs %}
-                <tr>
+                <tr id="cost-tr-{{ cost.id }}" class="item-row cost-item-row" data-vehicle="{{ (cost.vehicle_plate or 'general')|lower }}" data-cost-amount="{{ cost.total_amount or 0 }}">
                     <td class="text-center font-mono text-muted">{{ lot.active_revenue_items|length + loop.index }}</td>
                     <td>
                         {% set cat = cost.category %}
@@ -325,11 +392,14 @@
                                 title="Sửa chi phí này">
                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                             </button>
-                            <form method="POST" action="{{ url_for('lots.delete_cost_item', lot_id=lot.id, cost_id=cost.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa khoản chi phí này?');">
-                                <button type="submit" class="btn-secondary-gic py-1 px-2 text-danger" style="font-size: 0.75rem;" title="Xóa chi phí">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 btn-quick-x-delete"
+                                data-cost-id="{{ cost.id }}"
+                                data-lot-id="{{ lot.id }}"
+                                data-cost-desc="{{ cost.display_description }}"
+                                data-cost-amount="{{ cost.total_amount or 0 }}"
+                                title="Bấm [X] để loại bỏ mục chi phí không phát sinh">
+                                <i class="fa-solid fa-xmark fw-bold"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -807,6 +877,117 @@
 </div>
 {% endif %}
 
+<!-- Modal: Bảng Kê Chi Tiết Chi Phí Vận Hành Chuẩn Mẫu Excel (15 Cột Chuẩn Mẫu Hình Ảnh) -->
+<div class="modal fade" id="excelCostSheetModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0">
+            <div class="modal-header border-bottom py-2 bg-light">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-file-excel text-success fs-4"></i>
+                    <h5 class="modal-title fw-bold text-dark m-0">BẢNG TỔNG HỢP CHI PHÍ VẬN HÀNH — {{ lot.lot_label }}</h5>
+                    <span class="badge bg-primary font-mono ms-2">Kỳ T{{ "%02d"|format(lot.month) }}/{{ lot.year }}</span>
+                    {% if lot.distinct_vehicles %}
+                        <span class="badge bg-light text-dark border font-mono"><i class="fa-solid fa-truck text-primary me-1"></i>{{ lot.total_vehicle_count }} xe: {{ lot.distinct_vehicles|map(attribute='plate')|join(', ') }}</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-dark" onclick="window.print()" title="In bảng chi phí này">
+                        <i class="fa-solid fa-print me-1"></i> In Bảng Kê
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-4 bg-white">
+                <!-- Header Tiêu Đề Báo Cáo Y Hệt File Excel -->
+                <div class="text-center mb-4 pb-2 border-bottom">
+                    <div class="fw-bold text-uppercase" style="font-size: 0.9rem; color: #1e293b;">CÔNG TY CỔ PHẦN DỊCH VỤ THƯƠNG MẠI XUYÊN BIÊN GIỚI GIC</div>
+                    <div class="text-muted small" style="font-size: 0.78rem;">405/15 Xô Viết Nghệ Tĩnh, Phường Bình Thạnh, TP. Hồ Chí Minh, Việt Nam | Mã số thuế: 0314521941</div>
+                    <h4 class="fw-bold text-dark mt-2 mb-1 text-uppercase" style="letter-spacing: -0.01em;">BẢNG TỔNG HỢP CHI PHÍ VẬN HÀNH</h4>
+                    <div class="fw-semibold text-secondary font-mono small">Tháng {{ "%02d"|format(lot.month) }}/{{ lot.year }}</div>
+                </div>
+
+                <!-- Bảng 15 Cột Chuẩn Mẫu Excel -->
+                <div class="table-responsive border rounded-2 shadow-sm">
+                    <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.78rem;">
+                        <thead style="background: #e2e8f0; color: #1e293b;" class="text-center">
+                            <tr>
+                                <th style="width: 40px;">STT</th>
+                                <th style="width: 150px;">Khách hàng</th>
+                                <th style="width: 130px;">Mã lô/Số TKHQ</th>
+                                <th style="width: 120px;">Loại chi phí</th>
+                                <th>Nội dung chi tiết</th>
+                                <th style="width: 95px;">BKS</th>
+                                <th style="width: 50px;">SL xe</th>
+                                <th style="width: 95px;" class="text-end">Đơn giá</th>
+                                <th style="width: 110px;" class="text-end fw-bold">Tổng tiền</th>
+                                <th style="width: 110px;">Loại HĐ/Phiếu thu/Vé xe</th>
+                                <th style="width: 90px;">Ký hiệu HĐ</th>
+                                <th style="width: 100px;">Số HĐ/Số Phiếu thu/Vé xe</th>
+                                <th style="width: 90px;">Ngày chứng từ</th>
+                                <th style="width: 100px;">MST</th>
+                                <th style="width: 170px;">Nhà cung cấp</th>
+                                <th style="width: 45px;" class="no-print text-center">Bỏ [X]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Dòng Nhóm Khối Header (Màu Xanh Nhạt Chuẩn Excel) -->
+                            <tr style="background: #dcfce7; font-weight: bold;">
+                                <td class="text-center font-mono">1</td>
+                                <td>{{ lot.company or lot.display_customer_name }}</td>
+                                <td class="font-mono text-primary">{{ lot.customs_declaration or lot.lot_label }}</td>
+                                <td>-</td>
+                                <td class="font-mono">{{ lot.company or lot.display_customer_name }}_{{ lot.customs_declaration or '' }}</td>
+                                <td>-</td>
+                                <td class="text-center font-mono">{{ lot.total_vehicle_count }}</td>
+                                <td class="text-end">-</td>
+                                <td class="text-end font-mono text-danger fw-bold" id="modalHeaderCostSum">{{ lot.total_operating_cost | format_money }}</td>
+                                <td colspan="7"></td>
+                            </tr>
+                            {% for cost in lot.active_operating_costs %}
+                            <tr class="cost-row-print" id="modal-cost-row-{{ cost.id }}">
+                                <td class="text-center font-mono text-muted">{{ loop.index }}</td>
+                                <td>{{ lot.display_customer_name }}</td>
+                                <td class="font-mono text-muted">{{ lot.customs_declaration or lot.lot_label }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ cost.cost_type or cost.category }}</span>
+                                </td>
+                                <td class="fw-semibold text-dark">{{ cost.description }}</td>
+                                <td class="font-mono text-center">{{ cost.vehicle_plate or '-' }}</td>
+                                <td class="text-center font-mono">{{ cost.vehicle_count or 1 }}</td>
+                                <td class="text-end font-mono tabular-nums">{{ cost.unit_price | format_money }}</td>
+                                <td class="text-end font-mono fw-bold text-danger tabular-nums">{{ cost.total_amount | format_money }}</td>
+                                <td>{{ cost.invoice_type or '-' }}</td>
+                                <td class="font-mono">{{ cost.invoice_symbol or '-' }}</td>
+                                <td class="font-mono fw-semibold">{{ cost.invoice_number or '-' }}</td>
+                                <td class="font-mono">{{ cost.document_date.strftime('%d/%m/%Y') if cost.document_date else '-' }}</td>
+                                <td class="font-mono">{{ cost.supplier_tax_code or '-' }}</td>
+                                <td class="text-truncate" style="max-width: 170px;" title="{{ cost.supplier_name or '' }}">{{ cost.supplier_name or '-' }}</td>
+                                <td class="text-center no-print">
+                                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 btn-quick-x-delete" data-cost-id="{{ cost.id }}" data-lot-id="{{ lot.id }}" data-cost-desc="{{ cost.display_description }}" data-cost-amount="{{ cost.total_amount or 0 }}" title="Bấm [X] để loại bỏ nếu không phát sinh">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="16" class="text-center py-4 text-muted">Chưa có chi phí vận hành nào cho lô này.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot style="background: #f1f5f9; font-weight: bold;">
+                            <tr>
+                                <td colspan="8" class="text-end text-uppercase py-2">TỔNG CỘNG CHI PHÍ VẬN HÀNH:</td>
+                                <td class="text-end font-mono text-danger fs-6 py-2 tabular-nums" id="modalTotalOpsDisplay">{{ lot.total_operating_cost | format_money }}</td>
+                                <td colspan="7"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function formatMoneyNumber(val) {
     if (val === null || val === undefined || val === '') return '';
@@ -964,6 +1145,126 @@ document.addEventListener('DOMContentLoaded', function() {
             this.value = formatMoneyNumber(this.value);
             let diff = this.value.length - oldVal.length;
             if (cursor !== null) this.setSelectionRange(cursor + diff, cursor + diff);
+        });
+    });
+
+    // =========================================================
+    // 1. Phân Bổ & Lọc Chi Phí Theo Xe
+    // =========================================================
+    const vehicleFilterBtns = document.querySelectorAll('.filter-vehicle-btn');
+    const vehicleCountSpan = document.getElementById('vehicleFilterCount');
+
+    vehicleFilterBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            vehicleFilterBtns.forEach(b => {
+                b.classList.remove('btn-dark', 'active');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-dark', 'active');
+
+            const selectedPlate = (this.getAttribute('data-plate') || 'all').toLowerCase();
+            let visibleCount = 0;
+
+            document.querySelectorAll('#mainUnifiedTable tbody tr.item-row').forEach(row => {
+                const rowPlate = (row.getAttribute('data-vehicle') || 'general').toLowerCase();
+                let shouldShow = false;
+
+                if (selectedPlate === 'all') {
+                    shouldShow = true;
+                } else if (selectedPlate === 'general') {
+                    shouldShow = (rowPlate === 'general' || rowPlate === '-' || rowPlate === '');
+                } else {
+                    shouldShow = rowPlate.includes(selectedPlate);
+                }
+
+                if (shouldShow) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (vehicleCountSpan) {
+                vehicleCountSpan.innerText = `Hiển thị: ${visibleCount} mục`;
+            }
+        });
+    });
+
+    // =========================================================
+    // 2. Nút Dấu [X] Loại Bỏ Nhanh Khoản Chi Phí Không Phát Sinh
+    // =========================================================
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-quick-x-delete');
+        if (!btn) return;
+
+        const costId = btn.getAttribute('data-cost-id');
+        const lotId = btn.getAttribute('data-lot-id');
+        const costDesc = btn.getAttribute('data-cost-desc') || 'khoản chi này';
+        const costAmt = parseFloat(btn.getAttribute('data-cost-amount') || 0);
+
+        if (!confirm(`Bạn có chắc chắn muốn bỏ khoản chi phí: "${costDesc}" không phát sinh cho lô này?`)) {
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        fetch(`/lots/${lotId}/costs/${costId}/delete`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Fade out row in main table
+                const mainTr = document.getElementById(`cost-tr-${costId}`);
+                if (mainTr) {
+                    mainTr.style.transition = 'all 0.3s ease';
+                    mainTr.style.opacity = '0';
+                    setTimeout(() => mainTr.remove(), 300);
+                }
+
+                // Fade out row in modal table
+                const modalTr = document.getElementById(`modal-cost-row-${costId}`);
+                if (modalTr) {
+                    modalTr.style.transition = 'all 0.3s ease';
+                    modalTr.style.opacity = '0';
+                    setTimeout(() => modalTr.remove(), 300);
+                }
+
+                // Update total displays
+                if (data.total_operating_cost !== undefined) {
+                    const fmt = formatMoneyNumber(data.total_operating_cost);
+                    const modalTotal = document.getElementById('modalTotalOpsDisplay');
+                    if (modalTotal) modalTotal.innerText = fmt;
+                    const modalHdr = document.getElementById('modalHeaderCostSum');
+                    if (modalHdr) modalHdr.innerText = fmt;
+                }
+            } else {
+                alert('Không thể xóa: ' + (data.error || 'Lỗi không xác định'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-xmark fw-bold"></i>';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            // Fallback: submit standard form if AJAX fails
+            const fallbackForm = document.createElement('form');
+            fallbackForm.method = 'POST';
+            fallbackForm.action = `/lots/${lotId}/costs/${costId}/delete`;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '{{ csrf_token() }}';
+            fallbackForm.appendChild(csrfInput);
+            document.body.appendChild(fallbackForm);
+            fallbackForm.submit();
         });
     });
 });

@@ -307,3 +307,72 @@ class CPVHMatcher:
             status='unresolved',
             reason='; '.join(reason_parts) + '.'
         )
+
+    @classmethod
+    def suggest_candidates(cls, unresolved_lot, all_sales_lots: List[Any], max_suggestions: int = 3) -> List[Dict[str, Any]]:
+        """
+        Phân tích và đề xuất các Sales Lot phù hợp nhất (kể cả xuyên tháng/tháng trước).
+        Dành cho quản lý duyệt nhanh trên giao diện đối soát.
+        """
+        source_customer = unresolved_lot.company or unresolved_lot.display_customer_name
+        source_decl = unresolved_lot.customs_declaration
+        enterprise_source = extract_enterprise_name(source_customer)
+
+        source_decl_tokens = extract_customs_declarations(source_decl)
+        source_decl_bases = {get_declaration_base_number(t) for t in source_decl_tokens}
+
+        suggestions = []
+
+        for slot in all_sales_lots:
+            if slot.id == unresolved_lot.id or slot.source_type == 'cpvh':
+                continue
+
+            score = 0.0
+            reasons = []
+
+            slot_cust = slot.display_customer_name or slot.company
+            is_cust_match = are_customers_compatible(enterprise_source, slot_cust)
+
+            slot_decl = slot.customs_declaration
+            slot_decl_tokens = extract_customs_declarations(slot_decl)
+            slot_decl_bases = {get_declaration_base_number(t) for t in slot_decl_tokens}
+
+            # 1. Khớp số tờ khai (Ưu tiên cao nhất)
+            decl_common = source_decl_bases.intersection(slot_decl_bases)
+            if decl_common:
+                score += 0.90
+                reasons.append(f"Trùng số TKHQ {', '.join(decl_common)}")
+
+            # 2. Khớp khách hàng
+            if is_cust_match:
+                score += 0.40
+                reasons.append(f"Cùng khách hàng '{extract_enterprise_name(slot_cust)}'")
+
+            # 3. Ưu tiên các tháng gần kề (cùng kỳ hoặc tháng trước liền kề)
+            month_diff = 0
+            if unresolved_lot.year and slot.year and unresolved_lot.month and slot.month:
+                month_diff = (unresolved_lot.year - slot.year) * 12 + (unresolved_lot.month - slot.month)
+                if month_diff == 0:
+                    score += 0.10
+                elif 1 <= month_diff <= 2:
+                    score += 0.05
+                    reasons.append(f"Lô tháng trước (T{slot.month:02d}/{slot.year})")
+                elif month_diff > 2:
+                    score -= 0.05
+
+            if score >= 0.35 and reasons:
+                suggestions.append({
+                    'lot': slot,
+                    'lot_id': slot.id,
+                    'lot_label': slot.lot_label,
+                    'month': slot.month,
+                    'year': slot.year,
+                    'customer_name': slot_cust,
+                    'score': score,
+                    'reason': '; '.join(reasons)
+                })
+
+        # Sắp xếp giảm dần theo điểm tin cậy score
+        suggestions.sort(key=lambda s: s['score'], reverse=True)
+        return suggestions[:max_suggestions]
+

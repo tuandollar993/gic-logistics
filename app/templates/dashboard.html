@@ -152,11 +152,11 @@
                 <span class="kpi-meta-label">Tiến Độ Điền CPVH</span>
                 <div class="kpi-icon-pill"><i class="fa-solid fa-clock-rotate-left"></i></div>
             </div>
-            <div class="kpi-value-stat">{{ kpi.lots_completed }} <span class="fs-6 text-muted fw-normal">/ {{ kpi.lot_count }} lô bán hàng</span></div>
+            <div class="kpi-value-stat">{{ kpi.lots_completed }} <span class="fs-6 text-muted fw-normal">/ {{ kpi.lot_count }} lô</span></div>
             <div>
                 <div class="d-flex justify-content-between align-items-center small mb-1">
-                    <span class="text-muted" style="font-size: 0.75rem;">Đã hoàn thành:</span>
-                    <strong class="font-mono text-dark">{{ kpi.cost_completion_pct }}%</strong>
+                    <span class="badge bg-light text-primary border" style="font-size: 0.72rem;"><i class="fa-solid fa-truck-moving me-1"></i><strong>{{ kpi.vehicle_count }}</strong> xe chạy</span>
+                    <span class="text-muted" style="font-size: 0.75rem;">Đã xong: <strong class="font-mono text-dark">{{ kpi.cost_completion_pct }}%</strong></span>
                 </div>
                 <div class="progress-minimal">
                     <div class="progress-bar {% if kpi.cost_completion_pct == 100 %}bg-success{% else %}bg-warning{% endif %}" style="width: {{ kpi.cost_completion_pct }}%;"></div>

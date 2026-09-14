@@ -150,7 +150,14 @@ def index():
         )
         unresolved_groups = unresolved_query.order_by(Lot.id.asc()).all()
 
+    # Tự động đề xuất ghép lô thông minh (hỗ trợ cả các tháng trước)
+    from app.services.cpvh_matcher import CPVHMatcher
+    all_sales_lots = Lot.sales_lots_query().order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label.asc()).all()
+    for u in unresolved_groups:
+        u.suggestions = CPVHMatcher.suggest_candidates(u, all_sales_lots)
+
     unresolved_total_ops = sum(u.total_operating_cost for u in unresolved_groups)
+    total_month_vehicles = sum(l.total_vehicle_count for l in lots)
     staff_users = User.query.filter_by(is_active=True).all()
     
     suggested_code, next_num = suggest_lot_label(selected_month, selected_year)
@@ -160,6 +167,8 @@ def index():
     return render_template(
         'lots.html',
         lots=lots,
+        all_sales_lots=all_sales_lots,
+        total_month_vehicles=total_month_vehicles,
         unresolved_groups=unresolved_groups,
         unresolved_total_ops=unresolved_total_ops,
         months=months,
@@ -248,6 +257,23 @@ def new_lot():
         db.session.add(lot)
         db.session.flush()
         
+        # Tự động nạp sẵn 16 hạng mục chi phí vận hành chuẩn nếu người dùng chọn
+        init_template = request.form.get('init_template_costs') in ('on', '1', 'true', True)
+        if init_template:
+            from app.constants import STANDARD_OPERATING_COST_ITEMS
+            for item in STANDARD_OPERATING_COST_ITEMS:
+                cost = OperatingCost(
+                    lot_id=lot.id,
+                    cost_type=item['cost_type'],
+                    description=item['description'],
+                    vehicle_count=item.get('default_vehicle_count', 1.0),
+                    unit_price=0.0,
+                    total_amount=0.0,
+                    invoice_type=item.get('invoice_type', 'Không HĐ'),
+                    payment_method='Tiền mặt'
+                )
+                db.session.add(cost)
+
         # If assigned to staff, create task and send reminder/notification
         if assigned_to and deadline:
             task = CostEntryTask(
@@ -267,6 +293,34 @@ def new_lot():
         
     # GET request: redirect to lots list (creation is handled via modal on lots.html)
     return redirect(url_for('lots.index'))
+
+
+@lots_bp.route('/<int:lot_id>/init-template-costs', methods=['POST'])
+@login_required
+@manager_required
+def init_template_costs(lot_id):
+    lot = Lot.query.get_or_404(lot_id)
+    from app.constants import STANDARD_OPERATING_COST_ITEMS
+    existing_descs = {c.description.strip().lower() for c in lot.active_operating_costs if c.description}
+    added_count = 0
+    for item in STANDARD_OPERATING_COST_ITEMS:
+        if item['description'].strip().lower() not in existing_descs:
+            cost = OperatingCost(
+                lot_id=lot.id,
+                cost_type=item['cost_type'],
+                description=item['description'],
+                vehicle_count=item.get('default_vehicle_count', 1.0),
+                unit_price=0.0,
+                total_amount=0.0,
+                invoice_type=item.get('invoice_type', 'Không HĐ'),
+                payment_method='Tiền mặt'
+            )
+            db.session.add(cost)
+            added_count += 1
+    db.session.commit()
+    flash(f"Đã nạp thành công {added_count} hạng mục chi phí chuẩn vào {lot.lot_label}!", "success")
+    return redirect(request.referrer or url_for('lots.detail', lot_id=lot.id))
+
 
 @lots_bp.route('/<int:lot_id>/assign', methods=['POST'])
 @login_required
@@ -500,11 +554,20 @@ def delete_cost_item(lot_id, cost_id):
         cost.deleted_by = current_user.id
         db.session.flush()
         db.session.commit()
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', ''):
+            return jsonify({
+                'success': True,
+                'cost_id': cost_id,
+                'total_operating_cost': lot.total_operating_cost,
+                'cost_count': len(lot.active_operating_costs)
+            })
         flash('Đã xóa khoản chi phí thành công!', 'success')
     except Exception as e:
         db.session.rollback()
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': str(e)}), 400
         flash(f'Lỗi xóa chi phí: {e}', 'danger')
-    return redirect(url_for('lots.detail', lot_id=lot.id))
+    return redirect(request.referrer or url_for('lots.detail', lot_id=lot.id))
 
 
 @lots_bp.route('/<int:lot_id>/edit', methods=['POST'])

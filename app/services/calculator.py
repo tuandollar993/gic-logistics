@@ -82,6 +82,9 @@ class CalculatorService:
         rev_growth = round(((total_sell - prev_sell) / prev_sell * 100), 1) if has_prev_data else None
         cost_growth = round(((total_buy - prev_buy) / prev_buy * 100), 1) if prev_buy > 0 else None
         
+        # Total vehicle count across sales lots in the month
+        total_vehicles = sum(lot.total_vehicle_count for lot in sales_lots)
+
         return {
             'month': month,
             'year': year,
@@ -100,6 +103,7 @@ class CalculatorService:
             'target_label': target_label,
             'achievement_pct': achievement_pct,
             'lot_count': lot_count,
+            'vehicle_count': total_vehicles,
             'lots_none': lots_none,
             'lots_partial': lots_partial,
             'lots_completed': lots_completed,

@@ -95,25 +95,28 @@
                     <th style="cursor: pointer;" onclick="sortTable(2, 'text')" title="Bấm để sắp xếp">
                         Số Tờ Khai HQ <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
-                    <th class="text-end" style="cursor: pointer;" onclick="sortTable(3, 'num')" title="Bấm để sắp xếp">
-                        Doanh Thu (Bán) <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    <th class="text-center" style="width: 75px; cursor: pointer;" onclick="sortTable(3, 'num')" title="Bấm để sắp xếp">
+                        Số Xe <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
                     <th class="text-end" style="cursor: pointer;" onclick="sortTable(4, 'num')" title="Bấm để sắp xếp">
-                        Giá Mua (Cước) <i class="fa-solid fa-sort text-muted ms-1"></i>
+                        Doanh Thu (Bán) <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
                     <th class="text-end" style="cursor: pointer;" onclick="sortTable(5, 'num')" title="Bấm để sắp xếp">
-                        Chi Phí VH <i class="fa-solid fa-sort text-muted ms-1"></i>
+                        Giá Mua (Cước) <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
                     <th class="text-end" style="cursor: pointer;" onclick="sortTable(6, 'num')" title="Bấm để sắp xếp">
+                        Chi Phí VH <i class="fa-solid fa-sort text-muted ms-1"></i>
+                    </th>
+                    <th class="text-end" style="cursor: pointer;" onclick="sortTable(7, 'num')" title="Bấm để sắp xếp">
                         Lợi Nhuận <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
-                    <th style="cursor: pointer;" onclick="sortTable(7, 'text')" title="Bấm để sắp xếp">
+                    <th style="cursor: pointer;" onclick="sortTable(8, 'text')" title="Bấm để sắp xếp">
                         Phụ Trách <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
-                    <th style="cursor: pointer;" onclick="sortTable(8, 'date')" title="Bấm để sắp xếp">
+                    <th style="cursor: pointer;" onclick="sortTable(9, 'date')" title="Bấm để sắp xếp">
                         Hạn Chót <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
-                    <th class="text-center" style="cursor: pointer;" onclick="sortTable(9, 'text')" title="Bấm để sắp xếp">
+                    <th class="text-center" style="cursor: pointer;" onclick="sortTable(10, 'text')" title="Bấm để sắp xếp">
                         Trạng Thái <i class="fa-solid fa-sort text-muted ms-1"></i>
                     </th>
                     <th class="text-center" style="width: 80px;">Chi Tiết</th>
@@ -151,6 +154,15 @@
                         </td>
                         <td data-val="{{ lot.customs_declaration or '' }}">
                             <span class="badge bg-light text-dark border font-mono">{{ lot.customs_declaration or 'Chưa có' }}</span>
+                        </td>
+                        <td class="text-center font-mono fw-bold text-dark" data-val="{{ lot.total_vehicle_count }}">
+                            {% if lot.total_vehicle_count > 0 %}
+                                <span class="badge bg-light text-dark border font-mono" title="{{ lot.total_vehicle_count }} xe vận hành">
+                                    <i class="fa-solid fa-truck text-primary me-1" style="font-size: 0.7rem;"></i>{{ lot.total_vehicle_count }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted small">-</span>
+                            {% endif %}
                         </td>
                         <td class="text-end fw-bold font-mono text-primary tabular-nums" data-val="{{ lot.total_sell_revenue }}">
                             {{ lot.total_sell_revenue | format_money }}
@@ -245,7 +257,7 @@
             {% if lots and lots|length > 0 %}
             <tfoot class="bg-light border-top-2">
                 <tr class="fw-bold">
-                    <td colspan="3" class="text-end text-uppercase text-dark py-2">
+                    <td colspan="4" class="text-end text-uppercase text-dark py-2">
                         <span class="fs-6">TỔNG LÔ BÁN HÀNG ({{ lots|length }} lô):</span>
                     </td>
                     <td class="text-end font-mono text-primary py-2 fs-6 tabular-nums">
@@ -267,7 +279,7 @@
                 </tr>
                 {% if unresolved_total_ops and unresolved_total_ops > 0 %}
                 <tr class="fw-bold bg-warning-subtle text-dark border-top">
-                    <td colspan="3" class="text-end text-uppercase py-2" style="font-size: 0.82rem;">
+                    <td colspan="4" class="text-end text-uppercase py-2" style="font-size: 0.82rem;">
                         <i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> CPVH Chưa Đối Soát ({{ unresolved_groups|length }} nhóm):
                     </td>
                     <td class="text-end py-2 font-mono text-muted">-</td>
@@ -281,7 +293,7 @@
                     <td colspan="4" class="py-2 small text-muted fst-italic">Trừ vào lợi nhuận kỳ</td>
                 </tr>
                 <tr class="fw-bold bg-white border-top-2">
-                    <td colspan="3" class="text-end text-uppercase text-dark py-2 fs-6">
+                    <td colspan="4" class="text-end text-uppercase text-dark py-2 fs-6">
                         TỔNG KỲ (BAO GỒM CPVH CHƯA GHÉP):
                     </td>
                     <td class="text-end font-mono text-primary py-2 fs-6 tabular-nums">
@@ -357,33 +369,65 @@
                     <td class="text-end font-mono fw-bold text-danger tabular-nums">
                         {{ u.total_operating_cost | format_money }}
                     </td>
-                    <td class="small text-muted">
-                        {% if u.status == 'pending' %}
-                            <span class="badge bg-warning-subtle text-dark border me-1"><i class="fa-regular fa-clock me-1"></i>Chờ đối soát</span>
+                    <td>
+                        {% if u.suggestions and u.suggestions|length > 0 %}
+                            {% set top_sug = u.suggestions[0] %}
+                            <div class="p-1 px-2 rounded-2 border" style="background: #f0fdf4; border-color: #bbf7d0 !important;">
+                                <div class="d-flex align-items-center gap-1 text-success fw-bold small" style="font-size: 0.75rem;">
+                                    <i class="fa-solid fa-lightbulb text-warning"></i>
+                                    <span>Đề xuất: {{ top_sug.lot_label }}</span>
+                                    <span class="badge bg-white text-success border font-mono ms-auto" style="font-size: 0.65rem;">T{{ "%02d"|format(top_sug.month) }}/{{ top_sug.year }}</span>
+                                </div>
+                                <div class="text-muted small" style="font-size: 0.68rem;">{{ top_sug.reason }}</div>
+                            </div>
+                        {% else %}
+                            <div class="small text-muted">
+                                {% if u.status == 'pending' %}
+                                    <span class="badge bg-warning-subtle text-dark border me-1"><i class="fa-regular fa-clock me-1"></i>Chờ đối soát</span>
+                                {% endif %}
+                                <span>Chưa khớp chắc chắn với Sales Lot nào</span>
+                            </div>
                         {% endif %}
-                        <span>Chưa khớp chắc chắn với Sales Lot nào trong kỳ</span>
                     </td>
                     {% if current_user.is_manager %}
                     <td class="text-center">
-                        <form method="POST" action="{{ url_for('lots.reconcile_cpvh') }}" class="d-inline-flex align-items-center gap-1">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="unresolved_lot_id" value="{{ u.id }}">
-                            <select name="target_lot_id" class="form-select form-select-sm font-mono" style="font-size: 0.75rem; width: 140px;" required>
-                                <option value="" disabled selected>-- Chọn Lô --</option>
-                                {% for slot in lots %}
-                                    <option value="{{ slot.id }}">{{ slot.lot_label }} ({{ slot.display_customer_name[:10] }})</option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-primary py-0 px-2" style="font-size: 0.75rem;" title="Ghép nhóm chi phí này vào lô được chọn" onclick="return confirm('Bạn có chắc chắn muốn chuyển toàn bộ chi phí của nhóm {{ u.lot_label }} vào lô này không?')">
-                                Ghép
-                            </button>
-                        </form>
+                        <div class="d-flex flex-column gap-1">
+                            {% if u.suggestions and u.suggestions|length > 0 %}
+                            <form method="POST" action="{{ url_for('lots.reconcile_cpvh') }}" class="w-100">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="unresolved_lot_id" value="{{ u.id }}">
+                                <input type="hidden" name="target_lot_id" value="{{ u.suggestions[0].lot_id }}">
+                                <button type="submit" class="btn btn-sm btn-success py-1 px-2 font-mono w-100 d-inline-flex align-items-center justify-content-center gap-1 shadow-sm" style="font-size: 0.72rem;" onclick="return confirm('Ghép nhóm {{ u.lot_label }} vào lô đề xuất {{ u.suggestions[0].lot_label }} (Tháng {{ u.suggestions[0].month }}/{{ u.suggestions[0].year }})?')">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    <span>Ghép vào {{ u.suggestions[0].lot_label }}</span>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('lots.reconcile_cpvh') }}" class="d-inline-flex align-items-center gap-1 w-100">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="unresolved_lot_id" value="{{ u.id }}">
+                                <select name="target_lot_id" class="form-select form-select-sm font-mono flex-grow-1" style="font-size: 0.72rem;" required>
+                                    <option value="" disabled {% if not u.suggestions %}selected{% endif %}>-- Chọn Lô Bất Kỳ --</option>
+                                    {% for grp_key, grp_lots in (all_sales_lots or lots) | groupby('month') %}
+                                    <optgroup label="Tháng {{ '%02d'|format(grp_key) }}">
+                                        {% for slot in grp_lots %}
+                                            <option value="{{ slot.id }}" {% if u.suggestions and u.suggestions|length > 0 and u.suggestions[0].lot_id == slot.id %}selected{% endif %}>
+                                                {{ slot.lot_label }} ({{ (slot.display_customer_name or slot.company)[:10] }}) - T{{ "%02d"|format(slot.month) }}
+                                            </option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary py-1 px-2" style="font-size: 0.72rem;" title="Ghép nhóm chi phí này vào lô được chọn" onclick="return confirm('Bạn có chắc chắn muốn chuyển toàn bộ chi phí của nhóm {{ u.lot_label }} vào lô này không?')">
+                                    Ghép
+                                </button>
+                            </form>
+                        </div>
                     </td>
                     {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
-        </table>
     </div>
     {% else %}
     <div class="p-3 text-muted small">
@@ -462,6 +506,13 @@
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Hạn Chót Điền (Deadline)</label>
                         <input type="date" name="cost_deadline" class="form-control font-mono">
                     </div>
+                </div>
+                <div class="form-check form-switch mt-3 p-2 bg-light rounded-2 border">
+                    <input class="form-check-input ms-0 me-2" type="checkbox" name="init_template_costs" id="initTemplateCostsCheck" checked>
+                    <label class="form-check-label small fw-bold text-dark" for="initTemplateCostsCheck">
+                        <i class="fa-solid fa-list-check text-primary me-1"></i> Tự động nạp 16 hạng mục chi phí mẫu (Cửa khẩu, Thông quan, Bến bãi)
+                    </label>
+                    <small class="text-muted d-block ps-4" style="font-size: 0.72rem;">Tự động tạo sẵn danh mục chi phí thực tế. Quản lý/nhân viên có thể bấm dấu [X] để loại bỏ các khoản không phát sinh.</small>
                 </div>
             </div>
             <div class="modal-footer border-top py-2">

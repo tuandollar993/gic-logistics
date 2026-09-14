@@ -314,6 +314,85 @@ class Lot(db.Model):
     def is_cost_complete(self):
         return self.cost_status == 'completed'
 
+    @property
+    def distinct_vehicles(self):
+        """
+        Danh sách tất cả các xe / biển số xe (BKS) vận hành trong lô hàng này.
+        Thu thập từ cả doanh thu bán hàng (RevenueItem) và chi phí vận hành (OperatingCost).
+        """
+        vehicles = []
+        seen = set()
+
+        def _add(plate, label=None):
+            if not plate:
+                return
+            cleaned = str(plate).strip()
+            if not cleaned or cleaned.lower() in ('none', '-', 'nan', 'null', ''):
+                return
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+            if cleaned.lower() not in seen:
+                seen.add(cleaned.lower())
+                vehicles.append({
+                    'plate': cleaned,
+                    'label': label or cleaned
+                })
+
+        for ri in self.active_revenue_items:
+            p_vn = (ri.vehicle_plate_vn or '').strip()
+            p_cn = (ri.vehicle_plate_cn or '').strip()
+            desc = ri.service_description or ''
+            vehicle_tag = None
+            cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', desc, re.IGNORECASE)
+            if cont_m:
+                vehicle_tag = cont_m.group(1).title()
+
+            if p_vn and p_cn:
+                _add(f"{p_vn} / {p_cn}", label=f"{vehicle_tag} - {p_vn}" if vehicle_tag else p_vn)
+            elif p_vn:
+                _add(p_vn, label=f"{vehicle_tag} - {p_vn}" if vehicle_tag else p_vn)
+            elif p_cn:
+                _add(p_cn, label=f"{vehicle_tag} - {p_cn}" if vehicle_tag else p_cn)
+            elif vehicle_tag:
+                _add(vehicle_tag, label=vehicle_tag)
+
+        for cost in self.active_operating_costs:
+            _add(cost.vehicle_plate)
+
+        return vehicles
+
+    @property
+    def total_vehicle_count(self):
+        """
+        Tổng số xe chạy trong lô hàng này.
+        """
+        v_list = self.distinct_vehicles
+        if v_list:
+            return len(v_list)
+        transport_items = [ri for ri in self.active_revenue_items if ri.category == 'Vận chuyển']
+        if transport_items:
+            return len(transport_items)
+        max_vc = max([c.vehicle_count or 1 for c in self.active_operating_costs], default=0)
+        if max_vc > 1:
+            return int(max_vc)
+        if self.active_revenue_items or self.active_operating_costs:
+            return 1
+        return 0
+
+    @property
+    def costs_by_vehicle(self):
+        """
+        Phân loại các khoản chi phí vận hành theo từng xe (BKS).
+        Trả về dict: { 'BKS_1': [cost1, cost2], ..., 'general': [cost_chung] }
+        """
+        grouped = {}
+        for c in self.active_operating_costs:
+            plate = (c.vehicle_plate or '').strip()
+            key = plate if plate and plate.lower() not in ('none', '-', 'nan') else 'general'
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(c)
+        return grouped
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -341,7 +420,9 @@ class Lot(db.Model):
             'is_sales_lot': self.is_sales_lot,
             'is_unresolved_cpvh': self.is_unresolved_cpvh,
             'source_type': self.source_type,
-            'display_lot_label': self.display_lot_label
+            'display_lot_label': self.display_lot_label,
+            'distinct_vehicles': self.distinct_vehicles,
+            'total_vehicle_count': self.total_vehicle_count
         }
 
 def classify_service_category(raw_desc, fallback_hint=None):

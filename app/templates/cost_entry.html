@@ -47,17 +47,21 @@
 <!-- Lot Info Overview Strip -->
 <div class="card border-0 shadow-sm rounded-3 p-3 mb-4 bg-white" style="border: 1px solid var(--gic-border) !important;">
     <div class="row g-3 small">
-        <div class="col-md-3">
+        <div class="col-md-2">
             <span class="text-muted text-uppercase fw-bold d-block" style="font-size: 0.68rem;">Khách Hàng:</span>
-            <strong class="text-dark">{{ lot.customer.name if lot.customer else '-' }}</strong>
+            <strong class="text-dark text-truncate d-block">{{ lot.customer.name if lot.customer else '-' }}</strong>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <span class="text-muted text-uppercase fw-bold d-block" style="font-size: 0.68rem;">Công Ty / Dự Án:</span>
-            <span class="text-dark fw-semibold">{{ lot.company or '-' }}</span>
+            <span class="text-dark fw-semibold text-truncate d-block">{{ lot.company or '-' }}</span>
         </div>
         <div class="col-md-3">
             <span class="text-muted text-uppercase fw-bold d-block" style="font-size: 0.68rem;">Số Tờ Khai HQ:</span>
             <span class="font-mono fw-bold text-primary">{{ lot.customs_declaration or '-' }}</span>
+        </div>
+        <div class="col-md-2">
+            <span class="text-muted text-uppercase fw-bold d-block" style="font-size: 0.68rem;">Số Xe Chạy:</span>
+            <span class="font-mono text-dark fw-bold"><i class="fa-solid fa-truck text-primary me-1"></i>{{ lot.total_vehicle_count }} xe</span>
         </div>
         <div class="col-md-3">
             <span class="text-muted text-uppercase fw-bold d-block" style="font-size: 0.68rem;">Kỳ Báo Cáo:</span>
@@ -76,6 +80,15 @@
             </h6>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
+            {% if lot.active_operating_costs|length == 0 %}
+            <form method="POST" action="{{ url_for('lots.init_template_costs', lot_id=lot.id) }}" class="d-inline m-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-primary py-1 px-3 d-inline-flex align-items-center gap-1 shadow-sm">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Nạp 16 Chi Phí Mẫu</span>
+                </button>
+            </form>
+            {% endif %}
             <span class="text-muted small">Tổng tiền chi phí:</span>
             <strong class="text-danger fs-5 font-mono tabular-nums" id="totalCostDisplay">{{ lot.total_operating_cost | format_money }}</strong>
         </div>
@@ -94,7 +107,7 @@
                     <th>Chứng Từ / HĐ</th>
                     <th>Nhà Cung Cấp</th>
                     <th>Hình Thức</th>
-                    <th class="text-center" style="width: 50px;">Xóa</th>
+                    <th class="text-center text-danger" style="width: 70px;">Bỏ [X]</th>
                 </tr>
             </thead>
             <tbody id="costTableBody">
@@ -132,14 +145,14 @@
                         </td>
                         <td>{{ cost.payment_method or 'Tiền mặt' }}</td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 px-2 border-0" onclick="deleteCost({{ cost.id }})" title="Xóa khoản chi phí">
-                                <i class="fa-regular fa-trash-can"></i>
+                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 fw-bold" onclick="deleteCost({{ cost.id }})" title="Bỏ mục chi phí không phát sinh này">
+                                <i class="fa-solid fa-xmark"></i> [X]
                             </button>
                         </td>
                     </tr>
                 {% else %}
                     <tr id="emptyCostRow">
-                        <td colspan="10" class="text-center text-muted py-4">Chưa có khoản chi phí vận hành nào được nhập cho lô này.</td>
+                        <td colspan="11" class="text-center text-muted py-4">Chưa có khoản chi phí vận hành nào được nhập cho lô này.</td>
                     </tr>
                 {% endfor %}
             </tbody>
