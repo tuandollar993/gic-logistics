@@ -430,8 +430,85 @@ class ExcelParserService:
                         it['assigned_cn'] = it['raw_cn']
                         it['assigned_wt'] = it['raw_wt']
 
-                # 4. Create RevenueItems
+                # 4. Create RevenueItems (Tách riêng phụ phí và chuẩn hóa bốc xếp để Giá mua = Giá bán)
                 for it in active_items:
+                    desc_lower = (it['service_desc'] or '').lower()
+                    is_bocxep = 'bốc xếp' in desc_lower or 'boc xep' in desc_lower
+
+                    if is_bocxep:
+                        target_val = 0.0
+                        if it['loading_f'] and it['loading_f'] > 0:
+                            target_val = it['loading_f']
+                        elif it['val_tb'] and it['val_tb'] > 0:
+                            target_val = it['val_tb']
+                        elif it['sell_p'] and it['sell_p'] > 0:
+                            target_val = it['sell_p']
+                        elif it['buy_loading'] and it['buy_loading'] > 0:
+                            target_val = it['buy_loading']
+                        elif it['buy_p'] and it['buy_p'] > 0:
+                            target_val = it['buy_p']
+                        elif it['val_tm'] and it['val_tm'] > 0:
+                            target_val = it['val_tm']
+
+                        item = RevenueItem(
+                            lot_id=lot.id,
+                            supplier=it['supplier'],
+                            vehicle_plate_cn=it['assigned_cn'],
+                            vehicle_plate_vn=it['assigned_vn'],
+                            weight_class=it['assigned_wt'],
+                            service_description=it['service_desc'] or 'Dịch vụ bốc xếp',
+                            quantity=it['quantity'] or 1.0,
+                            buy_price=target_val,
+                            buy_price_loading=0.0,
+                            sell_price=target_val,
+                            total_buy_price_excel=target_val,
+                            total_sell_price_excel=target_val,
+                            route=it['route_val'],
+                            inspection_point=it['insp_pt'],
+                            inspection_fee=it['insp_fee'],
+                            routing_fee=it['rout_fee'],
+                            empty_container=it['empty_cont']
+                        )
+                        db.session.add(item)
+                        total_items += 1
+                        continue
+
+                    # Tách các phụ phí từ dòng cước hoặc dòng dịch vụ khác
+                    surcharges_to_split = []
+                    if it['infra_f'] and it['infra_f'] > 0:
+                        surcharges_to_split.append(('Phí Cơ sở hạ tầng', it['infra_f']))
+                    if it['ticket_f'] and it['ticket_f'] > 0:
+                        surcharges_to_split.append(('Vé xe', it['ticket_f']))
+                    if it['loading_f'] and it['loading_f'] > 0:
+                        surcharges_to_split.append(('Chi phí dịch vụ bốc xếp', it['loading_f']))
+                    if it['customs_insp'] and it['customs_insp'] > 0:
+                        surcharges_to_split.append(('Hải quan giám sát', it['customs_insp']))
+                    if it['new_mach'] and it['new_mach'] > 0:
+                        surcharges_to_split.append(('Phụ thu máy mới', it['new_mach']))
+                    if it['oversize_f'] and it['oversize_f'] > 0:
+                        surcharges_to_split.append(('Phụ thu hàng quá khổ', it['oversize_f']))
+                    if it['overtime_f'] and it['overtime_f'] > 0:
+                        surcharges_to_split.append(('Phí lưu ca', it['overtime_f']))
+                    if it['storage_f'] and it['storage_f'] > 0:
+                        surcharges_to_split.append(('Lưu kho', it['storage_f']))
+
+                    tt_fee = (it['tan_thanh_f'] or 0.0) + (it['thuan_thanh_f'] or 0.0)
+                    if tt_fee > 0:
+                        surcharges_to_split.append(('Phụ phí bến bãi Tân Thanh / Thuận Thành', tt_fee))
+
+                    pen_fee = (it['return_doss_f'] or 0.0) + (it['penalty_f'] or 0.0) + (it['penalty_doss_f'] or 0.0) + (it['penalty_pay_f'] or 0.0)
+                    if pen_fee > 0:
+                        surcharges_to_split.append(('Phí hồ sơ xử phạt', pen_fee))
+
+                    # Dòng cước chính (giữ giá cước thuần, bảo toàn tổng doanh thu từ Excel)
+                    if surcharges_to_split:
+                        base_tb = it['val_tb'] if it['val_tb'] is not None else (it['sell_p'] or 0.0)
+                        parent_sell = max(0.0, base_tb - sum(amt for _, amt in surcharges_to_split))
+                    else:
+                        parent_sell = it['val_tb'] if it['val_tb'] is not None else (it['sell_p'] or 0.0)
+
+                    parent_buy = it['val_tm'] if it['val_tm'] is not None else (it['buy_p'] or 0.0)
+
                     item = RevenueItem(
                         lot_id=lot.id,
                         supplier=it['supplier'],
@@ -439,35 +516,39 @@ class ExcelParserService:
                         vehicle_plate_vn=it['assigned_vn'],
                         weight_class=it['assigned_wt'],
                         service_description=it['service_desc'],
-                        quantity=it['quantity'],
-                        buy_price=it['buy_p'],
-                        buy_price_loading=it['buy_loading'],
-                        sell_price=it['sell_p'],
+                        quantity=it['quantity'] or 1.0,
+                        buy_price=parent_buy,
+                        buy_price_loading=0.0,
+                        sell_price=parent_sell,
                         overtime_count=it['overtime_count'],
-                        overtime_fee=it['overtime_f'],
-                        customs_inspection=it['customs_insp'],
-                        infrastructure_fee=it['infra_f'],
-                        ticket_fee=it['ticket_f'],
-                        new_machine_surcharge=it['new_mach'],
-                        oversize_surcharge=it['oversize_f'],
-                        loading_fee=it['loading_f'],
-                        penalty_fee=it['penalty_f'],
-                        tan_thanh_fee=it['tan_thanh_f'],
-                        thuan_thanh_fee=it['thuan_thanh_f'],
-                        return_dossier_fee=it['return_doss_f'],
-                        storage_fee=it['storage_f'],
-                        penalty_dossier_fee=it['penalty_doss_f'],
-                        penalty_payment=it['penalty_pay_f'],
                         route=it['route_val'],
                         inspection_point=it['insp_pt'],
                         inspection_fee=it['insp_fee'],
                         routing_fee=it['rout_fee'],
                         empty_container=it['empty_cont'],
-                        total_buy_price_excel=it['val_tm'],
-                        total_sell_price_excel=it['val_tb']
+                        total_buy_price_excel=parent_buy,
+                        total_sell_price_excel=parent_sell
                     )
                     db.session.add(item)
                     total_items += 1
+
+                    # Thêm các dòng phụ phí độc lập (Giá mua = Giá bán = Phụ phí)
+                    for desc, amt in surcharges_to_split:
+                        sc_item = RevenueItem(
+                            lot_id=lot.id,
+                            supplier=it['supplier'],
+                            vehicle_plate_cn=it['assigned_cn'],
+                            vehicle_plate_vn=it['assigned_vn'],
+                            weight_class=it['assigned_wt'],
+                            service_description=desc,
+                            quantity=1.0,
+                            buy_price=amt,
+                            sell_price=amt,
+                            total_buy_price_excel=amt,
+                            total_sell_price_excel=amt
+                        )
+                        db.session.add(sc_item)
+                        total_items += 1
 
             for r in range(header_row + 1, ws.max_row + 1):
                 row_check = [ws.cell(r, c).value for c in range(1, min(ws.max_column + 1, 30))]

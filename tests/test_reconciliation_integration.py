@@ -60,7 +60,7 @@ def test_t08_reconciliation_and_kpi_integrity(app):
         # 4. CalculatorService KPI verification
         kpi = CalculatorService.get_monthly_kpi(8, 2026)
         assert kpi['lot_count'] == 4, f"KPI lot_count expected 4, got {kpi['lot_count']}"
-        assert abs(kpi['revenue'] - 230328694.0) < 1.0, f"KPI revenue expected 230,328,694, got {kpi['revenue']}"
+        assert abs(kpi['revenue'] - 231570694.0) < 1.0, f"KPI revenue expected 231,570,694, got {kpi['revenue']}"
         assert abs(kpi['operating_cost'] - 63960002.0) < 1.0, f"KPI operating_cost expected 63,960,002, got {kpi['operating_cost']}"
         assert kpi['unresolved_group_count'] == 1
         assert abs(kpi['unresolved_cost_amount'] - 6033455.0) < 1.0

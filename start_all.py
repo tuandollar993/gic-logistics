@@ -83,6 +83,15 @@ try:
         except Exception as dup_err:
             print(f'⚠️ [STARTUP] Cảnh báo kiểm tra lô trùng: {dup_err}')
 
+        # Tự động chuẩn hóa tách phụ phí độc lập (CSHT, vé xe, bốc xếp...) Giá mua = Giá bán
+        try:
+            from scripts.normalize_surcharges import run_surcharge_normalization
+            sc_res = run_surcharge_normalization(commit=True, app=_app)
+            if sc_res and sc_res.get('split_items', 0) > 0:
+                print(f"✅ [STARTUP] Đã tách riêng {sc_res['split_items']} phụ phí độc lập (Giá mua = Giá bán)!")
+        except Exception as sc_err:
+            print(f'⚠️ [STARTUP] Cảnh báo chuẩn hóa phụ phí: {sc_err}')
+
         # Tự động chuẩn hóa phân loại chi phí cho OperatingCost (chỉ quét các khoản chưa phân loại)
         try:
             from app.models import OperatingCost, classify_service_category
