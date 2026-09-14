@@ -964,6 +964,10 @@ class OperatingCost(db.Model):
     @property
     def has_invoice_file(self):
         """Kiểm tra dòng chi phí đã có file/ảnh hóa đơn đính kèm hay chưa"""
+        if hasattr(self, '_cached_has_file'):
+            return self._cached_has_file
+        if hasattr(self, '_cached_latest_media'):
+            return self._cached_latest_media is not None
         try:
             return self.bill_media_items.count() > 0
         except Exception:
@@ -972,6 +976,8 @@ class OperatingCost(db.Model):
     @property
     def latest_invoice_media(self):
         """Lấy file hóa đơn gần nhất đính kèm dòng chi phí này"""
+        if hasattr(self, '_cached_latest_media'):
+            return self._cached_latest_media
         try:
             from app.models import CashAdvanceBillMedia
             return self.bill_media_items.order_by(CashAdvanceBillMedia.created_at.desc()).first()

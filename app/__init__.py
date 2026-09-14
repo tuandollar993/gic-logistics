@@ -42,6 +42,7 @@ def create_app(config_class=Config):
 
     @app.after_request
     def add_security_headers(response):
+        from flask import request
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -50,6 +51,33 @@ def create_app(config_class=Config):
             "img-src 'self' data: https: blob:; "
             "font-src 'self' https: data:;"
         )
+
+        # Static assets cache (24 hours)
+        if request.path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+
+        # Native gzip compression for text/json/html responses
+        accept_encoding = request.headers.get('Accept-Encoding', '')
+        if (
+            'gzip' in accept_encoding.lower()
+            and 200 <= response.status_code < 300
+            and 'Content-Encoding' not in response.headers
+            and not getattr(response, 'direct_passthrough', False)
+        ):
+            content_type = response.headers.get('Content-Type', '')
+            compressible = ('text/html', 'application/json', 'text/css', 'text/javascript', 'application/javascript', 'text/plain')
+            if any(c in content_type for c in compressible):
+                import gzip
+                data = response.get_data()
+                if len(data) >= 500:
+                    compressed = gzip.compress(data, compresslevel=6)
+                    if len(compressed) < len(data):
+                        response.set_data(compressed)
+                        response.headers['Content-Encoding'] = 'gzip'
+                        response.headers['Content-Length'] = str(len(compressed))
+                        if 'Accept-Encoding' not in response.headers.get('Vary', ''):
+                            response.headers.add('Vary', 'Accept-Encoding')
+
         return response
 
     # Custom Jinja filters

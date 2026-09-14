@@ -297,133 +297,155 @@ function copyCommentary() {
     });
 }
 
-// Render Charts via AJAX
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Trend Chart
-    fetch(`{{ url_for('dashboard.api_trend') }}?year={{ selected_year }}`)
-        .then(res => res.json())
-        .then(data => {
-            const labels = data.map(d => d.month);
-            const revenues = data.map(d => d.revenue / 1000000);
-            const costs = data.map(d => d.total_cost / 1000000);
-            const targets = data.map(d => d.target / 1000000);
+// Helper render functions
+function renderTrendChart(data) {
+    if (!data || data.length === 0) return;
+    const labels = data.map(d => d.month);
+    const revenues = data.map(d => d.revenue / 1000000);
+    const costs = data.map(d => d.total_cost / 1000000);
+    const targets = data.map(d => d.target / 1000000);
 
-            const ctx = document.getElementById('trendChart').getContext('2d');
-            new Chart(ctx, {
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            type: 'bar',
-                            label: 'Doanh Thu',
-                            data: revenues,
-                            backgroundColor: '#0284c7',
-                            borderRadius: 4,
-                            barPercentage: 0.65,
-                            order: 2
-                        },
-                        {
-                            type: 'bar',
-                            label: 'Tổng Chi Phí',
-                            data: costs,
-                            backgroundColor: '#f59e0b',
-                            borderRadius: 4,
-                            barPercentage: 0.65,
-                            order: 3
-                        },
-                        {
-                            type: 'line',
-                            label: 'Target Mục Tiêu',
-                            data: targets,
-                            borderColor: '#dc2626',
-                            borderWidth: 2,
-                            borderDash: [4, 4],
-                            pointRadius: 3,
-                            pointBackgroundColor: '#dc2626',
-                            fill: false,
-                            order: 1
-                        }
-                    ]
+    const canvas = document.getElementById('trendChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    new Chart(ctx, {
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Doanh Thu',
+                    data: revenues,
+                    backgroundColor: '#0284c7',
+                    borderRadius: 4,
+                    barPercentage: 0.65,
+                    order: 2
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#0b192c',
-                            padding: 10,
-                            titleFont: { family: 'Plus Jakarta Sans', size: 12, weight: 'bold' },
-                            bodyFont: { family: 'JetBrains Mono', size: 12 },
-                            cornerRadius: 6,
-                            callbacks: {
-                                label: function(context) {
-                                    return ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('vi-VN', {maximumFractionDigits: 1})} Tr ₫`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: { font: { family: 'Plus Jakarta Sans', weight: '600', size: 11 }, color: '#64748b' }
-                        },
-                        y: {
-                            border: { dash: [4, 4] },
-                            grid: { color: '#f1f5f9' },
-                            ticks: {
-                                font: { family: 'JetBrains Mono', size: 11 },
-                                color: '#64748b',
-                                callback: val => val.toLocaleString() + 'M'
-                            }
+                {
+                    type: 'bar',
+                    label: 'Tổng Chi Phí',
+                    data: costs,
+                    backgroundColor: '#f59e0b',
+                    borderRadius: 4,
+                    barPercentage: 0.65,
+                    order: 3
+                },
+                {
+                    type: 'line',
+                    label: 'Target Mục Tiêu',
+                    data: targets,
+                    borderColor: '#dc2626',
+                    borderWidth: 2,
+                    borderDash: [4, 4],
+                    pointRadius: 3,
+                    pointBackgroundColor: '#dc2626',
+                    fill: false,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#0b192c',
+                    padding: 10,
+                    titleFont: { family: 'Plus Jakarta Sans', size: 12, weight: 'bold' },
+                    bodyFont: { family: 'JetBrains Mono', size: 12 },
+                    cornerRadius: 6,
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('vi-VN', {maximumFractionDigits: 1})} Tr ₫`;
                         }
                     }
                 }
-            });
-        });
-
-    // 2. Customer Breakdown Doughnut Chart
-    fetch(`{{ url_for('dashboard.api_customers') }}?month={{ selected_month }}&year={{ selected_year }}`)
-        .then(res => res.json())
-        .then(customers => {
-            if (!customers || customers.length === 0) return;
-            const labels = customers.map(c => c.name);
-            const data = customers.map(c => c.share);
-            
-            const palette = ['#0284c7', '#059669', '#d97706', '#7c3aed', '#e11d48', '#64748b'];
-
-            const ctx = document.getElementById('customerChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: palette.slice(0, labels.length),
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { family: 'Plus Jakarta Sans', weight: '600', size: 11 }, color: '#64748b' }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    cutout: '72%'
+                y: {
+                    border: { dash: [4, 4] },
+                    grid: { color: '#f1f5f9' },
+                    ticks: {
+                        font: { family: 'JetBrains Mono', size: 11 },
+                        color: '#64748b',
+                        callback: val => val.toLocaleString() + 'M'
+                    }
                 }
-            });
+            }
+        }
+    });
+}
 
-            // Render legend
-            const legendDiv = document.getElementById('customerLegend');
-            legendDiv.innerHTML = customers.map((c, i) => `
-                <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-light">
-                    <span class="text-truncate text-dark" style="max-width: 190px; font-weight: 500;">
-                        <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: ${palette[i % palette.length]};"></span>
-                        ${c.name}
-                    </span>
-                    <strong class="font-mono text-dark">${c.share}%</strong>
-                </div>
-            `).join('');
-        });
+function renderCustomerChart(customers) {
+    if (!customers || customers.length === 0) return;
+    const labels = customers.map(c => c.name);
+    const data = customers.map(c => c.share);
+    
+    const palette = ['#0284c7', '#059669', '#d97706', '#7c3aed', '#e11d48', '#64748b'];
+
+    const canvas = document.getElementById('customerChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: palette.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            cutout: '72%'
+        }
+    });
+
+    // Render legend
+    const legendDiv = document.getElementById('customerLegend');
+    if (legendDiv) {
+        legendDiv.innerHTML = customers.map((c, i) => `
+            <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-light">
+                <span class="text-truncate text-dark" style="max-width: 190px; font-weight: 500;">
+                    <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: ${palette[i % palette.length]};"></span>
+                    ${c.name}
+                </span>
+                <strong class="font-mono text-dark">${c.share}%</strong>
+            </div>
+        `).join('');
+    }
+}
+
+// Render Charts: Use server pre-computed data if available, otherwise fetch
+document.addEventListener('DOMContentLoaded', function() {
+    const trendData = {{ trend | tojson if trend else 'null' }};
+    if (trendData && trendData.length > 0) {
+        renderTrendChart(trendData);
+    } else {
+        fetch(`{{ url_for('dashboard.api_trend') }}?year={{ selected_year }}`)
+            .then(res => res.json())
+            .then(renderTrendChart)
+            .catch(console.error);
+    }
+
+    const customerData = {{ customers | tojson if customers else 'null' }};
+    if (customerData && customerData.length > 0) {
+        renderCustomerChart(customerData);
+    } else {
+        fetch(`{{ url_for('dashboard.api_customers') }}?month={{ selected_month }}&year={{ selected_year }}`)
+            .then(res => res.json())
+            .then(renderCustomerChart)
+            .catch(console.error);
+    }
 });
 </script>
 {% endblock %}

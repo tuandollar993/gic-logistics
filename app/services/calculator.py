@@ -200,12 +200,61 @@ class CalculatorService:
         targets = Target.query.filter_by(year=year).all()
         target_map = {t.month: t.target_amount_vnd for t in targets if t.target_amount}
         
+        # Batch fetch all deferred revenue into this year in 2 queries instead of 24 queries in a loop
+        from sqlalchemy import or_, and_, func
+        deferred_in_map = {m: 0.0 for m in range(1, 13)}
+
+        deferred_ri_year = RevenueItem.query.join(Lot).filter(
+            Lot.is_deleted == False,
+            Lot.source_type != 'cpvh',
+            RevenueItem.is_deleted == False,
+            or_(
+                and_(
+                    RevenueItem.revenue_year == year,
+                    RevenueItem.revenue_month.between(1, 12),
+                    or_(Lot.month != RevenueItem.revenue_month, Lot.year != year)
+                ),
+                and_(
+                    RevenueItem.revenue_month.is_(None),
+                    func.extract('year', RevenueItem.revenue_invoice_date) == year,
+                    or_(Lot.month != func.extract('month', RevenueItem.revenue_invoice_date), Lot.year != year)
+                )
+            )
+        ).all()
+        for item in deferred_ri_year:
+            m = item.effective_revenue_month
+            if m and 1 <= m <= 12:
+                deferred_in_map[m] += item.total_sell_price
+
+        deferred_ops_year = OperatingCost.query.join(Lot).filter(
+            Lot.is_deleted == False,
+            Lot.source_type != 'cpvh',
+            OperatingCost.is_deleted == False,
+            OperatingCost.sell_price > 0,
+            or_(
+                and_(
+                    OperatingCost.revenue_year == year,
+                    OperatingCost.revenue_month.between(1, 12),
+                    or_(Lot.month != OperatingCost.revenue_month, Lot.year != year)
+                ),
+                and_(
+                    OperatingCost.revenue_month.is_(None),
+                    func.extract('year', OperatingCost.revenue_invoice_date) == year,
+                    or_(Lot.month != func.extract('month', OperatingCost.revenue_invoice_date), Lot.year != year)
+                )
+            )
+        ).all()
+        for cost in deferred_ops_year:
+            m = cost.effective_revenue_month
+            if m and 1 <= m <= 12:
+                deferred_in_map[m] += cost.sell_price or 0.0
+
         months_data = []
         for m in range(1, 13):
             s_lots = [l for l in sales_year_lots if l.month == m]
             u_lots = [l for l in unresolved_year_lots if l.month == m]
             current_recognized = sum(lot.get_recognized_revenue(m, year) for lot in s_lots)
-            deferred_in = CalculatorService.get_deferred_in_revenue(m, year)
+            deferred_in = deferred_in_map[m]
             sell = current_recognized + deferred_in
             buy = sum(lot.total_buy_cost for lot in s_lots)
             ops = sum(lot.total_operating_cost for lot in s_lots) + sum(lot.total_operating_cost for lot in u_lots)

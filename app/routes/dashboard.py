@@ -21,7 +21,9 @@ def index():
     selected_year = request.args.get('year', default_year, type=int)
     
     kpi = CalculatorService.get_monthly_kpi(selected_month, selected_year)
-    comments = CommentEngine.generate_comments(selected_month, selected_year, kpi=kpi)
+    customers = CalculatorService.get_customer_breakdown(selected_month, selected_year)
+    comments = CommentEngine.generate_comments(selected_month, selected_year, kpi=kpi, customers=customers)
+    trend = CalculatorService.get_year_trend(selected_year)
     
     return render_template(
         'dashboard.html',
@@ -29,7 +31,9 @@ def index():
         selected_month=selected_month,
         selected_year=selected_year,
         kpi=kpi,
-        comments=comments
+        comments=comments,
+        customers=customers,
+        trend=trend
     )
 
 @dashboard_bp.route('/api/dashboard/kpis')

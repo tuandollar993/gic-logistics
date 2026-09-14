@@ -40,11 +40,11 @@ def suggest_lot_label(month, year):
     Tìm số thứ tự lô cao nhất trong tháng/năm đã chọn và đề xuất mã lô tiếp theo.
     Định dạng đề xuất: GIDO(tháng)(năm)-(số lô) ví dụ: GIDO092026-03
     """
-    lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).all()
+    labels = Lot.query.filter_by(month=month, year=year, is_deleted=False).with_entities(Lot.lot_label).all()
     nums = []
     existing_labels = set()
-    for l in lots:
-        lbl = (l.lot_label or '').strip()
+    for (lbl,) in labels:
+        lbl = (lbl or '').strip()
         if lbl:
             existing_labels.add(lbl.lower())
             # 1. Match GIDO{month}{year}-NN
@@ -150,11 +150,17 @@ def index():
         )
         unresolved_groups = unresolved_query.order_by(Lot.id.asc()).all()
 
-    # Tự động đề xuất ghép lô thông minh (hỗ trợ cả các tháng trước)
-    from app.services.cpvh_matcher import CPVHMatcher
-    all_sales_lots = Lot.sales_lots_query().order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label.asc()).all()
-    for u in unresolved_groups:
-        u.suggestions = CPVHMatcher.suggest_candidates(u, all_sales_lots)
+    # Tự động đề xuất ghép lô thông minh (chỉ chạy khi thực sự có nhóm CPVH chưa đối soát)
+    all_sales_lots = []
+    if unresolved_groups:
+        from app.services.cpvh_matcher import CPVHMatcher
+        all_sales_lots = Lot.sales_lots_query().options(
+            selectinload(Lot.revenue_items),
+            selectinload(Lot.operating_costs),
+            joinedload(Lot.customer)
+        ).order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label.asc()).all()
+        for u in unresolved_groups:
+            u.suggestions = CPVHMatcher.suggest_candidates(u, all_sales_lots)
 
     unresolved_total_ops = sum(u.total_operating_cost for u in unresolved_groups)
     total_month_vehicles = sum(l.total_vehicle_count for l in lots)
@@ -185,11 +191,28 @@ def index():
 @lots_bp.route('/<int:lot_id>')
 @login_required
 def detail(lot_id):
-    lot = Lot.query.get_or_404(lot_id)
+    from sqlalchemy.orm import selectinload, joinedload
+    lot = Lot.query.options(
+        selectinload(Lot.revenue_items),
+        selectinload(Lot.operating_costs),
+        joinedload(Lot.customer)
+    ).get_or_404(lot_id)
     # Check permissions: manager or assigned staff
     if not current_user.is_manager and lot.assigned_to != current_user.id:
         flash('Bạn không có quyền truy cập lô hàng này.', 'danger')
         return redirect(url_for('lots.index'))
+
+    # Batch load all bill media for this lot in 1 query to eliminate N+1 queries
+    bills = CashAdvanceBillMedia.query.filter_by(lot_id=lot.id).order_by(CashAdvanceBillMedia.created_at.desc()).all()
+    bills_by_cost = {}
+    for b in bills:
+        if b.operating_cost_id and b.operating_cost_id not in bills_by_cost:
+            bills_by_cost[b.operating_cost_id] = b
+
+    for cost in lot.operating_costs:
+        media = bills_by_cost.get(cost.id)
+        cost._cached_latest_media = media
+        cost._cached_has_file = (media is not None)
         
     staff_users = User.query.filter_by(role='staff', is_active=True).all() if current_user.is_manager else []
     suppliers = Supplier.query.order_by(Supplier.name).all()
@@ -198,7 +221,7 @@ def detail(lot_id):
         other_lots = Lot.query.filter(
             Lot.id != lot.id,
             Lot.is_deleted == False
-        ).order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label).all()
+        ).with_entities(Lot.id, Lot.lot_label, Lot.month, Lot.year).order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label).all()
         
     return render_template('lot_detail.html', lot=lot, staff_users=staff_users, suppliers=suppliers, other_lots=other_lots)
 
