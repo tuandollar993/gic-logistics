@@ -331,8 +331,9 @@ class Lot(db.Model):
             if not cleaned or cleaned.lower() in ('none', '-', 'nan', 'null', ''):
                 return
             cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-            if cleaned.lower() not in seen:
-                seen.add(cleaned.lower())
+            key = re.sub(r'[^a-zA-Z0-9]', '', cleaned).lower()
+            if key and key not in seen:
+                seen.add(key)
                 vehicles.append({
                     'plate': cleaned,
                     'label': label or cleaned
@@ -357,7 +358,7 @@ class Lot(db.Model):
             weight = (ri.weight_class or '').strip()
 
             vehicle_tag = None
-            cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', f"{desc} {weight}", re.IGNORECASE)
+            cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+(?:[,\.]\d+)?T)\b', f"{desc} {weight}", re.IGNORECASE)
             if cont_m:
                 vehicle_tag = cont_m.group(1).title()
             elif weight and any(k in weight.lower() for k in ['cont', 'xe', 't']):
@@ -388,7 +389,7 @@ class Lot(db.Model):
             if not p_vn and not p_cn:
                 desc = ri.service_description or ''
                 weight = (ri.weight_class or '').strip()
-                cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', f"{desc} {weight}", re.IGNORECASE)
+                cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+(?:[,\.]\d+)?T)\b', f"{desc} {weight}", re.IGNORECASE)
                 tag = cont_m.group(1).title() if cont_m else (weight if any(k in weight.lower() for k in ['cont', 'xe', 't']) else None)
                 if tag:
                     norm_tag = re.sub(r'[^a-zA-Z0-9]', '', tag).lower()
@@ -553,6 +554,36 @@ class Lot(db.Model):
         if self.active_revenue_items or self.active_operating_costs:
             return 1
         return 0
+
+    @property
+    def invoice_stats(self):
+        """Thống kê chi phí theo phân loại hóa đơn (Có HĐ, Không HĐ, HĐ không TT được)"""
+        costs = self.active_operating_costs
+        has_inv = [c for c in costs if c.invoice_classification == 'has_invoice']
+        no_inv = [c for c in costs if c.invoice_classification == 'no_invoice']
+        unpay_inv = [c for c in costs if c.invoice_classification == 'unpayable_invoice']
+        return {
+            'has_invoice': {
+                'count': len(has_inv),
+                'total': sum(c.total_amount or 0 for c in has_inv),
+                'items': has_inv
+            },
+            'no_invoice': {
+                'count': len(no_inv),
+                'total': sum(c.total_amount or 0 for c in no_inv),
+                'items': no_inv
+            },
+            'unpayable_invoice': {
+                'count': len(unpay_inv),
+                'total': sum(c.total_amount or 0 for c in unpay_inv),
+                'items': unpay_inv
+            },
+            'problematic': {
+                'count': len(no_inv) + len(unpay_inv),
+                'total': sum(c.total_amount or 0 for c in no_inv) + sum(c.total_amount or 0 for c in unpay_inv),
+                'items': no_inv + unpay_inv
+            }
+        }
 
     @property
     def costs_by_vehicle(self):
@@ -834,6 +865,28 @@ class OperatingCost(db.Model):
             return 'Dịch vụ tờ khai'
         return desc
 
+    @property
+    def invoice_classification(self):
+        """Phân loại hóa đơn: 'has_invoice', 'no_invoice', 'unpayable_invoice'"""
+        inv_type = (self.invoice_type or '').strip().lower()
+        inv_type_nfc = re.sub(r'[đĐ]', 'd', inv_type)
+        if not inv_type or 'không' in inv_type or 'khong' in inv_type_nfc:
+            return 'no_invoice'
+        if 'hóa đơn' in inv_type or 'hoa don' in inv_type_nfc or 'hdgtgt' in inv_type_nfc:
+            return 'has_invoice' if self.invoice_number else 'no_invoice'
+        # Phiếu chi, Phiếu thu, Vé xe = có chứng từ nhưng không phải HĐ GTGT
+        return 'unpayable_invoice'
+
+    @property
+    def invoice_classification_label(self):
+        """Label tiếng Việt cho phân loại hóa đơn"""
+        cls = self.invoice_classification
+        if cls == 'has_invoice':
+            return 'Có HĐ'
+        elif cls == 'no_invoice':
+            return 'Không HĐ'
+        return 'HĐ không TT được'
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -855,7 +908,11 @@ class OperatingCost(db.Model):
             'note': self.note or '',
             'pic': self.pic or '',
             'payment_method': self.payment_method or 'Tiền mặt',
-            'filled_by_name': self.filler.full_name if self.filler else ''
+            'filled_by_name': self.filler.full_name if self.filler else '',
+            'invoice_classification': self.invoice_classification,
+            'invoice_classification_label': self.invoice_classification_label,
+            'cost_amount': self.cost_amount or 0,
+            'vat_amount': self.vat_amount or 0
         }
 
 class CostEntryTask(db.Model):

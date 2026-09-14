@@ -11,11 +11,18 @@
 
     {% if current_user.is_manager %}
     <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="{{ url_for('lots.export_monthly_problematic_costs', month=selected_month, year=selected_year) }}" 
+           class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm py-2 px-3 font-sans"
+           style="border-radius: 8px; font-weight: 600;"
+           title="Tải file Excel các khoản chi phí Không HĐ và HĐ không thanh toán được Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }} để gửi Sếp">
+            <i class="fa-solid fa-file-excel text-danger" style="font-size: 1.05rem;"></i>
+            <span>Tải DS CP Cần Xử Lý (Gửi Sếp)</span>
+        </a>
         <a href="{{ url_for('lots.export_excel', month=selected_month, year=selected_year) }}" 
            class="btn-secondary-gic d-inline-flex align-items-center gap-2 text-decoration-none shadow-sm"
            title="Xuất Excel danh sách lô và chi phí Tháng {{ '%02d'|format(selected_month) }}/{{ selected_year }}">
             <i class="fa-solid fa-file-excel text-success" style="font-size: 1.05rem;"></i>
-            <span>Xuất Excel</span>
+            <span>Xuất Excel Báo Cáo</span>
         </a>
         <button class="btn-primary-gic" data-bs-toggle="modal" data-bs-target="#createLotModal">
             <i class="fa-solid fa-plus"></i>

@@ -248,6 +248,7 @@ class ExcelParserService:
             if not month or not year:
                 continue
                 
+            print(f"  [Sales] Parsing sheet '{sn}' (T{month:02d}/{year})...", flush=True)
             ws = wb_data[sn]
             ws_raw = wb_raw[sn]
             is_ghnlog = 'GHN' in sn.upper() or 'THÁNG' in sn.upper() or 'THÁNG' in sn.upper()
@@ -287,7 +288,7 @@ class ExcelParserService:
                     return clean_str(val)
                 for kw in ['bien kiem soat', 'bien so xe', 'bien so']:
                     for col_idx, col_name in col_map.items():
-                        if kw in col_name and not any(x in col_name for x in ['cn', 'tq', 'trung quoc']):
+                        if kw in col_name and not any(x in col_name for x in ['cn', 'tq', 'trung quoc', 'phat', 'phi', 'hai quan']):
                             v = ws.cell(r, col_idx).value
                             if v is not None:
                                 return clean_str(v)
@@ -323,6 +324,7 @@ class ExcelParserService:
 
             current_lot = None
             lot_counter = 1
+            empty_row_streak = 0
             
             for r in range(header_row + 1, ws.max_row + 1):
                 row_vals = [ws.cell(r, c).value for c in range(1, min(10, ws.max_column + 1))]
@@ -330,6 +332,13 @@ class ExcelParserService:
                 # Check if this row is a total / summary / footer row -> stop
                 if (total_row and r >= total_row) or is_summary_or_footer_row(row_vals):
                     break
+                    
+                if not any(row_vals):
+                    empty_row_streak += 1
+                    if empty_row_streak >= 5:
+                        break
+                    continue
+                empty_row_streak = 0
                     
                 c1_val = clean_str(ws.cell(r, 1).value)
                 
@@ -510,6 +519,7 @@ class ExcelParserService:
             if not month or not year:
                 continue
                 
+            print(f"  [Cost] Parsing sheet '{sn}' (T{month:02d}/{year})...", flush=True)
             ws = wb[sn]
             
             # ==========================================
@@ -660,6 +670,7 @@ class ExcelParserService:
             source_customer_name = ''
             source_decl = ''
             detail_sequence = 0
+            empty_streak = 0
             
             for r in range(header_row + 1, ws.max_row + 1):
                 stt_val = get_cell_val(r, 'stt')
@@ -672,6 +683,13 @@ class ExcelParserService:
                 row_vals = [stt_val, kh_val, code_val, cost_type, desc]
                 if is_summary_or_footer_row(row_vals):
                     continue
+
+                if not any(row_vals):
+                    empty_streak += 1
+                    if empty_streak >= 5:
+                        break
+                    continue
+                empty_streak = 0
                     
                 plate = get_cell_val(r, 'bks')
                 veh_count = get_cell_val(r, 'sl_xe', clean_float) or 1.0
@@ -693,25 +711,31 @@ class ExcelParserService:
                     grp_customer = kh_val
                     grp_decl = code_val if (code_val and extract_customs_declarations(str(code_val))) else None
                     
-                    # If customer or declaration not on header row, check detail rows in this block
-                    if not grp_customer or not grp_decl:
-                        for peek_r in range(r + 1, min(r + 40, ws.max_row + 1)):
-                            peek_stt = get_cell_val(peek_r, 'stt')
-                            if peek_stt and (peek_stt.isdigit() or clean_float(peek_stt) > 0):
-                                break
-                            peek_row_vals = [ws.cell(peek_r, c).value for c in range(1, min(15, ws.max_column + 1))]
-                            if is_summary_or_footer_row(peek_row_vals):
-                                break
-                            if not grp_customer:
-                                peek_kh = get_cell_val(peek_r, 'khach_hang')
-                                if peek_kh:
-                                    grp_customer = peek_kh
-                            if not grp_decl:
-                                peek_code = get_cell_val(peek_r, 'to_khai')
-                                if peek_code and extract_customs_declarations(str(peek_code)):
-                                    grp_decl = peek_code
-                            if grp_customer and grp_decl:
-                                break
+                    peek_items = []
+                    for peek_r in range(r + 1, min(r + 40, ws.max_row + 1)):
+                        peek_stt = get_cell_val(peek_r, 'stt')
+                        if peek_stt and (peek_stt.isdigit() or clean_float(peek_stt) > 0):
+                            break
+                        peek_row_vals = [ws.cell(peek_r, c).value for c in range(1, min(15, ws.max_column + 1))]
+                        if is_summary_or_footer_row(peek_row_vals):
+                            break
+                        if not grp_customer:
+                            peek_kh = get_cell_val(peek_r, 'khach_hang')
+                            if peek_kh:
+                                grp_customer = peek_kh
+                        if not grp_decl:
+                            peek_code = get_cell_val(peek_r, 'to_khai')
+                            if peek_code and extract_customs_declarations(str(peek_code)):
+                                grp_decl = peek_code
+                        p_plate = get_cell_val(peek_r, 'bks')
+                        p_date = get_cell_val(peek_r, 'ngay_ct', clean_date)
+                        p_desc = get_cell_val(peek_r, 'noi_dung')
+                        if p_plate or p_date or p_desc:
+                            peek_items.append({
+                                'plate': p_plate,
+                                'date': p_date,
+                                'description': p_desc
+                            })
 
                     current_customer_name = grp_customer
                     current_decl = grp_decl
@@ -723,6 +747,7 @@ class ExcelParserService:
                         source_customer=grp_customer,
                         source_decl=grp_decl,
                         sales_lots=sales_lots,
+                        source_items=peek_items,
                         period_month=month,
                         period_year=year
                     )

@@ -172,12 +172,52 @@
             <span class="badge bg-light text-dark border font-mono">
                 Tổng: {{ lot.active_revenue_items|length + lot.active_operating_costs|length }} mục
             </span>
+            <a href="{{ url_for('lots.export_lot_problematic_costs', lot_id=lot.id) }}" 
+               class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-sm font-sans py-1 px-2" 
+               style="font-size: 0.8rem; border-radius: 6px;"
+               title="Tải file Excel các khoản Không HĐ và HĐ không thanh toán được để gửi mail trình Sếp">
+                <i class="fa-solid fa-file-excel text-danger"></i>
+                <span>Tải DS CP Cần Xử Lý (Gửi Sếp)</span>
+                {% if lot.invoice_stats.problematic.count > 0 %}
+                    <span class="badge bg-danger text-white rounded-pill ms-1 font-mono" style="font-size: 0.65rem;">{{ lot.invoice_stats.problematic.count }}</span>
+                {% endif %}
+            </a>
             <button type="button" class="btn-primary-gic py-1 px-3 d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#unifiedItemModal" style="font-size: 0.82rem;">
                 <i class="fa-solid fa-plus"></i>
                 <span>Thêm Khoản Mục (Mua / Bán)</span>
             </button>
         </div>
     </div>
+
+    <!-- Bảng Tóm Tắt Tình Trạng Hóa Đơn & Chứng Từ CPVH -->
+    {% set inv_st = lot.invoice_stats %}
+    {% if lot.active_operating_costs|length > 0 %}
+    <div class="px-3 py-2 bg-white border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.78rem;">
+            <span class="fw-bold text-dark"><i class="fa-solid fa-receipt text-primary me-1"></i>Trạng thái chứng từ CPVH:</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 font-sans">
+                <i class="fa-solid fa-circle-check me-1"></i>Có HĐ: <strong>{{ inv_st.has_invoice.count }}</strong> mục ({{ inv_st.has_invoice.total | format_money }})
+            </span>
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 font-sans">
+                <i class="fa-solid fa-circle-xmark me-1"></i>Không HĐ: <strong>{{ inv_st.no_invoice.count }}</strong> mục ({{ inv_st.no_invoice.total | format_money }})
+            </span>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 font-sans">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i>HĐ không TT được: <strong>{{ inv_st.unpayable_invoice.count }}</strong> mục ({{ inv_st.unpayable_invoice.total | format_money }})
+            </span>
+        </div>
+        <div>
+            {% if inv_st.problematic.count > 0 %}
+            <span class="text-danger small font-semibold" style="font-size: 0.76rem;">
+                <i class="fa-solid fa-circle-info me-1"></i>Cần Sếp duyệt <strong>{{ inv_st.problematic.count }}</strong> khoản (<strong>{{ inv_st.problematic.total | format_money }}</strong>)
+            </span>
+            {% else %}
+            <span class="text-success small font-semibold" style="font-size: 0.76rem;">
+                <i class="fa-solid fa-shield-check me-1"></i>Toàn bộ chi phí đều có hóa đơn GTGT hợp lệ
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Thanh Công Cụ & Thao Tác Nhanh Theo Từng Xe -->
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-2 bg-light border-bottom">
@@ -415,15 +455,40 @@
                                         {% if cost_diff > 0 %}+{% endif %}{{ cost_diff | format_money }}
                                     </td>
                                     <td>
-                                        {% if cost.invoice_number or cost.invoice_type %}
-                                            <div class="fw-semibold small text-dark">{{ cost.invoice_type or 'HĐ' }} {{ cost.invoice_number or '' }}</div>
-                                        {% endif %}
-                                        {% if cost.document_date %}
-                                            <small class="text-muted font-mono" style="font-size: 0.7rem;">{{ cost.document_date.strftime('%d/%m/%Y') }}</small>
-                                        {% elif not cost.invoice_number and not cost.invoice_type %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
+                                         {% set inv_cls = cost.invoice_classification %}
+                                         <div class="mb-1">
+                                             {% if inv_cls == 'has_invoice' %}
+                                                 <span class="badge bg-success-subtle text-success border border-success-subtle font-sans" style="font-size: 0.68rem;">
+                                                     <i class="fa-solid fa-circle-check me-1"></i>Có HĐ
+                                                 </span>
+                                             {% elif inv_cls == 'no_invoice' %}
+                                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle font-sans" style="font-size: 0.68rem;">
+                                                     <i class="fa-solid fa-circle-xmark me-1"></i>Không HĐ
+                                                 </span>
+                                             {% else %}
+                                                 <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle font-sans" style="font-size: 0.68rem;" title="Chứng từ nội bộ/Phiếu chi, không phải HĐ GTGT khấu trừ">
+                                                     <i class="fa-solid fa-triangle-exclamation me-1"></i>HĐ không TT được
+                                                 </span>
+                                             {% endif %}
+                                         </div>
+                                         {% if cost.invoice_number or cost.invoice_type %}
+                                             <div class="fw-semibold text-dark" style="font-size: 0.78rem;">
+                                                 {{ cost.invoice_type or 'HĐ' }}
+                                                 {% if cost.invoice_symbol %}<span class="text-muted font-mono">({{ cost.invoice_symbol }})</span>{% endif %}
+                                                 <span class="font-mono">{{ cost.invoice_number or '' }}</span>
+                                             </div>
+                                         {% endif %}
+                                         <div class="d-flex align-items-center gap-2 flex-wrap">
+                                             {% if cost.document_date %}
+                                                 <small class="text-muted font-mono" style="font-size: 0.7rem;"><i class="fa-regular fa-calendar me-1"></i>{{ cost.document_date.strftime('%d/%m/%Y') }}</small>
+                                             {% elif not cost.invoice_number and not cost.invoice_type %}
+                                                 <span class="text-muted small">-</span>
+                                             {% endif %}
+                                             {% if cost.vat_amount and cost.vat_amount > 0 %}
+                                                 <small class="text-muted font-mono" style="font-size: 0.68rem;">VAT: {{ cost.vat_amount | format_money }}</small>
+                                             {% endif %}
+                                         </div>
+                                     </td>
                                     <td class="text-center">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-row" style="font-size: 0.75rem;"

@@ -110,11 +110,9 @@ def are_customers_compatible(cust_a: Optional[str], cust_b: Optional[str]) -> bo
         
     aliases = [
         {'keep rise', 'keeprise', 'keep'},
-        {'sunluxe', 'anh thang', 'a thang', 'thang'},
-        {'jiayi', 'jiayi vn', 'jia yi', 'mr thang jiayi vn'},
+        {'sunluxe', 'anh thang', 'a thang', 'thang', 'jiayi', 'jiayi vn', 'jia yi', 'mr thang jiayi vn', 'guangxi yunqian', 'yunqian'},
         {'huy hoang', 'huyhoang'},
         {'ginhung', 'gin hung'},
-        {'guangxi yunqian', 'yunqian'},
         {'johnson', 'johnson 2'}
     ]
     for group in aliases:
@@ -286,6 +284,86 @@ class CPVHMatcher:
                     reason=f"Khách hàng '{enterprise_source_customer}' có duy nhất 1 Sales Lot phù hợp trong kỳ ({target.lot_label})."
                 )
             elif len(cust_candidates) > 1:
+                # =========================================================================
+                # TIER 4 — Tín hiệu bổ sung (Biển số xe, Khoảng ngày phát sinh)
+                # =========================================================================
+                # 4.1 Khớp biển số xe nếu nhóm CPVH có xuất hiện biển số
+                if source_items:
+                    source_plates = set()
+                    for it in source_items:
+                        p = it.get('plate') if isinstance(it, dict) else getattr(it, 'vehicle_plate', None)
+                        if p:
+                            p_clean = re.sub(r'[^a-zA-Z0-9]', '', str(p)).lower()
+                            if len(p_clean) >= 4:
+                                source_plates.add(p_clean)
+                    if source_plates:
+                        plate_matched_lots = []
+                        for lot in cust_candidates:
+                            lot_plates = set()
+                            for v in getattr(lot, 'distinct_vehicles', []):
+                                if isinstance(v, dict) and v.get('plate'):
+                                    lot_plates.add(re.sub(r'[^a-zA-Z0-9]', '', str(v['plate'])).lower())
+                            for ri in getattr(lot, 'active_revenue_items', []):
+                                if ri.vehicle_plate_vn:
+                                    lot_plates.add(re.sub(r'[^a-zA-Z0-9]', '', str(ri.vehicle_plate_vn)).lower())
+                                if ri.vehicle_plate_cn:
+                                    lot_plates.add(re.sub(r'[^a-zA-Z0-9]', '', str(ri.vehicle_plate_cn)).lower())
+                            if source_plates & lot_plates:
+                                plate_matched_lots.append(lot)
+                        if len(plate_matched_lots) == 1:
+                            target = plate_matched_lots[0]
+                            matched_plates_str = ', '.join(source_plates)
+                            return MatchResult(
+                                status='matched',
+                                matched_lot_id=target.id,
+                                matched_lot_label=target.lot_label,
+                                matched_by='vehicle_plate_overlap',
+                                confidence=0.88,
+                                reason=f"Khớp biển số xe ({matched_plates_str}) với {target.lot_label} ({enterprise_source_customer})."
+                            )
+
+                # 4.2 Khớp khoảng ngày phát sinh chứng từ với thời gian vận chuyển của lô
+                if source_items:
+                    from datetime import timedelta
+                    source_dates = []
+                    for it in source_items:
+                        d = it.get('date') if isinstance(it, dict) else getattr(it, 'document_date', None)
+                        if d and hasattr(d, 'year'):
+                            source_dates.append(d)
+                    if source_dates:
+                        min_d = min(source_dates)
+                        max_d = max(source_dates)
+                        date_matched_lots = []
+                        for lot in cust_candidates:
+                            l_start = lot.start_date
+                            l_end = lot.end_date or lot.start_date
+                            if l_start and l_end:
+                                # Dung sai 3 ngày trước và sau chuyến
+                                if (l_start - timedelta(days=3)) <= max_d and min_d <= (l_end + timedelta(days=3)):
+                                    date_matched_lots.append(lot)
+                        if len(date_matched_lots) == 1:
+                            target = date_matched_lots[0]
+                            return MatchResult(
+                                status='matched',
+                                matched_lot_id=target.id,
+                                matched_lot_label=target.lot_label,
+                                matched_by='date_range_overlap',
+                                confidence=0.82,
+                                reason=f"Khớp thời gian phát sinh chứng từ ({min_d.strftime('%d/%m')} - {max_d.strftime('%d/%m')}) với chuyến đi của {target.lot_label}."
+                            )
+                        elif len(date_matched_lots) > 1:
+                            closest_lots = [l for l in date_matched_lots if l.start_date and abs((min_d - l.start_date).days) <= 2]
+                            if len(closest_lots) == 1:
+                                target = closest_lots[0]
+                                return MatchResult(
+                                    status='matched',
+                                    matched_lot_id=target.id,
+                                    matched_lot_label=target.lot_label,
+                                    matched_by='date_range_overlap',
+                                    confidence=0.80,
+                                    reason=f"Khớp ngày bắt đầu chứng từ ({min_d.strftime('%d/%m')}) sát với chuyến đi của {target.lot_label} ({target.start_date.strftime('%d/%m')})."
+                                )
+
                 return MatchResult(
                     status='ambiguous',
                     candidate_lot_ids=[l.id for l in cust_candidates],
@@ -323,6 +401,16 @@ class CPVHMatcher:
 
         suggestions = []
 
+        unresolved_plates = set()
+        unresolved_dates = []
+        for c in getattr(unresolved_lot, 'active_operating_costs', []):
+            if c.vehicle_plate:
+                p_c = re.sub(r'[^a-zA-Z0-9]', '', str(c.vehicle_plate)).lower()
+                if len(p_c) >= 4:
+                    unresolved_plates.add(p_c)
+            if c.document_date:
+                unresolved_dates.append(c.document_date)
+
         for slot in all_sales_lots:
             if slot.id == unresolved_lot.id or slot.source_type == 'cpvh':
                 continue
@@ -348,7 +436,34 @@ class CPVHMatcher:
                 score += 0.40
                 reasons.append(f"Cùng khách hàng '{extract_enterprise_name(slot_cust)}'")
 
-            # 3. Ưu tiên các tháng gần kề (cùng kỳ hoặc tháng trước liền kề)
+            # 3. Khớp biển số xe
+            if unresolved_plates:
+                slot_plates = set()
+                for v in getattr(slot, 'distinct_vehicles', []):
+                    if isinstance(v, dict) and v.get('plate'):
+                        slot_plates.add(re.sub(r'[^a-zA-Z0-9]', '', str(v['plate'])).lower())
+                for ri in getattr(slot, 'active_revenue_items', []):
+                    if ri.vehicle_plate_vn:
+                        slot_plates.add(re.sub(r'[^a-zA-Z0-9]', '', str(ri.vehicle_plate_vn)).lower())
+                    if ri.vehicle_plate_cn:
+                        slot_plates.add(re.sub(r'[^a-zA-Z0-9]', '', str(ri.vehicle_plate_cn)).lower())
+                common_plates = unresolved_plates & slot_plates
+                if common_plates:
+                    score += 0.45
+                    reasons.append(f"Cùng biển số xe ({', '.join(common_plates).upper()})")
+
+            # 4. Khớp khoảng ngày phát sinh chứng từ
+            if unresolved_dates and slot.start_date:
+                from datetime import timedelta
+                min_ud = min(unresolved_dates)
+                max_ud = max(unresolved_dates)
+                s_start = slot.start_date
+                s_end = slot.end_date or slot.start_date
+                if (s_start - timedelta(days=3)) <= max_ud and min_ud <= (s_end + timedelta(days=3)):
+                    score += 0.25
+                    reasons.append("Thời gian chứng từ trùng khớp chuyến đi")
+
+            # 5. Ưu tiên các tháng gần kề (cùng kỳ hoặc tháng trước liền kề)
             month_diff = 0
             if unresolved_lot.year and slot.year and unresolved_lot.month and slot.month:
                 month_diff = (unresolved_lot.year - slot.year) * 12 + (unresolved_lot.month - slot.month)

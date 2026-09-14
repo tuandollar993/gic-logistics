@@ -487,3 +487,224 @@ class ExcelExporterService:
         wb.save(buffer)
         buffer.seek(0)
         return buffer
+
+    @staticmethod
+    def export_problematic_costs(lot_id: int = None, month: int = None, year: int = None) -> io.BytesIO:
+        """
+        Xuất file Excel danh sách các chi phí:
+        1. Không có hóa đơn (no_invoice)
+        2. Có hóa đơn nhưng không thanh toán được (unpayable_invoice: Phiếu chi, Phiếu thu, Vé xe...)
+        Dùng để gửi email/báo cáo trình Sếp xem xét duyệt chi.
+        """
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Chi phí cần xử lý"
+        ws.views.sheetView[0].showGridLines = True
+
+        font_title = Font(name="Arial", size=14, bold=True, color="991B1B")
+        font_subtitle = Font(name="Arial", size=9.5, italic=True, color="475569")
+        font_header = Font(name="Arial", size=9.5, bold=True, color="FFFFFF")
+        font_kpi_title = Font(name="Arial", size=8.5, bold=True, color="475569")
+        font_kpi_val = Font(name="Arial", size=11, bold=True, color="0F172A")
+        font_data = Font(name="Arial", size=9.0, color="1E293B")
+        font_total = Font(name="Arial", size=10, bold=True, color="0F172A")
+
+        fill_header = PatternFill(start_color="991B1B", end_color="991B1B", fill_type="solid")
+        fill_alt = PatternFill(start_color="FFF1F2", end_color="FFF1F2", fill_type="solid")
+        fill_kpi = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+        fill_total = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+
+        align_center = Alignment(horizontal="center", vertical="center")
+        align_left = Alignment(horizontal="left", vertical="center")
+        align_right = Alignment(horizontal="right", vertical="center")
+        align_header = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        thin_side = Side(style='thin', color='CBD5E1')
+        thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        double_bottom = Side(style='double', color='991B1B')
+        total_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_bottom)
+
+        num_fmt_currency = '#,##0'
+
+        # Query relevant costs
+        costs_data = []
+        scope_title = ""
+
+        if lot_id:
+            lot = Lot.query.get(lot_id)
+            if lot:
+                scope_title = f"LÔ HÀNG: {lot.lot_label} - {lot.display_customer_name} (Tháng {lot.month:02d}/{lot.year})"
+                for c in lot.active_operating_costs:
+                    if c.invoice_classification in ('no_invoice', 'unpayable_invoice'):
+                        costs_data.append((lot, c))
+        elif month and year:
+            scope_title = f"KỲ BÁO CÁO: THÁNG {month:02d}/{year}"
+            lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).order_by(Lot.id.asc()).all()
+            for lot in lots:
+                for c in lot.active_operating_costs:
+                    if c.invoice_classification in ('no_invoice', 'unpayable_invoice'):
+                        costs_data.append((lot, c))
+        else:
+            scope_title = "TOÀN BỘ CÁC KỲ BÁO CÁO"
+            lots = Lot.query.filter_by(is_deleted=False).order_by(Lot.year.desc(), Lot.month.desc(), Lot.id.asc()).all()
+            for lot in lots:
+                for c in lot.active_operating_costs:
+                    if c.invoice_classification in ('no_invoice', 'unpayable_invoice'):
+                        costs_data.append((lot, c))
+
+        # Title Block
+        ws.merge_cells('A1:R1')
+        t_cell = ws['A1']
+        t_cell.value = "DANH SÁCH HẠNG MỤC CHI PHÍ CẦN XỬ LÝ (KHÔNG HÓA ĐƠN & HÓA ĐƠN KHÔNG THANH TOÁN ĐƯỢC)"
+        t_cell.font = font_title
+        t_cell.alignment = align_center
+        ws.row_dimensions[1].height = 28
+
+        ws.merge_cells('A2:R2')
+        sub_cell = ws['A2']
+        sub_cell.value = f"{scope_title} | Ngày xuất: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Đơn vị tiền tệ: VNĐ | Trình Lãnh đạo xem xét duyệt chi"
+        sub_cell.font = font_subtitle
+        sub_cell.alignment = align_center
+        ws.row_dimensions[2].height = 18
+
+        # KPI Summary Cards
+        no_inv_items = [c for _, c in costs_data if c.invoice_classification == 'no_invoice']
+        unpay_items = [c for _, c in costs_data if c.invoice_classification == 'unpayable_invoice']
+        total_no_inv_amount = sum(c.total_amount or 0 for c in no_inv_items)
+        total_unpay_amount = sum(c.total_amount or 0 for c in unpay_items)
+        grand_total_amount = total_no_inv_amount + total_unpay_amount
+
+        kpi_cards = [
+            ("TỔNG HẠNG MỤC CẦN XỬ LÝ", f"{len(costs_data)} khoản", "@"),
+            ("KHÔNG HÓA ĐƠN (SỐ TIỀN)", total_no_inv_amount, num_fmt_currency),
+            ("HĐ KHÔNG THANH TOÁN ĐƯỢC", total_unpay_amount, num_fmt_currency),
+            ("TỔNG TIỀN TRÌNH SẾP DUYỆT", grand_total_amount, num_fmt_currency)
+        ]
+
+        ws.row_dimensions[4].height = 18
+        ws.row_dimensions[5].height = 22
+
+        col_start = 2
+        for title, val, fmt in kpi_cards:
+            col_end = col_start + 3
+            ws.merge_cells(start_row=4, start_column=col_start, end_row=4, end_column=col_end)
+            ws.merge_cells(start_row=5, start_column=col_start, end_row=5, end_column=col_end)
+
+            c_top = ws.cell(row=4, column=col_start, value=title)
+            c_top.font = font_kpi_title
+            c_top.alignment = align_center
+
+            c_bot = ws.cell(row=5, column=col_start, value=val)
+            c_bot.font = font_kpi_val
+            c_bot.alignment = align_center
+            c_bot.number_format = fmt
+
+            for r in [4, 5]:
+                for c in range(col_start, col_end + 1):
+                    cell = ws.cell(row=r, column=c)
+                    cell.fill = fill_kpi
+                    cell.border = thin_border
+
+            col_start += 4
+
+        # Table Headers
+        headers = [
+            ("STT", align_center, 6),
+            ("Lô Hàng", align_center, 14),
+            ("Khách Hàng", align_left, 18),
+            ("Phân Loại Vấn Đề", align_center, 22),
+            ("Loại Chi Phí", align_center, 16),
+            ("Nội Dung Chi Tiết", align_left, 32),
+            ("Biển Số Xe", align_center, 12),
+            ("SL Xe", align_center, 8),
+            ("Đơn Giá", align_right, 14),
+            ("Thành Tiền (CP)", align_right, 16),
+            ("Loại Chứng Từ Hiện Có", align_center, 22),
+            ("Ký Hiệu", align_center, 12),
+            ("Số HĐ / Phiếu", align_center, 14),
+            ("Ngày Chứng Từ", align_center, 14),
+            ("Nhà Cung Cấp", align_left, 24),
+            ("MST NCC", align_center, 14),
+            ("PIC Phụ Trách", align_left, 16),
+            ("Ghi Chú", align_left, 22)
+        ]
+
+        ws.row_dimensions[7].height = 26
+        for col_idx, (hdr, alignment, width) in enumerate(headers, 1):
+            cell = ws.cell(row=7, column=col_idx, value=hdr)
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = align_header
+            cell.border = thin_border
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+        # Data Rows
+        current_row = 8
+        for idx, (lot, cost) in enumerate(costs_data, 1):
+            is_alt = (idx % 2 == 0)
+            row_fill = fill_alt if is_alt else PatternFill(fill_type=None)
+
+            prob_label = "Không có HĐ" if cost.invoice_classification == 'no_invoice' else "HĐ không thanh toán được"
+            doc_date_str = cost.document_date.strftime('%d/%m/%Y') if cost.document_date else ''
+
+            row_data = [
+                (idx, align_center, "@"),
+                (lot.lot_label if lot else '', align_center, "@"),
+                (lot.display_customer_name if lot else '', align_left, "@"),
+                (prob_label, align_center, "@"),
+                (cost.display_cost_type, align_center, "@"),
+                (cost.display_description, align_left, "@"),
+                (cost.vehicle_plate or '-', align_center, "@"),
+                (cost.vehicle_count or 1, align_center, "#,##0"),
+                (cost.unit_price or 0, align_right, num_fmt_currency),
+                (cost.total_amount or 0, align_right, num_fmt_currency),
+                (cost.invoice_type or 'Chưa có chứng từ', align_center, "@"),
+                (cost.invoice_symbol or '-', align_center, "@"),
+                (cost.invoice_number or '-', align_center, "@"),
+                (doc_date_str, align_center, "@"),
+                (cost.supplier_name or '-', align_left, "@"),
+                (cost.supplier_tax_code or '-', align_center, "@"),
+                (cost.pic or (cost.filler.full_name if cost.filler else '-'), align_left, "@"),
+                (cost.note or '', align_left, "@")
+            ]
+
+            ws.row_dimensions[current_row].height = 20
+            for col_idx, (val, alignment, fmt) in enumerate(row_data, 1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
+                cell.font = font_data
+                cell.alignment = alignment
+                cell.border = thin_border
+                cell.number_format = fmt
+                if is_alt:
+                    cell.fill = row_fill
+                # Highlight problem label
+                if col_idx == 4:
+                    if cost.invoice_classification == 'no_invoice':
+                        cell.font = Font(name="Arial", size=9.0, bold=True, color="DC2626")
+                    else:
+                        cell.font = Font(name="Arial", size=9.0, bold=True, color="D97706")
+
+            current_row += 1
+
+        # Total Row
+        ws.row_dimensions[current_row].height = 24
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
+        tot_label = ws.cell(row=current_row, column=1, value="TỔNG CỘNG CHI PHÍ CẦN XỬ LÝ:")
+        tot_label.font = font_total
+        tot_label.alignment = align_right
+
+        tot_val = ws.cell(row=current_row, column=10, value=grand_total_amount)
+        tot_val.font = font_total
+        tot_val.alignment = align_right
+        tot_val.number_format = num_fmt_currency
+
+        for c in range(1, 19):
+            cell = ws.cell(row=current_row, column=c)
+            cell.fill = fill_total
+            cell.border = total_border
+
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return buffer
+

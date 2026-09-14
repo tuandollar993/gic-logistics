@@ -382,6 +382,37 @@ def export_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
+@lots_bp.route('/<int:lot_id>/export-problematic-costs', methods=['GET'])
+@login_required
+def export_lot_problematic_costs(lot_id):
+    lot = Lot.query.get_or_404(lot_id)
+    excel_buffer = ExcelExporterService.export_problematic_costs(lot_id=lot.id)
+    safe_label = re.sub(r'[^a-zA-Z0-9_-]', '_', lot.lot_label)
+    filename = f"Chi_phi_can_xu_ly_{safe_label}_T{lot.month:02d}_{lot.year}.xlsx"
+    return send_file(
+        excel_buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@lots_bp.route('/export-problematic-costs', methods=['GET'])
+@login_required
+def export_monthly_problematic_costs():
+    month = request.args.get('month', type=int)
+    year = request.args.get('year', type=int)
+    excel_buffer = ExcelExporterService.export_problematic_costs(month=month, year=year)
+    if month and year:
+        filename = f"Chi_phi_can_xu_ly_T{month:02d}_{year}.xlsx"
+    else:
+        filename = "Chi_phi_can_xu_ly_Tat_ca.xlsx"
+    return send_file(
+        excel_buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
 @lots_bp.route('/<int:lot_id>/items/add', methods=['POST'])
 @login_required
 def add_revenue_item(lot_id):
