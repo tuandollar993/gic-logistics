@@ -444,17 +444,20 @@ class Lot(db.Model):
                 weight = (ri.weight_class or '').strip().lower()
 
                 matched = False
-                m_cont_item = re.search(r'cont\s*\(?(\d+)\)?', f"{desc} {weight}")
-                m_t_item = re.search(r'(\d+)\s*t\b', f"{desc} {weight}")
-
-                if m_cont_label and m_cont_item and m_cont_label.group(1) == m_cont_item.group(1):
-                    matched = True
-                elif m_t_label and m_t_item and m_t_label.group(1) == m_t_item.group(1):
-                    matched = True
-                elif plate_lower:
-                    if plate_lower == p_vn or (p_vn and plate_lower in p_vn):
+                norm_p_vn = re.sub(r'[^a-zA-Z0-9]', '', p_vn)
+                norm_plate = re.sub(r'[^a-zA-Z0-9]', '', plate_lower)
+                if norm_p_vn:
+                    if norm_p_vn == norm_plate:
                         matched = True
-                    elif plate_lower in desc:
+                else:
+                    m_cont_item = re.search(r'cont\s*\(?(\d+)\)?', f"{desc} {weight}")
+                    m_t_item = re.search(r'(?<![,\.\d])(\d+)\s*t\b', f"{desc} {weight}")
+
+                    if m_cont_label and m_cont_item and m_cont_label.group(1) == m_cont_item.group(1):
+                        matched = True
+                    elif m_t_label and m_t_item and m_t_label.group(1) == m_t_item.group(1):
+                        matched = True
+                    elif norm_plate and norm_plate in re.sub(r'[^a-zA-Z0-9]', '', desc):
                         matched = True
 
                 if matched:
@@ -469,17 +472,20 @@ class Lot(db.Model):
                 c_desc = (c.description or '').strip().lower()
 
                 matched = False
-                m_cont_cost = re.search(r'cont\s*\(?(\d+)\)?', c_desc)
-                m_t_cost = re.search(r'(\d+)\s*t\b', c_desc)
+                norm_c_plate = re.sub(r'[^a-zA-Z0-9]', '', c_plate)
+                if norm_c_plate:
+                    if norm_c_plate == norm_plate:
+                        matched = True
+                else:
+                    m_cont_cost = re.search(r'cont\s*\(?(\d+)\)?', c_desc)
+                    m_t_cost = re.search(r'(?<![,\.\d])(\d+)\s*t\b', c_desc)
 
-                if m_cont_label and m_cont_cost and m_cont_label.group(1) == m_cont_cost.group(1):
-                    matched = True
-                elif m_t_label and m_t_cost and m_t_label.group(1) == m_t_cost.group(1):
-                    matched = True
-                elif plate_lower and c_plate and (plate_lower == c_plate or plate_lower in c_plate or c_plate in plate_lower):
-                    matched = True
-                elif plate_lower and plate_lower in c_desc:
-                    matched = True
+                    if m_cont_label and m_cont_cost and m_cont_label.group(1) == m_cont_cost.group(1):
+                        matched = True
+                    elif m_t_label and m_t_cost and m_t_label.group(1) == m_t_cost.group(1):
+                        matched = True
+                    elif norm_plate and norm_plate in re.sub(r'[^a-zA-Z0-9]', '', c_desc):
+                        matched = True
 
                 if matched:
                     v_costs.append(c)

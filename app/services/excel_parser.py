@@ -322,38 +322,173 @@ class ExcelParserService:
                     sum_start_row = int(m_range.group(1))
                     sum_end_row = int(m_range.group(2))
 
-            current_lot = None
             lot_counter = 1
             empty_row_streak = 0
-            
+            curr_lot_meta = None
+            curr_lot_items = []
+
+            def flush_buffered_lot(lot_meta, raw_items):
+                nonlocal total_lots, total_items, lot_counter
+                if not raw_items:
+                    return None
+                
+                active_items = [it for it in raw_items if it['has_activity']]
+                if not active_items:
+                    return None
+
+                # 1. Resolve customer and lot metadata
+                cust_name = lot_meta.get('cust_name') or ''
+                company = lot_meta.get('company') or ''
+                decl_num = lot_meta.get('decl_num') or ''
+                start_date = lot_meta.get('start_date')
+                end_date = lot_meta.get('end_date')
+                lot_label = lot_meta.get('lot_label') or f"Lô {lot_counter}"
+
+                for it in active_items:
+                    if not cust_name and it.get('cust_name'):
+                        cust_name = it['cust_name']
+                    if not company and it.get('company'):
+                        company = it['company']
+                    if it.get('decl_num'):
+                        if not decl_num:
+                            decl_num = it['decl_num']
+                        elif it['decl_num'] not in decl_num:
+                            decl_num = f"{decl_num}, {it['decl_num']}"
+                    if not start_date and it.get('start_date'):
+                        start_date = it['start_date']
+                    if not end_date and it.get('end_date'):
+                        end_date = it['end_date']
+
+                norm_c = cust_name.lower() if cust_name else ''
+                resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
+                if resolved_cust.lower().strip() in ['cpvh', 'nhà cung cấp', 'nha cung cap', 'trung quốc chi hộ', 'chi hộ', 'trung quốc', 'cpvh 11.2025', 'a thắng', 'a thang']:
+                    if 'thắng' in resolved_cust.lower() or 'thang' in resolved_cust.lower():
+                        resolved_cust = 'Anh Thắng'
+                    else:
+                        resolved_cust = 'Khách vãng lai'
+                cust = get_or_create_customer(resolved_cust)
+
+                lot = Lot(
+                    lot_label=lot_label,
+                    customer_id=cust.id if cust else None,
+                    company=company,
+                    customs_declaration=decl_num,
+                    month=month,
+                    year=year,
+                    start_date=start_date,
+                    end_date=end_date,
+                    source_sheet=sn,
+                    source_type='ghnlog' if is_ghnlog else 'gido',
+                    status='pending'
+                )
+                db.session.add(lot)
+                db.session.flush()
+                total_lots += 1
+                lot_counter += 1
+
+                # 2. Analyze vehicles in active_items
+                distinct_plates = []
+                plate_data_map = {}
+                for it in active_items:
+                    p_vn = it['raw_vn']
+                    if p_vn and p_vn not in distinct_plates:
+                        distinct_plates.append(p_vn)
+                        plate_data_map[p_vn] = {
+                            'vn': p_vn,
+                            'cn': it['raw_cn'],
+                            'wt': it['raw_wt']
+                        }
+
+                # 3. Assign vehicle context to items (single-vehicle vs multi-vehicle)
+                if len(distinct_plates) == 1:
+                    v_info = plate_data_map[distinct_plates[0]]
+                    for it in active_items:
+                        it['assigned_vn'] = v_info['vn']
+                        it['assigned_cn'] = it['raw_cn'] or v_info['cn']
+                        it['assigned_wt'] = it['raw_wt'] or v_info['wt']
+                elif len(distinct_plates) > 1:
+                    # Multi-vehicle lot: forward fill from vehicle row downwards
+                    curr_v = None
+                    for it in active_items:
+                        if it['raw_vn']:
+                            curr_v = {
+                                'vn': it['raw_vn'],
+                                'cn': it['raw_cn'],
+                                'wt': it['raw_wt']
+                            }
+                        if curr_v:
+                            it['assigned_vn'] = curr_v['vn']
+                            it['assigned_cn'] = it['raw_cn'] or curr_v['cn']
+                            it['assigned_wt'] = it['raw_wt'] or curr_v['wt']
+                        else:
+                            it['assigned_vn'] = ''
+                            it['assigned_cn'] = it['raw_cn']
+                            it['assigned_wt'] = it['raw_wt']
+                else:
+                    for it in active_items:
+                        it['assigned_vn'] = ''
+                        it['assigned_cn'] = it['raw_cn']
+                        it['assigned_wt'] = it['raw_wt']
+
+                # 4. Create RevenueItems
+                for it in active_items:
+                    item = RevenueItem(
+                        lot_id=lot.id,
+                        supplier=it['supplier'],
+                        vehicle_plate_cn=it['assigned_cn'],
+                        vehicle_plate_vn=it['assigned_vn'],
+                        weight_class=it['assigned_wt'],
+                        service_description=it['service_desc'],
+                        quantity=it['quantity'],
+                        buy_price=it['buy_p'],
+                        buy_price_loading=it['buy_loading'],
+                        sell_price=it['sell_p'],
+                        overtime_count=it['overtime_count'],
+                        overtime_fee=it['overtime_f'],
+                        customs_inspection=it['customs_insp'],
+                        infrastructure_fee=it['infra_f'],
+                        ticket_fee=it['ticket_f'],
+                        new_machine_surcharge=it['new_mach'],
+                        oversize_surcharge=it['oversize_f'],
+                        loading_fee=it['loading_f'],
+                        penalty_fee=it['penalty_f'],
+                        tan_thanh_fee=it['tan_thanh_f'],
+                        thuan_thanh_fee=it['thuan_thanh_f'],
+                        return_dossier_fee=it['return_doss_f'],
+                        storage_fee=it['storage_f'],
+                        penalty_dossier_fee=it['penalty_doss_f'],
+                        penalty_payment=it['penalty_pay_f'],
+                        route=it['route_val'],
+                        inspection_point=it['insp_pt'],
+                        inspection_fee=it['insp_fee'],
+                        routing_fee=it['rout_fee'],
+                        empty_container=it['empty_cont'],
+                        total_buy_price_excel=it['val_tm'],
+                        total_sell_price_excel=it['val_tb']
+                    )
+                    db.session.add(item)
+                    total_items += 1
+
             for r in range(header_row + 1, ws.max_row + 1):
-                row_vals = [ws.cell(r, c).value for c in range(1, min(10, ws.max_column + 1))]
-                
-                # Check if this row is a total / summary / footer row -> stop
-                if (total_row and r >= total_row) or is_summary_or_footer_row(row_vals):
+                row_check = [ws.cell(r, c).value for c in range(1, min(ws.max_column + 1, 30))]
+                if (total_row and r >= total_row) or is_summary_or_footer_row(row_check):
                     break
-                    
-                if not any(row_vals):
-                    empty_row_streak += 1
-                    if empty_row_streak >= 5:
-                        break
-                    continue
-                empty_row_streak = 0
-                    
+
                 c1_val = clean_str(ws.cell(r, 1).value)
-                
-                # Read and normalize row data first
+                if any(k in c1_val.lower() for k in ['tong cong', 'tong cuoc', 'thuế vat', 'bằng chữ']):
+                    break
+
                 cust_name = clean_str(get_col_val(r, 'khach hang'))
                 decl_num = clean_str(get_col_val(r, 'to khai'))
                 company = clean_str(get_col_val(r, 'cong ty'))
                 start_date = clean_date(get_col_val(r, 'bat dau'))
                 end_date = clean_date(get_col_val(r, 'ket thuc'))
                 service_desc = clean_str(get_col_val(r, 'dich vu', 'lo trinh', 'noi dung'))
-                
+
                 buy_p = clean_float(get_col_val(r, 'gia mua'))
                 sell_p = clean_float(get_col_val(r, 'gia ban'))
                 buy_loading = clean_float(get_col_val(r, 'boc xep, ben bai', 'chi phi boc xep'))
-                
+
                 # Surcharges
                 overtime_count = clean_float(get_col_val(r, 'so ca'))
                 overtime_f = clean_float(get_col_val(r, 'luu ca', 'phi luu ca'))
@@ -370,15 +505,14 @@ class ExcelParserService:
                 storage_f = clean_float(get_col_val(r, 'luu kho'))
                 penalty_doss_f = clean_float(get_col_val(r, 'ho so xu phat'))
                 penalty_pay_f = clean_float(get_col_val(r, 'nop xu phat'))
-                
+
                 # GHNLog specific
                 route_val = clean_str(get_col_val(r, 'lo trinh'))
                 insp_pt = clean_float(get_col_val(r, 'diem kiem'))
                 insp_fee = clean_float(get_col_val(r, 'phat sinh kiem'))
                 rout_fee = clean_float(get_col_val(r, 'lach huyen', 'lach'))
                 empty_cont = clean_float(get_col_val(r, 'chon vo', 'vo'))
-                
-                # Excel evaluated Total buy and Total sell from columns
+
                 val_tb = None
                 if col_tb_idx:
                     if sum_start_row <= r <= sum_end_row:
@@ -394,15 +528,19 @@ class ExcelParserService:
                     (val_tb is not None and val_tb > 0) or 
                     (val_tm is not None and val_tm > 0) or 
                     buy_p > 0 or sell_p > 0 or 
-                    service_desc or buy_loading > 0 or cust_name
+                    bool(service_desc) or buy_loading > 0 or bool(cust_name)
                 )
-                
+
                 if not has_activity and not c1_val:
+                    empty_row_streak += 1
+                    if empty_row_streak >= 5:
+                        break
                     continue
+                empty_row_streak = 0
 
                 is_new_lot = False
                 lot_label = None
-                
+
                 if c1_val:
                     if 'lô' in c1_val.lower() or 'lo' in c1_val.lower():
                         is_new_lot = True
@@ -413,94 +551,68 @@ class ExcelParserService:
                     else:
                         is_new_lot = True
                         lot_label = f"Lô {c1_val}"
-                elif current_lot is None and has_activity:
+                elif curr_lot_meta is None and has_activity:
                     is_new_lot = True
                     lot_label = f"Lô {lot_counter}"
-                    
+
                 if is_new_lot:
-                    # Enterprise company takes priority over individual contact (e.g. 'Anh Thắng' -> 'Sunluxe')
-                    norm_c = cust_name.lower() if cust_name else ''
-                    resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
-                    if resolved_cust.lower().strip() in ['cpvh', 'nhà cung cấp', 'nha cung cap', 'trung quốc chi hộ', 'chi hộ', 'trung quốc', 'cpvh 11.2025', 'a thắng', 'a thang']:
-                        if 'thắng' in resolved_cust.lower() or 'thang' in resolved_cust.lower():
-                            resolved_cust = 'Anh Thắng'
-                        else:
-                            resolved_cust = 'Khách vãng lai'
-                    cust = get_or_create_customer(resolved_cust)
-                    current_lot = Lot(
-                        lot_label=lot_label or f"Lô {lot_counter}",
-                        customer_id=cust.id if cust else None,
-                        company=company,
-                        customs_declaration=decl_num,
-                        month=month,
-                        year=year,
-                        start_date=start_date,
-                        end_date=end_date,
-                        source_sheet=sn,
-                        source_type='ghnlog' if is_ghnlog else 'gido',
-                        status='pending'
-                    )
-                    db.session.add(current_lot)
-                    db.session.flush()
-                    total_lots += 1
-                    lot_counter += 1
-                else:
-                    if current_lot:
-                        if (cust_name or company) and not current_lot.customer_id:
-                            norm_c = cust_name.lower() if cust_name else ''
-                            resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
-                            cust = get_or_create_customer(resolved_cust)
-                            current_lot.customer_id = cust.id
-                        if decl_num:
-                            if not current_lot.customs_declaration:
-                                current_lot.customs_declaration = decl_num
-                            elif decl_num not in current_lot.customs_declaration:
-                                current_lot.customs_declaration = f"{current_lot.customs_declaration}, {decl_num}"
-                        if company and not current_lot.company:
-                            current_lot.company = company
-                        if start_date and not current_lot.start_date:
-                            current_lot.start_date = start_date
-                        if end_date and not current_lot.end_date:
-                            current_lot.end_date = end_date
-                            
-                # Create RevenueItem
-                if current_lot and has_activity:
-                    item = RevenueItem(
-                        lot_id=current_lot.id,
-                        supplier=clean_str(get_col_val(r, 'nha xe', 'ncc', 'doi tac')),
-                        vehicle_plate_cn=get_plate_cn(r),
-                        vehicle_plate_vn=get_plate_vn(r),
-                        weight_class=clean_str(get_col_val(r, 'hang xe', 'loai xe', 'trong tai')),
-                        service_description=service_desc,
-                        quantity=clean_float(get_col_val(r, 'so luong', 'so xe')) or 1.0,
-                        buy_price=buy_p,
-                        buy_price_loading=buy_loading,
-                        sell_price=sell_p,
-                        overtime_count=overtime_count,
-                        overtime_fee=overtime_f,
-                        customs_inspection=customs_insp,
-                        infrastructure_fee=infra_f,
-                        ticket_fee=ticket_f,
-                        new_machine_surcharge=new_mach,
-                        oversize_surcharge=oversize_f,
-                        loading_fee=loading_f,
-                        penalty_fee=penalty_f,
-                        tan_thanh_fee=tan_thanh_f,
-                        thuan_thanh_fee=thuan_thanh_f,
-                        return_dossier_fee=return_doss_f,
-                        storage_fee=storage_f,
-                        penalty_dossier_fee=penalty_doss_f,
-                        penalty_payment=penalty_pay_f,
-                        route=route_val,
-                        inspection_point=insp_pt,
-                        inspection_fee=insp_fee,
-                        routing_fee=rout_fee,
-                        empty_container=empty_cont,
-                        total_buy_price_excel=val_tm,
-                        total_sell_price_excel=val_tb
-                    )
-                    db.session.add(item)
-                    total_items += 1
+                    if curr_lot_meta is not None and curr_lot_items:
+                        flush_buffered_lot(curr_lot_meta, curr_lot_items)
+                        curr_lot_items = []
+                    curr_lot_meta = {
+                        'lot_label': lot_label or f"Lô {lot_counter}",
+                        'cust_name': cust_name,
+                        'company': company,
+                        'decl_num': decl_num,
+                        'start_date': start_date,
+                        'end_date': end_date
+                    }
+
+                row_data = {
+                    'row': r,
+                    'has_activity': has_activity,
+                    'supplier': clean_str(get_col_val(r, 'nha xe', 'ncc', 'doi tac')),
+                    'raw_cn': get_plate_cn(r),
+                    'raw_vn': get_plate_vn(r),
+                    'raw_wt': clean_str(get_col_val(r, 'hang xe', 'loai xe', 'trong tai')),
+                    'cust_name': cust_name,
+                    'company': company,
+                    'decl_num': decl_num,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'service_desc': service_desc,
+                    'quantity': clean_float(get_col_val(r, 'so luong', 'so xe')) or 1.0,
+                    'buy_p': buy_p,
+                    'buy_loading': buy_loading,
+                    'sell_p': sell_p,
+                    'overtime_count': overtime_count,
+                    'overtime_f': overtime_f,
+                    'customs_insp': customs_insp,
+                    'infra_f': infra_f,
+                    'ticket_f': ticket_f,
+                    'new_mach': new_mach,
+                    'oversize_f': oversize_f,
+                    'loading_f': loading_f,
+                    'penalty_f': penalty_f,
+                    'tan_thanh_f': tan_thanh_f,
+                    'thuan_thanh_f': thuan_thanh_f,
+                    'return_doss_f': return_doss_f,
+                    'storage_f': storage_f,
+                    'penalty_doss_f': penalty_doss_f,
+                    'penalty_pay_f': penalty_pay_f,
+                    'route_val': route_val,
+                    'insp_pt': insp_pt,
+                    'insp_fee': insp_fee,
+                    'rout_fee': rout_fee,
+                    'empty_cont': empty_cont,
+                    'val_tm': val_tm,
+                    'val_tb': val_tb
+                }
+                curr_lot_items.append(row_data)
+
+            # Flush last buffered lot in sheet
+            if curr_lot_meta is not None and curr_lot_items:
+                flush_buffered_lot(curr_lot_meta, curr_lot_items)
                     
         db.session.flush()
         return total_lots, total_items

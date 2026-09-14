@@ -353,3 +353,43 @@ def test_cross_border_transit_feeder_and_vn_delivery_vehicles(app):
         assert breakdown[3]['plate'] == 'general'
         assert len(breakdown[3]['revenue_items']) == 1
 
+def test_parse_sales_report_multi_vehicle_lot_breakdown(app):
+    """Kiểm tra logic bóc tách 3 xe Lô 4 Keep Rise T08 chuẩn từng xe và từng mục"""
+    with app.app_context():
+        lot = Lot.query.filter(Lot.month == 8, Lot.year == 2026, Lot.lot_label.ilike('%lô 4%')).first()
+        if not lot:
+            pytest.skip("Lô 4 T08 not found")
+
+        assert lot.total_vehicle_count == 3
+        breakdown = lot.vehicles_breakdown
+        assert len(breakdown) == 4
+
+        # Xe 1 (50E89476): 5 mục
+        xe1 = next(b for b in breakdown if b['plate'] == '50E89476')
+        assert len(xe1['revenue_items']) == 5
+        xe1_descs = [ri.service_description for ri in xe1['revenue_items']]
+        assert any('Cước vận chuyển' in d for d in xe1_descs)
+        assert any('bốc xếp' in d for d in xe1_descs)
+        assert any('Quatest' in d for d in xe1_descs)
+        assert any('cửa khẩu' in d or 'cứa khẩu' in d for d in xe1_descs)
+        assert any('DVTK HQ' in d for d in xe1_descs)
+
+        # Xe 2 (77H03770): 3 mục
+        xe2 = next(b for b in breakdown if b['plate'] == '77H03770')
+        assert len(xe2['revenue_items']) == 3
+        xe2_descs = [ri.service_description for ri in xe2['revenue_items']]
+        assert any('Cước vận chuyển' in d for d in xe2_descs)
+        assert any('bốc xếp' in d for d in xe2_descs)
+        assert any('Quatest' in d for d in xe2_descs)
+
+        # Xe 3 (29H81645): cước vận chuyển
+        xe3 = next(b for b in breakdown if b['plate'] == '29H81645')
+        assert len(xe3['revenue_items']) >= 1
+        assert any('Cước vận chuyển' in ri.service_description for ri in xe3['revenue_items'])
+
+        # Chi phí chung: Phí cửa khẩu & DVTK HQ
+        general = next(b for b in breakdown if b['plate'] == 'general')
+        gen_descs = [ri.service_description for ri in general['revenue_items']]
+        assert any('cửa khẩu' in d for d in gen_descs)
+        assert any('DVTK HQ' in d for d in gen_descs)
+
