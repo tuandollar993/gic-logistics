@@ -25,3 +25,6 @@ Thumbs.db
 scratch/
 data/test_*
 Mẫu *.docx
+~$*
+*.tmp
+

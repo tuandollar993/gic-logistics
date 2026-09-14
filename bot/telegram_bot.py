@@ -57,63 +57,72 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     username = context.args[0].strip()
     with app.app_context():
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            await update.message.reply_text(f"❌ Không tìm thấy tài khoản '{username}' trong hệ thống.")
-            return
-            
-        user.telegram_chat_id = chat_id
-        db.session.commit()
-        await update.message.reply_html(
-            f"✅ <b>Liên kết thành công!</b>\n"
-            f"Tài khoản: <b>{user.full_name}</b> ({user.role.upper()})\n"
-            f"Từ bây giờ bạn sẽ nhận thông báo giao việc và nhắc nhở deadline tự động tại đây."
-        )
+        try:
+            user = User.query.filter_by(username=username).first()
+            if not user:
+                await update.message.reply_text(f"❌ Không tìm thấy tài khoản '{username}' trong hệ thống.")
+                return
+                
+            user.telegram_chat_id = chat_id
+            db.session.commit()
+            await update.message.reply_html(
+                f"✅ <b>Liên kết thành công!</b>\n"
+                f"Tài khoản: <b>{user.full_name}</b> ({user.role.upper()})\n"
+                f"Từ bây giờ bạn sẽ nhận thông báo giao việc và nhắc nhở deadline tự động tại đây."
+            )
+        finally:
+            db.session.remove()
 
 async def mytasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     with app.app_context():
-        user = User.query.filter_by(telegram_chat_id=chat_id).first()
-        if not user:
-            await update.message.reply_text("❌ Bạn chưa liên kết tài khoản. Gõ /link <username> để liên kết.")
-            return
-            
-        tasks = CostEntryTask.query.filter_by(assigned_to=user.id, status='pending').all()
-        if not tasks:
-            await update.message.reply_text(f"🎉 Tuyệt vời {user.full_name}! Bạn hiện không có nhiệm vụ điền CPVH nào tồn đọng.")
-            return
-            
-        lines = [f"📋 <b>DANH SÁCH NHIỆM VỤ CỦA {user.full_name.upper()}:</b>\n"]
-        for t in tasks:
-            lot = t.lot
-            days = t.days_remaining
-            status_tag = f"🔴 Quá hạn {abs(days)} ngày" if days < 0 else (f"⏰ Còn {days} ngày" if days > 0 else "⚠️ HÔM NAY")
-            lines.append(
-                f"• <b>{lot.lot_label}</b> ({lot.customer.name if lot.customer else ''})\n"
-                f"  Số TK: {lot.customs_declaration or 'N/A'}\n"
-                f"  Hạn chót: {t.deadline.strftime('%d/%m/%Y')} ({status_tag})\n"
-            )
-            
-        lines.append("👉 <i>Vui lòng đăng nhập hệ thống web để cập nhật đầy đủ chi phí.</i>")
-        await update.message.reply_html("\n".join(lines))
+        try:
+            user = User.query.filter_by(telegram_chat_id=chat_id).first()
+            if not user:
+                await update.message.reply_text("❌ Bạn chưa liên kết tài khoản. Gõ /link <username> để liên kết.")
+                return
+                
+            tasks = CostEntryTask.query.filter_by(assigned_to=user.id, status='pending').all()
+            if not tasks:
+                await update.message.reply_text(f"🎉 Tuyệt vời {user.full_name}! Bạn hiện không có nhiệm vụ điền CPVH nào tồn đọng.")
+                return
+                
+            lines = [f"📋 <b>DANH SÁCH NHIỆM VỤ CỦA {user.full_name.upper()}:</b>\n"]
+            for t in tasks:
+                lot = t.lot
+                days = t.days_remaining
+                status_tag = f"🔴 Quá hạn {abs(days)} ngày" if days < 0 else (f"⏰ Còn {days} ngày" if days > 0 else "⚠️ HÔM NAY")
+                lines.append(
+                    f"• <b>{lot.lot_label}</b> ({lot.customer.name if lot.customer else ''})\n"
+                    f"  Số TK: {lot.customs_declaration or 'N/A'}\n"
+                    f"  Hạn chót: {t.deadline.strftime('%d/%m/%Y')} ({status_tag})\n"
+                )
+                
+            lines.append("👉 <i>Vui lòng đăng nhập hệ thống web để cập nhật đầy đủ chi phí.</i>")
+            await update.message.reply_html("\n".join(lines))
+        finally:
+            db.session.remove()
 
 async def overview_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with app.app_context():
-        kpi = CalculatorService.get_monthly_kpi(8, 2026)
-        overdue_cnt = CostEntryTask.query.filter(CostEntryTask.status != 'completed', CostEntryTask.deadline < date.today()).count()
-        
-        msg = (
-            f"📊 <b>TỔNG QUAN TÀI CHÍNH & VẬN HÀNH GIC (T8/2026)</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>Doanh thu bán:</b> {kpi['revenue']:,.0f} ₫ (+{kpi['rev_growth']}% MoM)\n"
-            f"• <b>Tổng chi phí:</b> {kpi['total_cost']:,.0f} ₫\n"
-            f"• <b>Lợi nhuận ròng:</b> {kpi['net_profit']:,.0f} ₫ ({kpi['profit_margin']}%)\n"
-            f"• <b>Target tháng:</b> {kpi['achievement_pct']}% đạt chỉ tiêu\n"
-            f"• <b>Tiến độ CPVH:</b> {kpi['lots_with_cost']}/{kpi['lot_count']} lô ({kpi['cost_completion_pct']}%)\n"
-            f"• <b>Nhiệm vụ quá hạn:</b> <b>{overdue_cnt} lô</b> 🚨\n"
-            f"━━━━━━━━━━━━━━━━━━━"
-        )
-        await update.message.reply_html(msg)
+        try:
+            kpi = CalculatorService.get_monthly_kpi(8, 2026)
+            overdue_cnt = CostEntryTask.query.filter(CostEntryTask.status != 'completed', CostEntryTask.deadline < date.today()).count()
+            
+            msg = (
+                f"📊 <b>TỔNG QUAN TÀI CHÍNH & VẬN HÀNH GIC (T8/2026)</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"• <b>Doanh thu bán:</b> {kpi['revenue']:,.0f} ₫ (+{kpi['rev_growth']}% MoM)\n"
+                f"• <b>Tổng chi phí:</b> {kpi['total_cost']:,.0f} ₫\n"
+                f"• <b>Lợi nhuận ròng:</b> {kpi['net_profit']:,.0f} ₫ ({kpi['profit_margin']}%)\n"
+                f"• <b>Target tháng:</b> {kpi['achievement_pct']}% đạt chỉ tiêu\n"
+                f"• <b>Tiến độ CPVH:</b> {kpi['lots_with_cost']}/{kpi['lot_count']} lô ({kpi['cost_completion_pct']}%)\n"
+                f"• <b>Nhiệm vụ quá hạn:</b> <b>{overdue_cnt} lô</b> 🚨\n"
+                f"━━━━━━━━━━━━━━━━━━━"
+            )
+            await update.message.reply_html(msg)
+        finally:
+            db.session.remove()
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -123,6 +132,48 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Chat type: <code>{chat_type}</code>"
     )
 
+def build_bot_app(token=None):
+    """Khởi tạo bot Application với các command handlers."""
+    token = token or os.getenv('TELEGRAM_BOT_TOKEN')
+    if not token:
+        return None
+    bot_app = ApplicationBuilder().token(token).build()
+    bot_app.add_handler(CommandHandler("start", start_command))
+    bot_app.add_handler(CommandHandler("link", link_command))
+    bot_app.add_handler(CommandHandler("mytasks", mytasks_command))
+    bot_app.add_handler(CommandHandler("overview", overview_command))
+    bot_app.add_handler(CommandHandler("id", id_command))
+    return bot_app
+
+def start_bot_thread(token=None):
+    """
+    Chạy Telegram Bot trong một Daemon Background Thread riêng.
+    Giúp tiết kiệm ~135MB RAM so với chạy tiến trình subprocess.Popen riêng rẽ.
+    """
+    import threading
+    import asyncio
+
+    token = token or os.getenv('TELEGRAM_BOT_TOKEN')
+    if not token:
+        print("⚠️ [BOT THREAD] Chưa có TELEGRAM_BOT_TOKEN, bỏ qua khởi động bot.")
+        return None
+
+    def _worker():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            bot_app = build_bot_app(token)
+            if not bot_app:
+                return
+            print("🤖 [BOT THREAD] Telegram Bot đã khởi động trong background thread (0MB RAM phụ)!")
+            bot_app.run_polling(stop_signals=None, close_loop=False)
+        except Exception as e:
+            print(f"⚠️ [BOT THREAD] Lỗi Telegram Bot thread: {e}")
+
+    thread = threading.Thread(target=_worker, name="TelegramBotThread", daemon=True)
+    thread.start()
+    return thread
+
 def run_bot():
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     if not token:
@@ -131,12 +182,7 @@ def run_bot():
         return
         
     print(f"🚀 Khởi động GIC Telegram Bot...")
-    bot_app = ApplicationBuilder().token(token).build()
-    bot_app.add_handler(CommandHandler("start", start_command))
-    bot_app.add_handler(CommandHandler("link", link_command))
-    bot_app.add_handler(CommandHandler("mytasks", mytasks_command))
-    bot_app.add_handler(CommandHandler("overview", overview_command))
-    bot_app.add_handler(CommandHandler("id", id_command))
+    bot_app = build_bot_app(token)
     bot_app.run_polling()
 
 if __name__ == '__main__':

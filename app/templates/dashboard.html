@@ -43,6 +43,21 @@
     </div>
 </div>
 
+{% if kpi.unresolved_group_count and kpi.unresolved_group_count > 0 %}
+<div class="alert alert-warning border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-4" style="background-color: #fffbeb; border-left: 4px solid #f59e0b !important;">
+    <div class="d-flex align-items-center gap-2">
+        <i class="fa-solid fa-triangle-exclamation text-warning fs-5"></i>
+        <div>
+            <strong class="text-dark">Có {{ kpi.unresolved_group_count }} nhóm chi phí vận hành chưa đối soát</strong>
+            <span class="text-muted ms-2">— Tổng số tiền: <strong class="text-danger font-mono">{{ kpi.unresolved_cost_amount | format_money }}</strong>. Số tiền này đã được trừ vào lợi nhuận kỳ nhưng chưa được gán vào lô bán hàng cụ thể nào.</span>
+        </div>
+    </div>
+    <a href="{{ url_for('lots.index', month=selected_month, year=selected_year) }}" class="btn btn-sm btn-outline-warning text-dark fw-bold text-nowrap ms-3">
+        Xem & Đối Soát <i class="fa-solid fa-arrow-right ms-1"></i>
+    </a>
+</div>
+{% endif %}
+
 <!-- 5 KPI Matrix Cards -->
 <div class="row g-3 mb-4">
     <!-- 1. Doanh Thu -->

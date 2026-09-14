@@ -72,8 +72,8 @@
     <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
             <i class="fa-solid fa-layer-group text-primary fs-5"></i>
-            <span class="fw-bold text-dark">Danh Sách Lô Hàng Kỳ T{{ "%02d"|format(selected_month) }}/{{ selected_year }}</span>
-            <span class="badge bg-light text-dark border font-mono ms-1">{{ lots|length }} lô</span>
+            <span class="fw-bold text-dark">Danh Sách Lô Bán Hàng Kỳ T{{ "%02d"|format(selected_month) }}/{{ selected_year }}</span>
+            <span class="badge bg-light text-dark border font-mono ms-1">{{ lots|length }} lô bán hàng</span>
         </div>
         <div class="d-flex align-items-center gap-2">
             <div class="input-group input-group-sm" style="width: 220px;">
@@ -245,19 +245,19 @@
             {% if lots and lots|length > 0 %}
             <tfoot class="bg-light border-top-2">
                 <tr class="fw-bold">
-                    <td colspan="3" class="text-end text-uppercase text-dark py-3">
-                        <span class="fs-6">TỔNG CỘNG KỲ NÀY ({{ lots|length }} lô):</span>
+                    <td colspan="3" class="text-end text-uppercase text-dark py-2">
+                        <span class="fs-6">TỔNG LÔ BÁN HÀNG ({{ lots|length }} lô):</span>
                     </td>
-                    <td class="text-end font-mono text-primary py-3 fs-6 tabular-nums">
+                    <td class="text-end font-mono text-primary py-2 fs-6 tabular-nums">
                         {{ totals.sell | format_money }}
                     </td>
-                    <td class="text-end font-mono text-muted py-3 fs-6 tabular-nums">
+                    <td class="text-end font-mono text-muted py-2 fs-6 tabular-nums">
                         {{ totals.buy | format_money }}
                     </td>
-                    <td class="text-end font-mono py-3 fs-6 tabular-nums {% if totals.ops > 0 %}text-warning text-dark{% else %}text-muted{% endif %}">
+                    <td class="text-end font-mono py-2 fs-6 tabular-nums {% if totals.ops > 0 %}text-warning text-dark{% else %}text-muted{% endif %}">
                         {{ totals.ops | format_money }}
                     </td>
-                    <td class="text-end font-mono py-3 fs-6 tabular-nums {% if totals.net >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    <td class="text-end font-mono py-2 fs-6 tabular-nums {% if totals.net >= 0 %}text-success{% else %}text-danger{% endif %}">
                         {{ totals.net | format_money }}
                         <div class="fw-normal text-muted font-sans" style="font-size: 0.68rem;">
                             (Biên: {{ "%.1f"|format(totals.net / totals.sell * 100) if totals.sell > 0 else 0 }}%)
@@ -265,10 +265,132 @@
                     </td>
                     <td colspan="4"></td>
                 </tr>
+                {% if unresolved_total_ops and unresolved_total_ops > 0 %}
+                <tr class="fw-bold bg-warning-subtle text-dark border-top">
+                    <td colspan="3" class="text-end text-uppercase py-2" style="font-size: 0.82rem;">
+                        <i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> CPVH Chưa Đối Soát ({{ unresolved_groups|length }} nhóm):
+                    </td>
+                    <td class="text-end py-2 font-mono text-muted">-</td>
+                    <td class="text-end py-2 font-mono text-muted">-</td>
+                    <td class="text-end py-2 font-mono text-danger tabular-nums">
+                        {{ unresolved_total_ops | format_money }}
+                    </td>
+                    <td class="text-end py-2 font-mono text-danger tabular-nums">
+                        -{{ unresolved_total_ops | format_money }}
+                    </td>
+                    <td colspan="4" class="py-2 small text-muted fst-italic">Trừ vào lợi nhuận kỳ</td>
+                </tr>
+                <tr class="fw-bold bg-white border-top-2">
+                    <td colspan="3" class="text-end text-uppercase text-dark py-2 fs-6">
+                        TỔNG KỲ (BAO GỒM CPVH CHƯA GHÉP):
+                    </td>
+                    <td class="text-end font-mono text-primary py-2 fs-6 tabular-nums">
+                        {{ totals.sell | format_money }}
+                    </td>
+                    <td class="text-end font-mono text-muted py-2 fs-6 tabular-nums">
+                        {{ totals.buy | format_money }}
+                    </td>
+                    <td class="text-end font-mono py-2 fs-6 text-dark tabular-nums">
+                        {{ (totals.ops + unresolved_total_ops) | format_money }}
+                    </td>
+                    <td class="text-end font-mono py-2 fs-6 tabular-nums {% if (totals.net - unresolved_total_ops) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ (totals.net - unresolved_total_ops) | format_money }}
+                    </td>
+                    <td colspan="4"></td>
+                </tr>
+                {% endif %}
             </tfoot>
             {% endif %}
         </table>
     </div>
+</div>
+
+<!-- Khu Vực: Chi Phí Vận Hành Chưa Đối Soát -->
+<div class="card border-0 shadow-sm rounded-3 mb-4" style="border: 1px solid {% if unresolved_groups and unresolved_groups|length > 0 %}#fcd34d{% else %}var(--gic-border){% endif %} !important;">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom {% if unresolved_groups and unresolved_groups|length > 0 %}bg-warning-subtle{% else %}bg-light{% endif %} flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-receipt {% if unresolved_groups and unresolved_groups|length > 0 %}text-warning{% else %}text-secondary{% endif %} fs-5"></i>
+            <div>
+                <span class="fw-bold text-dark">Chi Phí Vận Hành Chưa Đối Soát</span>
+                <span class="text-muted small ms-2 d-none d-md-inline">(Chi phí vận hành chưa xác định chắc chắn thuộc Sales Lot nào)</span>
+            </div>
+            {% if unresolved_groups and unresolved_groups|length > 0 %}
+                <span class="badge bg-warning text-dark border font-mono ms-1">{{ unresolved_groups|length }} nhóm — {{ unresolved_total_ops | format_money }}</span>
+            {% else %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"><i class="fa-solid fa-check me-1"></i>0 nhóm tồn đọng</span>
+            {% endif %}
+        </div>
+    </div>
+    {% if unresolved_groups and unresolved_groups|length > 0 %}
+    <div class="table-responsive">
+        <table class="table-custom-clean mb-0">
+            <thead>
+                <tr class="bg-white">
+                    <th style="width: 150px;">Mã Nhóm CPVH</th>
+                    <th>Khách Hàng Nguồn</th>
+                    <th>Số Tờ Khai HQ</th>
+                    <th class="text-center" style="width: 100px;">Số Khoản</th>
+                    <th class="text-end" style="width: 160px;">Tổng Chi Phí</th>
+                    <th>Lý Do Chưa Ghép</th>
+                    {% if current_user.is_manager %}
+                    <th class="text-center" style="width: 220px;">Ghép Vào Lô Bán Hàng</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in unresolved_groups %}
+                <tr>
+                    <td class="fw-bold font-mono">
+                        <a href="{{ url_for('lots.detail', lot_id=u.id) }}" class="text-dark text-decoration-none" title="Xem chi tiết các dòng chi phí">
+                            {{ u.lot_label }}
+                        </a>
+                    </td>
+                    <td class="fw-semibold">
+                        {{ u.company or u.display_customer_name }}
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border font-mono">{{ u.customs_declaration or 'Không có' }}</span>
+                    </td>
+                    <td class="text-center font-mono">
+                        {{ u.operating_costs|length }}
+                    </td>
+                    <td class="text-end font-mono fw-bold text-danger tabular-nums">
+                        {{ u.total_operating_cost | format_money }}
+                    </td>
+                    <td class="small text-muted">
+                        {% if u.status == 'pending' %}
+                            <span class="badge bg-warning-subtle text-dark border me-1"><i class="fa-regular fa-clock me-1"></i>Chờ đối soát</span>
+                        {% endif %}
+                        <span>Chưa khớp chắc chắn với Sales Lot nào trong kỳ</span>
+                    </td>
+                    {% if current_user.is_manager %}
+                    <td class="text-center">
+                        <form method="POST" action="{{ url_for('lots.reconcile_cpvh') }}" class="d-inline-flex align-items-center gap-1">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="unresolved_lot_id" value="{{ u.id }}">
+                            <select name="target_lot_id" class="form-select form-select-sm font-mono" style="font-size: 0.75rem; width: 140px;" required>
+                                <option value="" disabled selected>-- Chọn Lô --</option>
+                                {% for slot in lots %}
+                                    <option value="{{ slot.id }}">{{ slot.lot_label }} ({{ slot.display_customer_name[:10] }})</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary py-0 px-2" style="font-size: 0.75rem;" title="Ghép nhóm chi phí này vào lô được chọn" onclick="return confirm('Bạn có chắc chắn muốn chuyển toàn bộ chi phí của nhóm {{ u.lot_label }} vào lô này không?')">
+                                Ghép
+                            </button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-3 text-muted small">
+        <i class="fa-solid fa-circle-check text-success me-1"></i>
+        Tất cả chi phí vận hành trong kỳ T{{ "%02d"|format(selected_month) }}/{{ selected_year }} đã được đối soát thành công với các lô bán hàng. Không có chi phí tồn đọng.
+    </div>
+    {% endif %}
 </div>
 
 <!-- Modal: Tạo Lô Mới (Manager) -->

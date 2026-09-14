@@ -6,6 +6,11 @@ from app.models import Lot, Target, Customer, RevenueItem, OperatingCost, CostEn
 class CalculatorService:
     _cached_months = None
 
+    @classmethod
+    def invalidate_cache(cls):
+        """Xóa cache danh sách tháng để tải lại dữ liệu mới nhất sau import/reconciliation"""
+        cls._cached_months = None
+
     @staticmethod
     def get_available_months():
         """Get all unique (year, month) pairs present in the database"""
@@ -18,30 +23,42 @@ class CalculatorService:
     @staticmethod
     def get_monthly_kpi(month, year):
         """
-        Calculate total revenue, costs, profit, and target progress for given month & year
+        Calculate total revenue, costs, profit, and target progress for given month & year.
+        Đảm bảo đúng quy tắc tài chính:
+        - Số lô = số Sales Lot active (không cộng nhóm CPVH chưa đối soát).
+        - Doanh thu bán = tổng doanh thu của Sales Lot.
+        - Giá mua = tổng giá mua của Sales Lot.
+        - CPVH kỳ = tổng CPVH đã ghép của Sales Lot + tổng CPVH chưa đối soát hợp lệ (mỗi khoản tính đúng 1 lần).
+        - Lợi nhuận kỳ = Doanh thu bán - Giá mua - Tổng CPVH kỳ.
         """
-        all_lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).options(
+        sales_lots = Lot.sales_lots_query().filter_by(month=month, year=year).options(
             selectinload(Lot.revenue_items),
             selectinload(Lot.operating_costs)
         ).all()
+
+        unresolved_lots = Lot.unresolved_cpvh_query().filter_by(month=month, year=year).options(
+            selectinload(Lot.operating_costs)
+        ).all()
         
-        total_sell = sum(lot.total_sell_revenue for lot in all_lots)
-        total_buy = sum(lot.total_buy_cost for lot in all_lots)
-        total_ops = sum(lot.total_operating_cost for lot in all_lots)
+        total_sell = sum(lot.total_sell_revenue for lot in sales_lots)
+        total_buy = sum(lot.total_buy_cost for lot in sales_lots)
+        
+        sales_ops = sum(lot.total_operating_cost for lot in sales_lots)
+        unresolved_ops = sum(lot.total_operating_cost for lot in unresolved_lots)
+        total_ops = sales_ops + unresolved_ops
         
         gross_profit = total_sell - total_buy
         net_profit = total_sell - total_buy - total_ops
         margin = (net_profit / total_sell * 100) if total_sell > 0 else 0.0
         
-        # Target logic (Requirement 10)
+        # Target logic
         target_obj = Target.query.filter_by(year=year, month=month).first()
         has_target = target_obj is not None and (target_obj.target_amount or 0) > 0
         target_val = target_obj.target_amount_vnd if has_target else 0.0
         achievement_pct = round((total_sell / target_val * 100), 1) if (has_target and target_val > 0) else None
         target_label = f"Target tháng {month:02d}/{year}"
         
-        # Sales lot counts & Cost Status KPI (Requirement 9)
-        sales_lots = [lot for lot in all_lots if lot.is_sales_lot]
+        # Sales lot counts & Cost Status KPI
         lot_count = len(sales_lots)
         
         lots_none = sum(1 for lot in sales_lots if lot.cost_status == 'none')
@@ -51,15 +68,15 @@ class CalculatorService:
         
         cost_completion_pct = round((lots_completed / lot_count * 100), 1) if lot_count > 0 else 0.0
         
-        # Previous month comparison (Requirement 11)
+        # Previous month comparison
         prev_m = 12 if month == 1 else month - 1
         prev_y = year - 1 if month == 1 else year
-        prev_lots = Lot.query.filter_by(month=prev_m, year=prev_y, is_deleted=False).options(
+        prev_sales = Lot.sales_lots_query().filter_by(month=prev_m, year=prev_y).options(
             selectinload(Lot.revenue_items),
             selectinload(Lot.operating_costs)
         ).all()
-        prev_sell = sum(lot.total_sell_revenue for lot in prev_lots)
-        prev_buy = sum(lot.total_buy_cost for lot in prev_lots)
+        prev_sell = sum(lot.total_sell_revenue for lot in prev_sales)
+        prev_buy = sum(lot.total_buy_cost for lot in prev_sales)
         
         has_prev_data = prev_sell > 0
         rev_growth = round(((total_sell - prev_sell) / prev_sell * 100), 1) if has_prev_data else None
@@ -71,6 +88,9 @@ class CalculatorService:
             'revenue': total_sell,
             'buy_cost': total_buy,
             'operating_cost': total_ops,
+            'sales_operating_cost': sales_ops,
+            'unresolved_cost_amount': unresolved_ops,
+            'unresolved_group_count': len(unresolved_lots),
             'total_cost': total_buy + total_ops,
             'gross_profit': gross_profit,
             'net_profit': net_profit,
@@ -95,10 +115,12 @@ class CalculatorService:
     def get_year_trend(year):
         """
         Get 12-month series of revenue, costs, and target for charts.
-        Optimized to fetch all year lots and targets in 2 queries instead of 24.
         """
-        all_year_lots = Lot.query.filter_by(year=year, is_deleted=False).options(
+        sales_year_lots = Lot.sales_lots_query().filter_by(year=year).options(
             selectinload(Lot.revenue_items),
+            selectinload(Lot.operating_costs)
+        ).all()
+        unresolved_year_lots = Lot.unresolved_cpvh_query().filter_by(year=year).options(
             selectinload(Lot.operating_costs)
         ).all()
         
@@ -107,10 +129,11 @@ class CalculatorService:
         
         months_data = []
         for m in range(1, 13):
-            lots = [l for l in all_year_lots if l.month == m]
-            sell = sum(lot.total_sell_revenue for lot in lots)
-            buy = sum(lot.total_buy_cost for lot in lots)
-            ops = sum(lot.total_operating_cost for lot in lots)
+            s_lots = [l for l in sales_year_lots if l.month == m]
+            u_lots = [l for l in unresolved_year_lots if l.month == m]
+            sell = sum(lot.total_sell_revenue for lot in s_lots)
+            buy = sum(lot.total_buy_cost for lot in s_lots)
+            ops = sum(lot.total_operating_cost for lot in s_lots) + sum(lot.total_operating_cost for lot in u_lots)
             target_val = target_map.get(m, 0.0)
             
             months_data.append({
@@ -128,11 +151,11 @@ class CalculatorService:
     @staticmethod
     def get_customer_breakdown(month, year):
         """
-        Get revenue and lot share grouped by customer (Requirement 12).
+        Get revenue and lot share grouped by customer.
         Returns Top 5 customers + 'Khác', summing to exactly 100%.
-        Eager loads customer to avoid N+1 queries.
+        Chỉ lấy từ Sales Lot thực tế.
         """
-        lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).options(
+        lots = Lot.sales_lots_query().filter_by(month=month, year=year).options(
             joinedload(Lot.customer),
             selectinload(Lot.revenue_items)
         ).all()
@@ -140,9 +163,6 @@ class CalculatorService:
         total_rev = 0
         
         for lot in lots:
-            # Exclude zero-revenue CPVH lots from customer sales breakdown
-            if lot.source_type == 'cpvh' and lot.total_sell_revenue <= 0:
-                continue
             cname = lot.customer.name if lot.customer else "Khách vãng lai"
             rev = lot.total_sell_revenue
             total_rev += rev

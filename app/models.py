@@ -69,8 +69,19 @@ class Customer(db.Model):
     lots = db.relationship('Lot', backref='customer', lazy='dynamic')
 
     @property
+    def sales_lots(self):
+        """Chỉ các lô bán hàng thực tế (source_type != 'cpvh')"""
+        return [l for l in self.lots.all() if not l.is_deleted and l.is_sales_lot]
+
+    @property
+    def unresolved_cpvh_lots(self):
+        """Các nhóm CPVH chưa đối soát gắn với khách hàng này (nếu có)"""
+        return [l for l in self.lots.all() if not l.is_deleted and l.is_unresolved_cpvh]
+
+    @property
     def active_lots(self):
-        return [l for l in self.lots.all() if not l.is_deleted]
+        """Chỉ Sales Lot mới được tính vào KPI số lô và tổng hợp tài chính khách hàng"""
+        return self.sales_lots
 
     @property
     def total_lots(self):
@@ -177,8 +188,8 @@ class Lot(db.Model):
     deleted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
     # Relationships
-    revenue_items = db.relationship('RevenueItem', backref='lot', cascade='all, delete-orphan', lazy='joined')
-    operating_costs = db.relationship('OperatingCost', backref='lot', cascade='all, delete-orphan', lazy='joined')
+    revenue_items = db.relationship('RevenueItem', backref='lot', cascade='all, delete-orphan', lazy='selectin')
+    operating_costs = db.relationship('OperatingCost', backref='lot', cascade='all, delete-orphan', lazy='selectin')
     tasks = db.relationship('CostEntryTask', backref='lot', cascade='all, delete-orphan', lazy='dynamic')
     
     @property
@@ -219,8 +230,33 @@ class Lot(db.Model):
 
     @property
     def is_sales_lot(self):
-        """Phân biệt lô bán hàng thực tế với các lô CPVH tạo tự động khi không ghép được"""
+        """Phân biệt lô bán hàng thực tế với các nhóm CPVH chưa đối soát"""
         return self.source_type != 'cpvh'
+
+    @property
+    def is_unresolved_cpvh(self):
+        """Nhóm chi phí vận hành chưa đối soát chắc chắn với Sales Lot nào"""
+        return self.source_type == 'cpvh'
+
+    @property
+    def display_lot_label(self):
+        """Tên nhãn hiển thị: Sales Lot giữ nguyên mã lô, nhóm CPVH thể hiện rõ bản chất"""
+        if self.is_unresolved_cpvh:
+            lbl = self.lot_label or f"Nhóm CPVH #{self.id}"
+            if lbl.lower().startswith('lô cp'):
+                return lbl.replace('Lô CP', 'Nhóm CPVH').replace('lô cp', 'Nhóm CPVH')
+            return lbl
+        return self.lot_label or f"Lô #{self.id}"
+
+    @classmethod
+    def sales_lots_query(cls):
+        """Query scope: Chỉ các Sales Lot active (không bao gồm nhóm CPVH chưa đối soát)"""
+        return cls.query.filter(cls.is_deleted == False, cls.source_type != 'cpvh')
+
+    @classmethod
+    def unresolved_cpvh_query(cls):
+        """Query scope: Chỉ các nhóm CPVH chưa đối soát active"""
+        return cls.query.filter(cls.is_deleted == False, cls.source_type == 'cpvh')
 
     @property
     def display_customer_name(self):
@@ -301,7 +337,11 @@ class Lot(db.Model):
             'net_profit': self.net_profit,
             'profit_margin': round(self.profit_margin, 1),
             'operating_cost_count': sum(1 for cost in self.operating_costs if not cost.is_deleted),
-            'revenue_item_count': len(self.active_revenue_items)
+            'revenue_item_count': len(self.active_revenue_items),
+            'is_sales_lot': self.is_sales_lot,
+            'is_unresolved_cpvh': self.is_unresolved_cpvh,
+            'source_type': self.source_type,
+            'display_lot_label': self.display_lot_label
         }
 
 def classify_service_category(raw_desc, fallback_hint=None):

@@ -323,7 +323,9 @@ class ReportDataCollector:
 
         # 2. Topline 12 tháng năm hiện tại
         trend = CalculatorService.get_year_trend(year)
-        max_m = max(month, 8) if year == 2026 else max(month, 6)
+        # Bao gồm các tháng có hoạt động (doanh thu/chi phí) hoặc tối thiểu đến tháng đang xem
+        months_with_activity = [t['month_num'] for t in trend if t.get('revenue', 0) > 0 or t.get('operating_cost', 0) > 0]
+        max_m = max([month] + months_with_activity) if months_with_activity else month
         active_trend = [t for t in trend if t['month_num'] <= max_m]
 
         topline_months = [f"Tháng {t['month_num']}" for t in active_trend]
@@ -358,7 +360,7 @@ class ReportDataCollector:
         all_period_storage_lots = 0
 
         for m in recent_months:
-            lots_m = Lot.query.filter_by(month=m, year=year, is_deleted=False).options(
+            lots_m = Lot.sales_lots_query().filter_by(month=m, year=year).options(
                 selectinload(Lot.revenue_items)
             ).all()
 
@@ -426,7 +428,7 @@ class ReportDataCollector:
         customer_monthly_tables = []
         table_counter = 1
         for m in recent_months:
-            lots_m = Lot.query.filter_by(month=m, year=year, is_deleted=False).options(
+            lots_m = Lot.sales_lots_query().filter_by(month=m, year=year).options(
                 selectinload(Lot.revenue_items),
                 joinedload(Lot.customer)
             ).all()

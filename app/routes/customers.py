@@ -18,8 +18,8 @@ def get_all_customers_with_metrics(search_query='', sort_by='revenue', filter_st
     Truy vấn danh sách khách hàng kèm số liệu thống kê (Lô, Doanh thu, Chi phí, Lợi nhuận)
     Tối ưu hóa: Load danh sách lô và group trong bộ nhớ để đạt tốc độ < 0.1s.
     """
-    # 1. Load all active lots
-    all_lots = Lot.query.filter_by(is_deleted=False).order_by(
+    # 1. Load all active sales lots
+    all_lots = Lot.sales_lots_query().order_by(
         Lot.year.desc(), Lot.month.desc(), Lot.id.desc()
     ).all()
 
@@ -144,8 +144,8 @@ def detail(customer_id):
     """Trang Chi Tiết Khách Hàng: Hồ sơ doanh nghiệp + Toàn bộ lịch sử các lô hàng"""
     customer = Customer.query.get_or_404(customer_id)
 
-    # Get all lots for this customer
-    lots = Lot.query.filter_by(customer_id=customer.id, is_deleted=False).order_by(
+    # Get all sales lots for this customer
+    lots = Lot.sales_lots_query().filter_by(customer_id=customer.id).order_by(
         Lot.year.desc(), Lot.month.desc(), Lot.id.desc()
     ).all()
 

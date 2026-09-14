@@ -6,6 +6,8 @@ from pathlib import Path
 import openpyxl
 from app.extensions import db
 from app.models import Customer, Supplier, Target, Lot, RevenueItem, OperatingCost, User
+from app.services.cpvh_matcher import CPVHMatcher, extract_customs_declarations
+from app.services.calculator import CalculatorService
 
 def normalize_text(s):
     """
@@ -83,12 +85,12 @@ def is_summary_or_footer_row(row_cells):
     """
     Check if a row is a summary, total, tax, difference, advance, or signature row.
     """
-    row_text = normalize_text(" ".join(str(c or '') for c in row_cells[:8]))
+    row_text = normalize_text(" ".join(str(c or '') for c in row_cells[:15]))
     keywords = [
         'tong cong', 'tong cuoc chua bao gom', 'tong cuoc bao gom', 
         'chenh lech', 'thue vat', 'tong cuoc', 'tong tien mua', 'tong tien ban',
-        'tong chi phi', 'tam ung', 'hoan ung', 'truong bo phan', 'nguoi lap bieu', 'ke toan',
-        'giam doc', 'ky xac nhan'
+        'tong chi phi', 'tam ung', 'hoan ung', 'truong bo phan', 'nguoi lap', 'ke toan',
+        'giam doc', 'ky xac nhan', 'ky, ghi ro', 'ky va ghi ro', 'ky ten'
     ]
     return any(k in row_text for k in keywords)
 
@@ -163,6 +165,7 @@ class ExcelParserService:
             results['errors'].append(f"Lỗi dọn dẹp lô trống: {str(e)}")
             
         db.session.commit()
+        CalculatorService.invalidate_cache()
         return results
 
     @staticmethod
@@ -521,19 +524,25 @@ class ExcelParserService:
                     if amt_val <= 0:
                         continue
                         
-                    sales_lots = Lot.query.filter(Lot.month == month, Lot.year == year, Lot.source_type != 'cpvh').all()
+                    sales_lots = Lot.sales_lots_query().filter_by(month=month, year=year).all()
+                    match_res = CPVHMatcher.match_group(
+                        source_customer=supp_val,
+                        source_decl=None,
+                        sales_lots=sales_lots,
+                        period_month=month,
+                        period_year=year
+                    )
                     matched_lot = None
-                    
-                    if supp_val:
-                        supp_matches = [l for l in sales_lots if l.customer and normalize_text(supp_val) in normalize_text(l.customer.name)]
-                        if len(supp_matches) == 1:
-                            matched_lot = supp_matches[0]
+                    if match_res.status == 'matched':
+                        matched_lot = db.session.get(Lot, match_res.matched_lot_id)
                             
                     if not matched_lot:
                         cust = get_or_create_customer(supp_val or "CPVH 11.2025")
+                        stt_clean = str(int(clean_float(stt_val))) if clean_float(stt_val) > 0 else (stt_val or r)
                         matched_lot = Lot(
-                            lot_label=f"Lô CP 11.{stt_val or r}",
+                            lot_label=f"CPVH-112025-{stt_clean}",
                             customer_id=cust.id if cust else None,
+                            company=supp_val or "CPVH 11.2025",
                             month=month,
                             year=year,
                             source_sheet=sn,
@@ -639,15 +648,6 @@ class ExcelParserService:
                 cost_type = get_cell_val(r, 'loai_cp')
                 desc = get_cell_val(r, 'noi_dung')
 
-                # Values can first appear on either a group header or a
-                # detail row, and then apply to subsequent blanks.
-                if kh_val:
-                    current_customer_name = kh_val
-                    source_customer_name = kh_val
-                if code_val:
-                    current_decl = code_val
-                    source_decl = code_val
-                
                 # Check footer / summary rows
                 row_vals = [stt_val, kh_val, code_val, cost_type, desc]
                 if is_summary_or_footer_row(row_vals):
@@ -664,96 +664,59 @@ class ExcelParserService:
                     total_amt = cost_amt + (vat_amt or 0.0)
                 elif total_amt == 0 and unit_p > 0:
                     total_amt = unit_p * veh_count
-                    
+
                 # GROUP HEADER DETECTION (Sheet T07, T08, T09):
                 # If row has STT, cost_type is empty: this is a group header row
                 is_group_header = bool(stt_val and (not cost_type or str(cost_type).strip() == ''))
                 
                 if stt_val and (stt_val.isdigit() or clean_float(stt_val) > 0 or is_group_header):
-                    # Spreadsheet group headers commonly omit repeated
-                    # customer/declaration cells. Carry forward the last
-                    # non-empty source value, exactly as the source layout
-                    # represents the block.
-                    doc_date = get_cell_val(r, 'ngay_ct', clean_date)
+                    grp_customer = kh_val
+                    grp_decl = code_val if (code_val and extract_customs_declarations(str(code_val))) else None
                     
-                    sales_lots = Lot.query.filter(Lot.month == month, Lot.year == year, Lot.source_type != 'cpvh').all()
-                    matched_lot = None
-                    clean_decl = current_decl.strip() if current_decl else ''
-                    
-                    # 1. Exact match on customs declaration
-                    if clean_decl:
-                        exact_decl_matches = [l for l in sales_lots if l.customs_declaration and l.customs_declaration.strip() == clean_decl]
-                        if len(exact_decl_matches) == 1:
-                            matched_lot = exact_decl_matches[0]
-                            
-                    # 2. Unique partial match on declaration number
-                    if not matched_lot and clean_decl and len(clean_decl) >= 5:
-                        base_decl = clean_decl.split('/')[0].strip()
-                        partial_matches = [l for l in sales_lots if l.customs_declaration and (base_decl in l.customs_declaration or l.customs_declaration in clean_decl)]
-                        if len(partial_matches) == 1:
-                            matched_lot = partial_matches[0]
-                            
-                    # 3. Match by Customer + Company if unique in month
-                    if not matched_lot and current_customer_name:
-                        norm_cust = normalize_text(current_customer_name)
-                        cust_company_matches = [
-                            l for l in sales_lots 
-                            if (l.customer and norm_cust in normalize_text(l.customer.name)) and
-                               (not l.company or normalize_text(l.company) in norm_cust or norm_cust in normalize_text(l.company))
-                        ]
-                        if len(cust_company_matches) == 1:
-                            matched_lot = cust_company_matches[0]
-                            
-                    # 4. Match by Customer + date if unique
-                    if not matched_lot and current_customer_name and doc_date:
-                        norm_cust = normalize_text(current_customer_name)
-                        date_matches = [
-                            l for l in sales_lots 
-                            if (l.customer and norm_cust in normalize_text(l.customer.name)) and
-                               ((l.start_date and l.start_date <= doc_date <= (l.end_date or l.start_date)) or (l.start_date == doc_date))
-                        ]
-                        if len(date_matches) == 1:
-                            matched_lot = date_matches[0]
+                    # If customer or declaration not on header row, check detail rows in this block
+                    if not grp_customer or not grp_decl:
+                        for peek_r in range(r + 1, min(r + 40, ws.max_row + 1)):
+                            peek_stt = get_cell_val(peek_r, 'stt')
+                            if peek_stt and (peek_stt.isdigit() or clean_float(peek_stt) > 0):
+                                break
+                            peek_row_vals = [ws.cell(peek_r, c).value for c in range(1, min(15, ws.max_column + 1))]
+                            if is_summary_or_footer_row(peek_row_vals):
+                                break
+                            if not grp_customer:
+                                peek_kh = get_cell_val(peek_r, 'khach_hang')
+                                if peek_kh:
+                                    grp_customer = peek_kh
+                            if not grp_decl:
+                                peek_code = get_cell_val(peek_r, 'to_khai')
+                                if peek_code and extract_customs_declarations(str(peek_code)):
+                                    grp_decl = peek_code
+                            if grp_customer and grp_decl:
+                                break
 
-                    # 4.5 Match by lot sequence number (STT in CPVH == Lot number in Sales report)
-                    if not matched_lot and stt_val and (stt_val.isdigit() or clean_float(stt_val) > 0):
-                        try:
-                            stt_num = int(clean_float(stt_val))
-                            stt_matches = [
-                                l for l in sales_lots
-                                if l.lot_label and (
-                                    l.lot_label.strip().lower() == f"lô {stt_num}" or
-                                    l.lot_label.strip().lower() == f"lô {stt_num:02d}" or
-                                    l.lot_label.strip().lower() == f"lô 0{stt_num}"
-                                )
-                            ]
-                            if len(stt_matches) == 1:
-                                matched_lot = stt_matches[0]
-                        except Exception:
-                            pass
-                            
-                    current_lot_match = matched_lot
-                    
-                    # 5. If not matched, create/group into pending CPVH lot for that month
-                    if not current_lot_match:
-                        # If current_customer_name is missing, try to detect from block rows
-                        if not current_customer_name:
-                            for look_r in range(r, min(r + 35, ws.max_row + 1)):
-                                if look_r > r and ws.cell(look_r, col_map.get('stt', 1)).value:
-                                    break
-                                desc_look = normalize_text(get_cell_val(look_r, 'noi_dung') or '')
-                                if 'keep rise' in desc_look or 'keep' in desc_look:
-                                    current_customer_name = 'Keep Rise'
-                                    break
-                                elif 'sunluxe' in desc_look:
-                                    current_customer_name = 'Sunluxe'
-                                    break
-                        cust = get_or_create_customer(current_customer_name)
+                    current_customer_name = grp_customer
+                    current_decl = grp_decl
+                    source_customer_name = grp_customer
+                    source_decl = grp_decl
+
+                    sales_lots = Lot.sales_lots_query().filter_by(month=month, year=year).all()
+                    match_res = CPVHMatcher.match_group(
+                        source_customer=grp_customer,
+                        source_decl=grp_decl,
+                        sales_lots=sales_lots,
+                        period_month=month,
+                        period_year=year
+                    )
+
+                    if match_res.status == 'matched':
+                        current_lot_match = db.session.get(Lot, match_res.matched_lot_id)
+                    else:
+                        cust = get_or_create_customer(grp_customer) if grp_customer else None
+                        stt_clean = str(int(clean_float(stt_val))) if clean_float(stt_val) > 0 else (stt_val or r)
                         current_lot_match = Lot(
-                            lot_label=f"Lô CP {stt_val}",
+                            lot_label=f"CPVH-{month:02d}{year}-{stt_clean}",
                             customer_id=cust.id if cust else None,
-                            company=current_customer_name if current_customer_name and current_customer_name != "Khách vãng lai" else None,
-                            customs_declaration=current_decl,
+                            company=grp_customer if grp_customer and grp_customer != "Khách vãng lai" else None,
+                            customs_declaration=grp_decl,
                             month=month,
                             year=year,
                             source_sheet=sn,
@@ -762,6 +725,11 @@ class ExcelParserService:
                         )
                         db.session.add(current_lot_match)
                         db.session.flush()
+                else:
+                    if kh_val:
+                        source_customer_name = kh_val
+                    if code_val and extract_customs_declarations(str(code_val)):
+                        source_decl = code_val
                         
                 # If this is a group header row, SKIP adding it as an OperatingCost item
                 if is_group_header:

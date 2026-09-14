@@ -28,13 +28,17 @@ except ImportError:
 
 from app import create_app
 from app.services.reminder_service import ReminderService
+from app.extensions import db
 
 app = create_app()
 
 def scheduled_deadline_check():
     with app.app_context():
-        print('⏰ [CLOCK] Đang tự động rà soát deadline và gửi nhắc nhở hàng ngày...')
-        ReminderService.run_daily_deadline_check()
+        try:
+            print('⏰ [CLOCK] Đang tự động rà soát deadline và gửi nhắc nhở hàng ngày...')
+            ReminderService.run_daily_deadline_check()
+        finally:
+            db.session.remove()
 
 def scheduled_advance_refund_reminder():
     with app.app_context():
@@ -44,6 +48,8 @@ def scheduled_advance_refund_reminder():
             print(f'✅ [CLOCK] Hoàn ứng reminder: {result}')
         except Exception as e:
             print(f'⚠️ [CLOCK] Lỗi nhắc nhở hoàn ứng: {e}')
+        finally:
+            db.session.remove()
 
 def scheduled_sync_advances():
     with app.app_context():
@@ -54,6 +60,8 @@ def scheduled_sync_advances():
             print('✅ [CLOCK] Đồng bộ dòng tiền tạm ứng hoàn tất!')
         except Exception as e:
             print(f'⚠️ [CLOCK] Lỗi đồng bộ Google Sheets: {e}')
+        finally:
+            db.session.remove()
 
 if __name__ == '__main__':
     scheduler = BlockingScheduler()

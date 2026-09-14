@@ -99,9 +99,11 @@ def index():
     query = request.args.get('q', '').strip()
     status_filter = request.args.get('status', '')
     
-    lots_query = Lot.query.filter_by(month=selected_month, year=selected_year, is_deleted=False)
-    # Exclude completely empty placeholder lots
-    lots_query = lots_query.filter(
+    from sqlalchemy.orm import joinedload, selectinload
+
+    # 1. Sales Lots (Main list)
+    sales_query = Lot.sales_lots_query().filter_by(month=selected_month, year=selected_year)
+    sales_query = sales_query.filter(
         (Lot.revenue_items.any(RevenueItem.is_deleted.is_(False))) |
         (Lot.operating_costs.any(OperatingCost.is_deleted.is_(False))) |
         (Lot.tasks.any())
@@ -109,26 +111,46 @@ def index():
     
     # If staff, can see all lots or only assigned depending on view mode
     if not current_user.is_manager:
-        lots_query = lots_query.filter_by(assigned_to=current_user.id)
+        sales_query = sales_query.filter_by(assigned_to=current_user.id)
         
     if query:
-        lots_query = lots_query.filter(
+        sales_query = sales_query.filter(
             (Lot.lot_label.ilike(f"%{query}%")) |
             (Lot.customs_declaration.ilike(f"%{query}%")) |
             (Lot.company.ilike(f"%{query}%"))
         )
         
     if status_filter:
-        lots_query = lots_query.filter_by(status=status_filter)
+        sales_query = sales_query.filter_by(status=status_filter)
         
-    from sqlalchemy.orm import joinedload, selectinload
-    lots_query = lots_query.options(
+    sales_query = sales_query.options(
         joinedload(Lot.customer),
         joinedload(Lot.assignee),
         selectinload(Lot.revenue_items),
         selectinload(Lot.operating_costs)
     )
-    lots = lots_query.order_by(Lot.id.desc()).all()
+    lots = sales_query.order_by(Lot.id.desc()).all()
+
+    # 2. Unresolved CPVH Groups (Operating costs not yet matched to a single Sales Lot)
+    unresolved_groups = []
+    if current_user.is_manager:
+        unresolved_query = Lot.unresolved_cpvh_query().filter_by(month=selected_month, year=selected_year)
+        unresolved_query = unresolved_query.filter(
+            Lot.operating_costs.any(OperatingCost.is_deleted.is_(False))
+        )
+        if query:
+            unresolved_query = unresolved_query.filter(
+                (Lot.lot_label.ilike(f"%{query}%")) |
+                (Lot.customs_declaration.ilike(f"%{query}%")) |
+                (Lot.company.ilike(f"%{query}%"))
+            )
+        unresolved_query = unresolved_query.options(
+            joinedload(Lot.customer),
+            selectinload(Lot.operating_costs)
+        )
+        unresolved_groups = unresolved_query.order_by(Lot.id.asc()).all()
+
+    unresolved_total_ops = sum(u.total_operating_cost for u in unresolved_groups)
     staff_users = User.query.filter_by(is_active=True).all()
     
     suggested_code, next_num = suggest_lot_label(selected_month, selected_year)
@@ -138,6 +160,8 @@ def index():
     return render_template(
         'lots.html',
         lots=lots,
+        unresolved_groups=unresolved_groups,
+        unresolved_total_ops=unresolved_total_ops,
         months=months,
         selected_month=selected_month,
         selected_year=selected_year,
@@ -643,3 +667,44 @@ def delete_lot(lot_id):
         db.session.rollback()
         flash(f'Lỗi xóa lô hàng: {e}', 'danger')
     return redirect(url_for('lots.index', month=m, year=y))
+
+
+@lots_bp.route('/reconcile-cpvh', methods=['POST'])
+@login_required
+@manager_required
+def reconcile_cpvh():
+    unresolved_id = request.form.get('unresolved_lot_id', type=int)
+    target_lot_id = request.form.get('target_lot_id', type=int)
+    
+    if not unresolved_id or not target_lot_id:
+        flash('Vui lòng chọn đầy đủ nhóm chi phí và lô bán hàng cần ghép.', 'warning')
+        return redirect(request.referrer or url_for('lots.index'))
+        
+    unresolved_lot = Lot.query.filter_by(id=unresolved_id, is_deleted=False, source_type='cpvh').first_or_404()
+    target_lot = Lot.sales_lots_query().filter_by(id=target_lot_id).first_or_404()
+    
+    try:
+        cost_count = OperatingCost.query.filter_by(lot_id=unresolved_lot.id).update(
+            {OperatingCost.lot_id: target_lot.id}, synchronize_session=False
+        )
+        CashAdvanceBillMedia.query.filter_by(lot_id=unresolved_lot.id).update(
+            {CashAdvanceBillMedia.lot_id: target_lot.id}, synchronize_session=False
+        )
+        
+        now_utc = datetime.now(timezone.utc)
+        unresolved_lot.is_deleted = True
+        unresolved_lot.deleted_at = now_utc
+        unresolved_lot.deleted_by = current_user.id
+        
+        CalculatorService.invalidate_cache()
+        log_audit('reconcile_cpvh', 'lot', target_lot.id,
+                  f"Đã ghép nhóm CPVH {unresolved_lot.lot_label} (ID: {unresolved_lot.id}) vào lô bán hàng {target_lot.lot_label} (ID: {target_lot.id}) - Di chuyển {cost_count} khoản CPVH.",
+                  before_state={'unresolved_id': unresolved_lot.id, 'target_lot_id': target_lot.id})
+        db.session.commit()
+        flash(f"Đã ghép thành công {unresolved_lot.lot_label} vào {target_lot.lot_label} ({cost_count} khoản chi phí vận hành)!", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Lỗi khi ghép chi phí vận hành: {e}", 'danger')
+        
+    return redirect(url_for('lots.index', month=target_lot.month, year=target_lot.year))
+

@@ -6,10 +6,14 @@ port = os.getenv('PORT', '5000')
 
 print('🚀 [STARTUP] Đang khởi động GIC Logistics All-in-One (Web + Bot + Clock)...')
 
-bot_proc = None
+bot_thread = None
 if os.getenv('TELEGRAM_BOT_TOKEN'):
-    print('🤖 [STARTUP] Kích hoạt Telegram Bot background...')
-    bot_proc = subprocess.Popen([sys.executable, 'bot/telegram_bot.py'])
+    print('🤖 [STARTUP] Kích hoạt Telegram Bot background thread...')
+    try:
+        from bot.telegram_bot import start_bot_thread
+        bot_thread = start_bot_thread()
+    except Exception as bot_err:
+        print(f'⚠️ [STARTUP] Lỗi khởi động Telegram Bot: {bot_err}')
 else:
     print('⚠️ [STARTUP] Chưa có TELEGRAM_BOT_TOKEN trong biến môi trường.')
 
@@ -79,12 +83,14 @@ try:
         except Exception as dup_err:
             print(f'⚠️ [STARTUP] Cảnh báo kiểm tra lô trùng: {dup_err}')
 
-        # Tự động chuẩn hóa phân loại chi phí cho OperatingCost
+        # Tự động chuẩn hóa phân loại chi phí cho OperatingCost (chỉ quét các khoản chưa phân loại)
         try:
             from app.models import OperatingCost, classify_service_category
-            all_costs = OperatingCost.query.all()
+            unclassified_costs = OperatingCost.query.filter(
+                (OperatingCost.cost_type == None) | (OperatingCost.cost_type == '')
+            ).all()
             updated_costs = 0
-            for c in all_costs:
+            for c in unclassified_costs:
                 cat = classify_service_category(c.description, c.cost_type)
                 if c.cost_type != cat:
                     c.cost_type = cat
@@ -94,6 +100,9 @@ try:
                 print(f'✅ [STARTUP] Đã chuẩn hóa phân loại cho {updated_costs} khoản chi phí vận hành!')
         except Exception as cat_sync_err:
             print(f'⚠️ [STARTUP] Cảnh báo chuẩn hóa phân loại: {cat_sync_err}')
+        finally:
+            db.session.remove()
+
     print('✅ [STARTUP] Cơ sở dữ liệu đã sẵn sàng!')
 except Exception as e:
     print(f'⚠️ [STARTUP] Cảnh báo tạo DB: {e}')
@@ -112,6 +121,8 @@ if _app:
                     ReminderService.run_daily_deadline_check()
                 except Exception as ex:
                     print(f'⚠️ [CLOCK] Lỗi kiểm tra deadline: {ex}')
+                finally:
+                    db.session.remove()
 
         def scheduled_sync_advances():
             with _app.app_context():
@@ -120,6 +131,8 @@ if _app:
                     auto_sync_active_months()
                 except Exception as ex:
                     print(f'⚠️ [CLOCK] Lỗi đồng bộ Google Sheets: {ex}')
+                finally:
+                    db.session.remove()
 
         def scheduled_advance_refund_reminder():
             with _app.app_context():
@@ -128,6 +141,8 @@ if _app:
                     ReminderService.run_advance_refund_reminder()
                 except Exception as ex:
                     print(f'⚠️ [CLOCK] Lỗi nhắc nhở hoàn ứng: {ex}')
+                finally:
+                    db.session.remove()
 
         scheduler.add_job(scheduled_deadline_check, 'cron', hour=8, minute=0, id='daily_deadline_check')
         scheduler.add_job(scheduled_advance_refund_reminder, 'cron', hour=8, minute=5, id='advance_refund_reminder')
@@ -138,15 +153,14 @@ if _app:
         print(f'⚠️ [STARTUP] Lỗi khởi động Clock Scheduler: {e}')
 
 # 3. Khởi động Gunicorn Web Server với cấu hình tối ưu RAM
+# Không dùng --max-requests nhỏ để tránh fork đồng thời 2 worker gây đỉnh nhọn RAM 640MB
 print(f'🌐 [STARTUP] Khởi động Gunicorn Web Server tại 0.0.0.0:{port}...')
 cmd = [
     sys.executable, '-m', 'gunicorn',
     'app:create_app()',
     '--bind', f'0.0.0.0:{port}',
     '--workers', '1',
-    '--threads', '2',
-    '--max-requests', '250',
-    '--max-requests-jitter', '25',
+    '--threads', '4',
     '--timeout', '60'
 ]
 
@@ -155,7 +169,5 @@ try:
 except KeyboardInterrupt:
     pass
 finally:
-    if bot_proc:
-        bot_proc.terminate()
     if scheduler:
         scheduler.shutdown(wait=False)

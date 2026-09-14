@@ -37,7 +37,9 @@ class ExcelExporterService:
         num_fmt_currency = '#,##0'
         num_fmt_percent = '0.0%'
         
-        lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).order_by(Lot.id.asc()).all()
+        lots = Lot.sales_lots_query().filter_by(month=month, year=year).order_by(Lot.id.asc()).all()
+        unresolved_groups = Lot.unresolved_cpvh_query().filter_by(month=month, year=year).all()
+        unresolved_cost_total = sum(u.total_operating_cost for u in unresolved_groups)
         kpi = CalculatorService.get_monthly_kpi(month, year)
         
         # SHEET 1: BÁO CÁO KINH DOANH
@@ -174,25 +176,89 @@ class ExcelExporterService:
                     cell.fill = row_fill
                     
         last_data_row = start_row1 + len(lots) - 1
-        total_row = last_data_row + 1
-        ws1.row_dimensions[total_row].height = 26
         
-        ws1.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=7)
-        c_tot_label = ws1.cell(row=total_row, column=1, value="TỔNG CỘNG")
-        c_tot_label.font = font_total
-        c_tot_label.alignment = align_center
-        
-        if len(lots) > 0:
-            ws1.cell(row=total_row, column=8, value=f"=SUM(H{start_row1}:H{last_data_row})")
-            ws1.cell(row=total_row, column=9, value=f"=SUM(I{start_row1}:I{last_data_row})")
-            ws1.cell(row=total_row, column=10, value=f"=SUM(J{start_row1}:J{last_data_row})")
-            ws1.cell(row=total_row, column=11, value=f"=SUM(K{start_row1}:K{last_data_row})")
-            ws1.cell(row=total_row, column=12, value=f"=SUM(L{start_row1}:L{last_data_row})")
+        if unresolved_cost_total > 0:
+            # Row for Sales Lots subtotal
+            sub_row = last_data_row + 1
+            ws1.row_dimensions[sub_row].height = 24
+            ws1.merge_cells(start_row=sub_row, start_column=1, end_row=sub_row, end_column=7)
+            c_sub_label = ws1.cell(row=sub_row, column=1, value="TỔNG LÔ BÁN HÀNG")
+            c_sub_label.font = font_total
+            c_sub_label.alignment = align_center
+            if len(lots) > 0:
+                ws1.cell(row=sub_row, column=8, value=f"=SUM(H{start_row1}:H{last_data_row})")
+                ws1.cell(row=sub_row, column=9, value=f"=SUM(I{start_row1}:I{last_data_row})")
+                ws1.cell(row=sub_row, column=10, value=f"=SUM(J{start_row1}:J{last_data_row})")
+                ws1.cell(row=sub_row, column=11, value=f"=SUM(K{start_row1}:K{last_data_row})")
+                ws1.cell(row=sub_row, column=12, value=f"=SUM(L{start_row1}:L{last_data_row})")
+                ws1.cell(row=sub_row, column=13, value=f"=IF(H{sub_row}>0, L{sub_row}/H{sub_row}, 0)")
+            for col_idx in range(8, 13):
+                cell = ws1.cell(row=sub_row, column=col_idx)
+                cell.number_format = num_fmt_currency
+                cell.alignment = align_right
+                cell.font = font_total
+            ws1.cell(row=sub_row, column=13).number_format = num_fmt_percent
+            ws1.cell(row=sub_row, column=13).alignment = align_right
+            ws1.cell(row=sub_row, column=13).font = font_total
+            for c in range(1, 16):
+                cell = ws1.cell(row=sub_row, column=c)
+                cell.fill = fill_kpi
+                cell.border = thin_border
+
+            # Row for Unresolved CPVH
+            unres_row = sub_row + 1
+            ws1.row_dimensions[unres_row].height = 24
+            ws1.merge_cells(start_row=unres_row, start_column=1, end_row=unres_row, end_column=7)
+            c_unres_label = ws1.cell(row=unres_row, column=1, value=f"CHI PHÍ VẬN HÀNH CHƯA ĐỐI SOÁT ({len(unresolved_groups)} nhóm)")
+            c_unres_label.font = font_total
+            c_unres_label.alignment = align_center
+            ws1.cell(row=unres_row, column=8, value=0).number_format = num_fmt_currency
+            ws1.cell(row=unres_row, column=9, value=0).number_format = num_fmt_currency
+            c_uops = ws1.cell(row=unres_row, column=10, value=unresolved_cost_total)
+            c_uops.number_format = num_fmt_currency
+            c_uops.alignment = align_right
+            c_uops.font = font_total
+            ws1.cell(row=unres_row, column=11, value=0).number_format = num_fmt_currency
+            c_unet = ws1.cell(row=unres_row, column=12, value=-unresolved_cost_total)
+            c_unet.number_format = num_fmt_currency
+            c_unet.alignment = align_right
+            c_unet.font = font_total
+            ws1.cell(row=unres_row, column=13, value=0).number_format = num_fmt_percent
+            for c in range(1, 16):
+                cell = ws1.cell(row=unres_row, column=c)
+                cell.fill = fill_alt
+                cell.border = thin_border
+
+            total_row = unres_row + 1
+            ws1.row_dimensions[total_row].height = 26
+            ws1.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=7)
+            c_tot_label = ws1.cell(row=total_row, column=1, value="TỔNG CỘNG KỲ (BAO GỒM CPVH CHƯA GHÉP)")
+            c_tot_label.font = font_total
+            c_tot_label.alignment = align_center
+            ws1.cell(row=total_row, column=8, value=f"=H{sub_row}")
+            ws1.cell(row=total_row, column=9, value=f"=I{sub_row}")
+            ws1.cell(row=total_row, column=10, value=f"=J{sub_row}+J{unres_row}")
+            ws1.cell(row=total_row, column=11, value=f"=K{sub_row}")
+            ws1.cell(row=total_row, column=12, value=f"=L{sub_row}+L{unres_row}")
             ws1.cell(row=total_row, column=13, value=f"=IF(H{total_row}>0, L{total_row}/H{total_row}, 0)")
         else:
-            for c in range(8, 14):
-                ws1.cell(row=total_row, column=c, value=0)
-                
+            total_row = last_data_row + 1
+            ws1.row_dimensions[total_row].height = 26
+            ws1.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=7)
+            c_tot_label = ws1.cell(row=total_row, column=1, value="TỔNG CỘNG")
+            c_tot_label.font = font_total
+            c_tot_label.alignment = align_center
+            if len(lots) > 0:
+                ws1.cell(row=total_row, column=8, value=f"=SUM(H{start_row1}:H{last_data_row})")
+                ws1.cell(row=total_row, column=9, value=f"=SUM(I{start_row1}:I{last_data_row})")
+                ws1.cell(row=total_row, column=10, value=f"=SUM(J{start_row1}:J{last_data_row})")
+                ws1.cell(row=total_row, column=11, value=f"=SUM(K{start_row1}:K{last_data_row})")
+                ws1.cell(row=total_row, column=12, value=f"=SUM(L{start_row1}:L{last_data_row})")
+                ws1.cell(row=total_row, column=13, value=f"=IF(H{total_row}>0, L{total_row}/H{total_row}, 0)")
+            else:
+                for c in range(8, 14):
+                    ws1.cell(row=total_row, column=c, value=0)
+
         for col_idx in range(8, 13):
             cell = ws1.cell(row=total_row, column=col_idx)
             cell.number_format = num_fmt_currency
@@ -235,7 +301,8 @@ class ExcelExporterService:
             cell.alignment = align_header
             cell.border = thin_border
             
-        lot_ids = [lot.id for lot in lots]
+        all_period_lots = Lot.query.filter_by(month=month, year=year, is_deleted=False).all()
+        lot_ids = [l.id for l in all_period_lots]
         costs = OperatingCost.query.filter(
             OperatingCost.lot_id.in_(lot_ids), OperatingCost.is_deleted.is_(False)
         ).order_by(OperatingCost.id.asc()).all() if lot_ids else []
@@ -247,8 +314,9 @@ class ExcelExporterService:
             row_fill = fill_alt if idx % 2 == 0 else PatternFill(fill_type=None)
             
             lot = cost.lot
-            cust_name = lot.customer.name if (lot and lot.customer) else "Khách vãng lai"
-            lot_name = lot.lot_label if lot else f"Lô #{cost.lot_id}"
+            is_unres = bool(lot and lot.source_type == 'cpvh')
+            cust_name = (lot.company or "Chưa đối soát") if is_unres else (lot.customer.name if (lot and lot.customer) else "Khách vãng lai")
+            lot_name = f"[{lot.lot_label}] (Chưa đối soát)" if is_unres else (lot.lot_label if lot else f"Lô #{cost.lot_id}")
             doc_d = cost.document_date.strftime('%d/%m/%Y') if cost.document_date else ""
             filler_name = cost.filler.full_name if cost.filler else (cost.pic or "")
             
