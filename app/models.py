@@ -845,6 +845,8 @@ class OperatingCost(db.Model):
     
     filler = db.relationship('User', foreign_keys=[filled_by])
 
+    invoice_classification_manual = db.Column('invoice_classification', db.String(50), nullable=True, default=None)
+    
     @property
     def category(self):
         """Phân loại nghiệp vụ chuẩn hóa 6 nhóm: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
@@ -874,14 +876,20 @@ class OperatingCost(db.Model):
     @property
     def invoice_classification(self):
         """Phân loại hóa đơn: 'has_invoice', 'no_invoice', 'unpayable_invoice'"""
+        if self.invoice_classification_manual:
+            return self.invoice_classification_manual
         inv_type = (self.invoice_type or '').strip().lower()
         inv_type_nfc = re.sub(r'[đĐ]', 'd', inv_type)
         if not inv_type or 'không' in inv_type or 'khong' in inv_type_nfc:
             return 'no_invoice'
-        if 'hóa đơn' in inv_type or 'hoa don' in inv_type_nfc or 'hdgtgt' in inv_type_nfc:
+        if 'hóa đơn' in inv_type or 'hoa don' in inv_type_nfc or 'hdgtgt' in inv_type_nfc or 'hd gtgt' in inv_type_nfc:
             return 'has_invoice' if self.invoice_number else 'no_invoice'
         # Phiếu chi, Phiếu thu, Vé xe = có chứng từ nhưng không phải HĐ GTGT
         return 'unpayable_invoice'
+
+    @invoice_classification.setter
+    def invoice_classification(self, value):
+        self.invoice_classification_manual = value
 
     @property
     def invoice_classification_label(self):
@@ -892,6 +900,23 @@ class OperatingCost(db.Model):
         elif cls == 'no_invoice':
             return 'Không HĐ'
         return 'HĐ không TT được'
+
+    @property
+    def has_invoice_file(self):
+        """Kiểm tra dòng chi phí đã có file/ảnh hóa đơn đính kèm hay chưa"""
+        try:
+            return self.bill_media_items.count() > 0
+        except Exception:
+            return False
+
+    @property
+    def latest_invoice_media(self):
+        """Lấy file hóa đơn gần nhất đính kèm dòng chi phí này"""
+        try:
+            from app.models import CashAdvanceBillMedia
+            return self.bill_media_items.order_by(CashAdvanceBillMedia.created_at.desc()).first()
+        except Exception:
+            return None
 
     def to_dict(self):
         return {
@@ -917,6 +942,8 @@ class OperatingCost(db.Model):
             'filled_by_name': self.filler.full_name if self.filler else '',
             'invoice_classification': self.invoice_classification,
             'invoice_classification_label': self.invoice_classification_label,
+            'has_invoice_file': self.has_invoice_file,
+            'invoice_media_id': self.latest_invoice_media.id if self.latest_invoice_media else None,
             'cost_amount': self.cost_amount or 0,
             'vat_amount': self.vat_amount or 0
         }

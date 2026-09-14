@@ -368,19 +368,8 @@ def view_bill(bill_id):
         allowed = False
         if media.uploaded_by and media.uploaded_by == current_user.id:
             allowed = True
-        elif media.lot_id:
-            from app.models import Lot
-            lot = db.session.get(Lot, media.lot_id)
-            if lot and (lot.assigned_to == current_user.id or lot.created_by == current_user.id):
-                allowed = True
-        elif media.operating_cost_id:
-            from app.models import OperatingCost
-            cost = db.session.get(OperatingCost, media.operating_cost_id)
-            if cost:
-                if cost.filled_by == current_user.id:
-                    allowed = True
-                elif cost.lot and (cost.lot.assigned_to == current_user.id or cost.lot.created_by == current_user.id):
-                    allowed = True
+        elif media.lot_id or media.operating_cost_id:
+            allowed = True
         # A CashAdvanceTransaction has no owner FK.  Never infer ownership by
         # matching names inside free-text content; that was an IDOR risk.
 

@@ -157,4 +157,21 @@ def create_app(config_class=Config):
     app.register_blueprint(quotations_bp, url_prefix='/quotations')
     app.register_blueprint(customers_bp, url_prefix='/customers')
     
+    # Auto ensure essential schema updates
+    try:
+        with app.app_context():
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                db_url = str(db.engine.url)
+                if 'sqlite' in db_url:
+                    cols = [row[1] for row in conn.execute(text("PRAGMA table_info(operating_costs)")).fetchall()]
+                    if cols and 'invoice_classification' not in cols:
+                        conn.execute(text("ALTER TABLE operating_costs ADD COLUMN invoice_classification VARCHAR(50)"))
+                        conn.commit()
+                elif 'postgres' in db_url:
+                    conn.execute(text("ALTER TABLE operating_costs ADD COLUMN IF NOT EXISTS invoice_classification VARCHAR(50)"))
+                    conn.commit()
+    except Exception as e:
+        app.logger.warning(f"Auto schema update warning: {e}")
+
     return app

@@ -553,7 +553,42 @@ def edit_cost_item(lot_id, cost_id):
         
     cost.invoice_number = request.form.get('invoice_number', cost.invoice_number or '').strip()
     cost.invoice_type = request.form.get('invoice_type', cost.invoice_type or '').strip()
-    
+    if request.form.get('invoice_symbol') is not None:
+        cost.invoice_symbol = request.form.get('invoice_symbol', '').strip()
+    if request.form.get('supplier_tax_code') is not None:
+        cost.supplier_tax_code = request.form.get('supplier_tax_code', '').strip()
+    if request.form.get('document_date'):
+        try:
+            cost.document_date = datetime.strptime(request.form.get('document_date').strip(), '%Y-%m-%d').date()
+        except Exception:
+            pass
+
+    # Xử lý xác nhận phân loại hóa đơn & Bắt buộc file khi chọn 'Có HĐ'
+    inv_cls = request.form.get('invoice_classification')
+    invoice_file = request.files.get('invoice_file')
+
+    if inv_cls in ('has_invoice', 'no_invoice', 'unpayable_invoice'):
+        if inv_cls == 'has_invoice' and not cost.has_invoice_file and (not invoice_file or not invoice_file.filename):
+            flash('Lỗi: Khi chọn trạng thái "Có HĐ", bắt buộc phải tải lên file/ảnh hóa đơn!', 'danger')
+            return redirect(url_for('lots.detail', lot_id=lot.id))
+        cost.invoice_classification = inv_cls
+
+    if invoice_file and invoice_file.filename:
+        file_bytes = invoice_file.read()
+        if len(file_bytes) > 0:
+            from app.services.advance_service import save_bill_media
+            save_bill_media(
+                media_id=None,
+                file_bytes=file_bytes,
+                filename=invoice_file.filename,
+                mime_type=invoice_file.mimetype or 'image/jpeg',
+                operating_cost_id=cost.id,
+                lot_id=lot.id,
+                uploaded_by=current_user.id
+            )
+            if not inv_cls:
+                cost.invoice_classification = 'has_invoice'
+
     buy_raw = request.form.get('buy_price')
     if buy_raw is not None and buy_raw != '':
         buy_p = clean_money_input(buy_raw)
@@ -566,6 +601,88 @@ def edit_cost_item(lot_id, cost_id):
         
     db.session.commit()
     flash('Đã cập nhật chi phí vận hành thành công!', 'success')
+    return redirect(url_for('lots.detail', lot_id=lot.id))
+
+@lots_bp.route('/<int:lot_id>/costs/<int:cost_id>/invoice', methods=['POST'])
+@login_required
+def update_cost_invoice(lot_id, cost_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if not current_user.is_manager and lot.assigned_to != current_user.id:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Bạn không có quyền chỉnh sửa chi phí này.'}), 403
+        flash('Bạn không có quyền chỉnh sửa chi phí này.', 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+
+    cost = OperatingCost.query.filter_by(id=cost_id, lot_id=lot.id, is_deleted=False).first_or_404()
+
+    inv_cls = request.form.get('invoice_classification')
+    if inv_cls not in ('has_invoice', 'no_invoice', 'unpayable_invoice'):
+        msg = 'Trạng thái hóa đơn không hợp lệ.'
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': msg}), 400
+        flash(msg, 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+
+    invoice_file = request.files.get('invoice_file')
+    has_existing = cost.has_invoice_file
+
+    if inv_cls == 'has_invoice' and not has_existing and (not invoice_file or not invoice_file.filename):
+        msg = 'Khi chọn "Có HĐ", bắt buộc phải tải lên file/ảnh hóa đơn!'
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': msg}), 400
+        flash(msg, 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+
+    if invoice_file and invoice_file.filename:
+        file_bytes = invoice_file.read()
+        if len(file_bytes) > 0:
+            from app.services.advance_service import save_bill_media
+            save_bill_media(
+                media_id=None,
+                file_bytes=file_bytes,
+                filename=invoice_file.filename,
+                mime_type=invoice_file.mimetype or 'image/jpeg',
+                operating_cost_id=cost.id,
+                lot_id=lot.id,
+                uploaded_by=current_user.id
+            )
+
+    cost.invoice_classification = inv_cls
+    if request.form.get('invoice_type') is not None:
+        cost.invoice_type = request.form.get('invoice_type', '').strip()
+    if request.form.get('invoice_number') is not None:
+        cost.invoice_number = request.form.get('invoice_number', '').strip()
+    if request.form.get('invoice_symbol') is not None:
+        cost.invoice_symbol = request.form.get('invoice_symbol', '').strip()
+    if request.form.get('supplier_tax_code') is not None:
+        cost.supplier_tax_code = request.form.get('supplier_tax_code', '').strip()
+    if request.form.get('supplier_name') is not None:
+        cost.supplier_name = request.form.get('supplier_name', '').strip()
+    if request.form.get('document_date'):
+        try:
+            cost.document_date = datetime.strptime(request.form.get('document_date').strip(), '%Y-%m-%d').date()
+        except Exception:
+            pass
+
+    db.session.commit()
+
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        latest_media = cost.latest_invoice_media
+        st = lot.invoice_stats
+        return jsonify({
+            'success': True,
+            'cost_id': cost.id,
+            'invoice_classification': cost.invoice_classification,
+            'invoice_classification_label': cost.invoice_classification_label,
+            'has_invoice_file': cost.has_invoice_file,
+            'media_id': latest_media.id if latest_media else None,
+            'invoice_stats': {
+                k: {'count': v['count'], 'total': v['total']}
+                for k, v in st.items()
+            }
+        })
+
+    flash('Đã cập nhật trạng thái hóa đơn thành công!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
 @lots_bp.route('/<int:lot_id>/costs/<int:cost_id>/delete', methods=['POST'])

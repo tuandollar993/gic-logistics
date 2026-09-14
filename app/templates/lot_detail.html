@@ -456,19 +456,33 @@
                                     </td>
                                     <td>
                                          {% set inv_cls = cost.invoice_classification %}
-                                         <div class="mb-1">
-                                             {% if inv_cls == 'has_invoice' %}
-                                                 <span class="badge bg-success-subtle text-success border border-success-subtle font-sans" style="font-size: 0.68rem;">
-                                                     <i class="fa-solid fa-circle-check me-1"></i>Có HĐ
-                                                 </span>
-                                             {% elif inv_cls == 'no_invoice' %}
-                                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle font-sans" style="font-size: 0.68rem;">
-                                                     <i class="fa-solid fa-circle-xmark me-1"></i>Không HĐ
-                                                 </span>
-                                             {% else %}
-                                                 <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle font-sans" style="font-size: 0.68rem;" title="Chứng từ nội bộ/Phiếu chi, không phải HĐ GTGT khấu trừ">
-                                                     <i class="fa-solid fa-triangle-exclamation me-1"></i>HĐ không TT được
-                                                 </span>
+                                         {% set latest_media = cost.latest_invoice_media %}
+                                         <div class="mb-1 d-flex align-items-center gap-1 flex-wrap">
+                                             <button type="button" class="btn btn-xs p-1 px-2 border rounded-pill d-inline-flex align-items-center gap-1 btn-open-invoice-modal {% if inv_cls == 'has_invoice' %}bg-success-subtle text-success border-success-subtle{% elif inv_cls == 'no_invoice' %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-warning-subtle text-warning-emphasis border-warning-subtle{% endif %}"
+                                                 style="font-size: 0.68rem; line-height: 1.2;"
+                                                 data-id="{{ cost.id }}"
+                                                 data-cls="{{ inv_cls }}"
+                                                 data-desc="{{ cost.display_description }}"
+                                                 data-inv-type="{{ cost.invoice_type or '' }}"
+                                                 data-inv-num="{{ cost.invoice_number or '' }}"
+                                                 data-inv-symbol="{{ cost.invoice_symbol or '' }}"
+                                                 data-supplier-tax-code="{{ cost.supplier_tax_code or '' }}"
+                                                 data-has-file="{{ '1' if cost.has_invoice_file else '0' }}"
+                                                 data-media-id="{{ latest_media.id if latest_media else '' }}"
+                                                 title="Click để bấm nút xác nhận: Có HĐ / Không HĐ / HĐ không TT được">
+                                                 {% if inv_cls == 'has_invoice' %}
+                                                     <i class="fa-solid fa-circle-check"></i>Có HĐ
+                                                 {% elif inv_cls == 'no_invoice' %}
+                                                     <i class="fa-solid fa-circle-xmark"></i>Không HĐ
+                                                 {% else %}
+                                                     <i class="fa-solid fa-triangle-exclamation"></i>HĐ không TT được
+                                                 {% endif %}
+                                                 <i class="fa-solid fa-pen ms-1 opacity-75" style="font-size: 0.55rem;"></i>
+                                             </button>
+                                             {% if cost.has_invoice_file and latest_media %}
+                                                 <a href="{{ url_for('advances.view_bill', bill_id=latest_media.id) }}" target="_blank" class="badge bg-primary text-white border-0 text-decoration-none p-1 px-2 shadow-sm" title="Xem ảnh/file hóa đơn đã đính kèm">
+                                                     <i class="fa-solid fa-paperclip me-1"></i>Xem HĐ
+                                                 </a>
                                              {% endif %}
                                          </div>
                                          {% if cost.invoice_number or cost.invoice_type %}
@@ -502,7 +516,11 @@
                                                 data-sell="{{ ((cost.sell_price or 0) | round | int) }}"
                                                 data-surcharge="0"
                                                 data-invoice-type="{{ cost.invoice_type or '' }}"
+                                                data-invoice-symbol="{{ cost.invoice_symbol or '' }}"
                                                 data-invoice-number="{{ cost.invoice_number or '' }}"
+                                                data-invoice-classification="{{ cost.invoice_classification }}"
+                                                data-has-file="{{ '1' if cost.has_invoice_file else '0' }}"
+                                                data-media-id="{{ latest_media.id if latest_media else '' }}"
                                                 title="Sửa chi phí này">
                                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                                             </button>
@@ -764,7 +782,7 @@
 <!-- Modal Chỉnh Sửa Khoản Mục Trong Cùng 1 Bảng -->
 <div class="modal fade" id="editUnifiedModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST" id="editUnifiedForm" action="" class="modal-content border-0 shadow-lg">
+        <form method="POST" id="editUnifiedForm" action="" enctype="multipart/form-data" class="modal-content border-0 shadow-lg">
             <div class="modal-header border-bottom py-3">
                 <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
                     <i class="fa-solid fa-pen-to-square text-primary"></i>
@@ -865,13 +883,66 @@
                         <small class="text-muted" style="font-size: 0.72rem;">Lưu ca, nâng hạ, phụ phí khác</small>
                     </div>
 
-                    <!-- Chứng Từ & Hóa Đơn -->
-                    <div class="col-md-6">
+                    <!-- Xác Nhận Tình Trạng Hóa Đơn & Chứng Từ (Bắt buộc Kế toán/Nhân viên tự xác nhận) -->
+                    <div class="col-12"><hr class="my-2"></div>
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-dark text-uppercase d-flex align-items-center justify-content-between" style="font-size: 0.75rem;">
+                            <span><i class="fa-solid fa-file-invoice me-1 text-primary"></i> Xác nhận Tình Trạng Hóa Đơn (Kế toán / Nhân viên tự chọn): <span class="text-danger">*</span></span>
+                            <span class="text-danger small fw-semibold" id="editInvoiceFileWarning" style="display: none;">
+                                <i class="fa-solid fa-triangle-exclamation me-1"></i>Bắt buộc tải lên file/ảnh hóa đơn!
+                            </span>
+                        </label>
+                        <div class="d-flex gap-3 flex-wrap p-2 rounded bg-light border">
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="editInvClsHas" value="has_invoice">
+                                <label class="form-check-label fw-bold text-success cursor-pointer" for="editInvClsHas">
+                                    <i class="fa-solid fa-circle-check me-1"></i> Có HĐ (Bắt buộc tải file)
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="editInvClsNo" value="no_invoice">
+                                <label class="form-check-label fw-bold text-danger cursor-pointer" for="editInvClsNo">
+                                    <i class="fa-solid fa-circle-xmark me-1"></i> Không HĐ
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="editInvClsUnpay" value="unpayable_invoice">
+                                <label class="form-check-label fw-bold text-warning-emphasis cursor-pointer" for="editInvClsUnpay">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i> HĐ không TT được / Biên lai
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File / Ảnh Hóa Đơn Đính Kèm -->
+                    <div class="col-12" id="editInvoiceFileContainer">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                            File / Ảnh Hóa Đơn Đính Kèm <span class="text-danger" id="editInvoiceFileStar" style="display: none;">* (Bắt buộc khi Có HĐ)</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="file" name="invoice_file" id="editInvoiceFileInput" class="form-control" accept="image/*,application/pdf">
+                            <span class="input-group-text bg-white"><i class="fa-solid fa-cloud-arrow-up text-primary"></i></span>
+                        </div>
+                        <div class="mt-1 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <small class="text-muted" style="font-size: 0.72rem;">Chấp nhận file ảnh (JPG, PNG) hoặc file PDF</small>
+                            <div id="editExistingFileBadge" style="display: none;">
+                                <a href="#" id="editExistingFileLink" target="_blank" class="badge bg-primary text-white text-decoration-none py-1 px-2">
+                                    <i class="fa-solid fa-paperclip me-1"></i>Xem file HĐ đã tải lên
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Thông Tin Hóa Đơn Chi Tiết -->
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / HĐ</label>
                         <input type="text" name="invoice_type" id="editInvoiceType" class="form-control" placeholder="VD: HĐ GTGT, Phiếu chi...">
                     </div>
-                    
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Ký Hiệu HĐ</label>
+                        <input type="text" name="invoice_symbol" id="editInvoiceSymbol" class="form-control font-mono" placeholder="VD: 1C26TAA...">
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn</label>
                         <input type="text" name="invoice_number" id="editInvoiceNumber" class="form-control font-mono" placeholder="VD: 0012345...">
                     </div>
@@ -881,6 +952,99 @@
                 <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
                 <button type="submit" class="btn-primary-gic">
                     <i class="fa-solid fa-save me-1"></i> Lưu Cập Nhật
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Xác Nhận Nhanh Trạng Thái Hóa Đơn (Quick Invoice Modal Cho Kế Toán & Nhân Viên) -->
+<div class="modal fade" id="quickInvoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="quickInvoiceForm" action="" enctype="multipart/form-data" class="modal-content border-0 shadow-lg">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header border-bottom py-3 bg-light">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-file-invoice text-primary"></i>
+                    <span>Xác Nhận Trạng Thái Hóa Đơn</span>
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-info py-2 px-3 small rounded-2 mb-3">
+                    <div class="text-muted" style="font-size: 0.7rem;">KHOẢN MỤC CHI PHÍ:</div>
+                    <div class="fw-bold text-dark fs-6" id="quickModalDesc">-</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark text-uppercase" style="font-size: 0.72rem;">
+                        Trạng Thái Chứng Từ (Kế toán / Nhân viên tự chọn): <span class="text-danger">*</span>
+                    </label>
+                    <div class="d-flex flex-column gap-2 p-2 rounded bg-light border">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="invoice_classification" id="quickClsHas" value="has_invoice" required>
+                            <label class="form-check-label fw-bold text-success cursor-pointer" for="quickClsHas">
+                                <i class="fa-solid fa-circle-check me-1"></i> Có HĐ (Hóa đơn hợp lệ / Bắt buộc tải file)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="invoice_classification" id="quickClsNo" value="no_invoice">
+                            <label class="form-check-label fw-bold text-danger cursor-pointer" for="quickClsNo">
+                                <i class="fa-solid fa-circle-xmark me-1"></i> Không HĐ (Chi phí không có hóa đơn)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="invoice_classification" id="quickClsUnpay" value="unpayable_invoice">
+                            <label class="form-check-label fw-bold text-warning-emphasis cursor-pointer" for="quickClsUnpay">
+                                <i class="fa-solid fa-triangle-exclamation me-1"></i> HĐ không TT được (Biên lai / Vé xe / Không khấu trừ)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Khu vực Upload File Hóa Đơn -->
+                <div class="mb-3" id="quickInvoiceFileGroup">
+                    <label class="form-label small fw-bold text-dark text-uppercase d-flex align-items-center justify-content-between" style="font-size: 0.72rem;">
+                        <span><i class="fa-solid fa-paperclip me-1 text-primary"></i> Tải Lên File / Ảnh Hóa Đơn <span class="text-danger" id="quickFileStar" style="display: none;">*</span></span>
+                        <span class="text-danger small fw-semibold" id="quickFileAlert" style="display: none;">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>Bắt buộc khi Có HĐ!
+                        </span>
+                    </label>
+                    <div class="input-group">
+                        <input type="file" name="invoice_file" id="quickInvoiceFileInput" class="form-control" accept="image/*,application/pdf">
+                        <span class="input-group-text bg-white"><i class="fa-solid fa-cloud-arrow-up text-primary"></i></span>
+                    </div>
+                    <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">Định dạng: Hình ảnh (JPG, PNG) hoặc file PDF hóa đơn điện tử.</small>
+                    <div class="mt-2" id="quickExistingFileBadge" style="display: none;">
+                        <a href="#" id="quickExistingFileLink" target="_blank" class="badge bg-primary text-white text-decoration-none py-1 px-2">
+                            <i class="fa-solid fa-paperclip me-1"></i>Xem file HĐ đã tải lên
+                        </a>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / HĐ</label>
+                        <input type="text" name="invoice_type" id="quickInvoiceType" class="form-control form-control-sm" placeholder="VD: HĐ GTGT, Vé xe...">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Ký Hiệu HĐ</label>
+                        <input type="text" name="invoice_symbol" id="quickInvoiceSymbol" class="form-control form-control-sm font-mono" placeholder="VD: 1C26TAA...">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn</label>
+                        <input type="text" name="invoice_number" id="quickInvoiceNumber" class="form-control form-control-sm font-mono" placeholder="VD: 0012345...">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Mã Số Thuế NCC</label>
+                        <input type="text" name="supplier_tax_code" id="quickSupplierTaxCode" class="form-control form-control-sm font-mono" placeholder="MST...">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2 bg-light">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic">
+                    <i class="fa-solid fa-check me-1"></i> Lưu Xác Nhận
                 </button>
             </div>
         </form>
@@ -1235,6 +1399,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const surcharge = this.getAttribute('data-surcharge') || 0;
                 const invType = this.getAttribute('data-invoice-type') || '';
                 const invNum = this.getAttribute('data-invoice-number') || '';
+                const invSymbol = this.getAttribute('data-invoice-symbol') || '';
+                const invCls = this.getAttribute('data-invoice-classification') || '';
+                const hasFile = this.getAttribute('data-has-file') === '1';
+                const mediaId = this.getAttribute('data-media-id') || '';
 
                 document.getElementById('editSupplier').value = supplier;
                 document.getElementById('editPlate').value = plate;
@@ -1244,6 +1412,60 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('editSurcharges').value = formatMoneyNumber(surcharge);
                 document.getElementById('editInvoiceType').value = invType;
                 document.getElementById('editInvoiceNumber').value = invNum;
+                const symEl = document.getElementById('editInvoiceSymbol');
+                if (symEl) symEl.value = invSymbol;
+
+                // Handle Invoice Classification & File upload requirement in Unified Modal
+                const editRadioHas = document.getElementById('editInvClsHas');
+                const editRadioNo = document.getElementById('editInvClsNo');
+                const editRadioUnpay = document.getElementById('editInvClsUnpay');
+                const editFileInput = document.getElementById('editInvoiceFileInput');
+                const editFileStar = document.getElementById('editInvoiceFileStar');
+                const editFileWarning = document.getElementById('editInvoiceFileWarning');
+                const editExistingBadge = document.getElementById('editExistingFileBadge');
+                const editExistingLink = document.getElementById('editExistingFileLink');
+
+                if (editFileInput) editFileInput.value = '';
+                if (editFileWarning) editFileWarning.style.display = 'none';
+
+                if (editRadioHas && editRadioNo && editRadioUnpay) {
+                    if (invCls === 'has_invoice') {
+                        editRadioHas.checked = true;
+                    } else if (invCls === 'unpayable_invoice') {
+                        editRadioUnpay.checked = true;
+                    } else {
+                        editRadioNo.checked = true;
+                    }
+                }
+
+                let currentCostHasAttachedFile = hasFile;
+                if (hasFile && mediaId && editExistingBadge && editExistingLink) {
+                    editExistingBadge.style.display = 'block';
+                    editExistingLink.href = `/advances/bill/${mediaId}`;
+                } else if (editExistingBadge) {
+                    editExistingBadge.style.display = 'none';
+                }
+
+                function checkEditFormFileRequirement() {
+                    if (!editRadioHas || !editFileInput) return;
+                    const isHas = editRadioHas.checked;
+                    const hasSelectedFile = editFileInput.files && editFileInput.files.length > 0;
+                    if (isHas && !currentCostHasAttachedFile && !hasSelectedFile) {
+                        if (editFileStar) editFileStar.style.display = 'inline';
+                        editFileInput.setAttribute('required', 'required');
+                    } else {
+                        if (editFileStar) editFileStar.style.display = 'none';
+                        editFileInput.removeAttribute('required');
+                    }
+                }
+
+                if (editRadioHas) {
+                    editRadioHas.onchange = checkEditFormFileRequirement;
+                    editRadioNo.onchange = checkEditFormFileRequirement;
+                    editRadioUnpay.onchange = checkEditFormFileRequirement;
+                    editFileInput.onchange = checkEditFormFileRequirement;
+                    checkEditFormFileRequirement();
+                }
 
                 // Match weight in select dropdown
                 if (editSelect) {
@@ -1285,8 +1507,115 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 editTitle.innerText = 'Chỉnh Sửa Khoản Mục (Giá Mua & Bán)';
 
+                editForm.onsubmit = function(e) {
+                    if (rowType === 'cost' && editRadioHas && editRadioHas.checked) {
+                        const hasSelectedFile = editFileInput.files && editFileInput.files.length > 0;
+                        if (!currentCostHasAttachedFile && !hasSelectedFile) {
+                            e.preventDefault();
+                            if (editFileWarning) editFileWarning.style.display = 'inline';
+                            editFileInput.focus();
+                            alert('Khi chọn "Có HĐ", bạn bắt buộc phải đính kèm file/ảnh hóa đơn!');
+                            return false;
+                        }
+                    }
+                };
+
                 editModal.show();
             });
+        });
+    }
+
+    // Quick Invoice Modal Handler
+    const quickModalEl = document.getElementById('quickInvoiceModal');
+    if (quickModalEl) {
+        const quickModal = new bootstrap.Modal(quickModalEl);
+        const quickForm = document.getElementById('quickInvoiceForm');
+        const quickDesc = document.getElementById('quickModalDesc');
+        const quickRadioHas = document.getElementById('quickClsHas');
+        const quickRadioNo = document.getElementById('quickClsNo');
+        const quickRadioUnpay = document.getElementById('quickClsUnpay');
+        const quickFileInput = document.getElementById('quickInvoiceFileInput');
+        const quickFileStar = document.getElementById('quickFileStar');
+        const quickFileAlert = document.getElementById('quickFileAlert');
+        const quickExistingBadge = document.getElementById('quickExistingFileBadge');
+        const quickExistingLink = document.getElementById('quickExistingFileLink');
+        const quickType = document.getElementById('quickInvoiceType');
+        const quickSymbol = document.getElementById('quickInvoiceSymbol');
+        const quickNumber = document.getElementById('quickInvoiceNumber');
+        const quickMST = document.getElementById('quickSupplierTaxCode');
+
+        let currentCostHasFile = false;
+
+        function updateQuickFileRequirement() {
+            const isHasInv = quickRadioHas.checked;
+            const hasChosenFile = quickFileInput.files && quickFileInput.files.length > 0;
+            if (isHasInv && !currentCostHasFile && !hasChosenFile) {
+                quickFileStar.style.display = 'inline';
+                quickFileAlert.style.display = 'inline';
+                quickFileInput.setAttribute('required', 'required');
+            } else {
+                quickFileStar.style.display = 'none';
+                quickFileAlert.style.display = 'none';
+                quickFileInput.removeAttribute('required');
+            }
+        }
+
+        quickRadioHas.addEventListener('change', updateQuickFileRequirement);
+        quickRadioNo.addEventListener('change', updateQuickFileRequirement);
+        quickRadioUnpay.addEventListener('change', updateQuickFileRequirement);
+        quickFileInput.addEventListener('change', updateQuickFileRequirement);
+
+        document.querySelectorAll('.btn-open-invoice-modal').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const costId = this.getAttribute('data-id');
+                const cls = this.getAttribute('data-cls') || 'no_invoice';
+                const desc = this.getAttribute('data-desc') || '';
+                const invType = this.getAttribute('data-inv-type') || '';
+                const invNum = this.getAttribute('data-inv-num') || '';
+                const invSymbol = this.getAttribute('data-inv-symbol') || '';
+                const taxCode = this.getAttribute('data-supplier-tax-code') || '';
+                const hasFile = this.getAttribute('data-has-file') === '1';
+                const mediaId = this.getAttribute('data-media-id') || '';
+
+                currentCostHasFile = hasFile;
+                quickForm.action = `/lots/{{ lot.id }}/costs/${costId}/invoice`;
+                quickDesc.innerText = desc;
+                quickType.value = invType;
+                quickSymbol.value = invSymbol;
+                quickNumber.value = invNum;
+                quickMST.value = taxCode;
+                quickFileInput.value = '';
+
+                if (cls === 'has_invoice') {
+                    quickRadioHas.checked = true;
+                } else if (cls === 'unpayable_invoice') {
+                    quickRadioUnpay.checked = true;
+                } else {
+                    quickRadioNo.checked = true;
+                }
+
+                if (hasFile && mediaId) {
+                    quickExistingBadge.style.display = 'block';
+                    quickExistingLink.href = `/advances/bill/${mediaId}`;
+                } else {
+                    quickExistingBadge.style.display = 'none';
+                }
+
+                updateQuickFileRequirement();
+                quickModal.show();
+            });
+        });
+
+        quickForm.addEventListener('submit', function(e) {
+            const hasChosenFile = quickFileInput.files && quickFileInput.files.length > 0;
+            if (quickRadioHas.checked && !currentCostHasFile && !hasChosenFile) {
+                e.preventDefault();
+                quickFileAlert.style.display = 'inline';
+                quickFileInput.focus();
+                alert('Khi chọn "Có HĐ", bạn bắt buộc phải tải lên file hoặc ảnh hóa đơn chứng từ!');
+                return false;
+            }
         });
     }
 
