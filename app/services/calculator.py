@@ -150,6 +150,44 @@ class CalculatorService:
         # Total vehicle count across sales lots in the month
         total_vehicles = sum(lot.total_vehicle_count for lot in sales_lots)
 
+        # Gross margin
+        gross_margin = round((gross_profit / total_sell * 100), 1) if total_sell > 0 else 0.0
+
+        # CPVH / Doanh thu ratio
+        cpvh_ratio = round((total_ops / total_sell * 100), 1) if total_sell > 0 else 0.0
+
+        # YTD Target Achievement
+        ytd_targets = Target.query.filter(Target.year == year, Target.month <= month).all()
+        ytd_target_total = sum(t.target_amount_vnd for t in ytd_targets if t.target_amount)
+
+        # YTD Revenue - sum recognized revenue across all months up to selected month
+        ytd_revenue = 0.0
+        for m_i in range(1, month + 1):
+            m_lots = Lot.sales_lots_query().filter_by(month=m_i, year=year).options(
+                selectinload(Lot.revenue_items), selectinload(Lot.operating_costs)
+            ).all()
+            ytd_revenue += sum(lot.get_recognized_revenue(m_i, year) for lot in m_lots)
+            ytd_revenue += CalculatorService.get_deferred_in_revenue(m_i, year)
+
+        ytd_achievement_pct = round((ytd_revenue / ytd_target_total * 100), 1) if ytd_target_total > 0 else None
+
+        # Top 5 Sales Lots by revenue
+        top_lots = sorted(sales_lots, key=lambda l: l.total_sell_revenue, reverse=True)[:5]
+        top_lots_data = [{
+            'id': lot.id,
+            'label': lot.display_lot_label,
+            'customer': lot.display_customer_name,
+            'revenue': lot.total_sell_revenue,
+            'profit': lot.net_profit,
+            'margin': lot.profit_margin,
+            'cost_status': lot.cost_status
+        } for lot in top_lots]
+
+        # Smart alerts: lots with negative margin
+        negative_lots = [lot for lot in sales_lots if lot.net_profit < 0]
+        negative_lots_count = len(negative_lots)
+        negative_lots_total_loss = sum(lot.net_profit for lot in negative_lots)
+
         return {
             'month': month,
             'year': year,
@@ -180,7 +218,15 @@ class CalculatorService:
             'has_prev_data': has_prev_data,
             'rev_growth': rev_growth,
             'cost_growth': cost_growth,
-            'prev_revenue': prev_sell
+            'prev_revenue': prev_sell,
+            'gross_margin': gross_margin,
+            'cpvh_ratio': cpvh_ratio,
+            'ytd_revenue': ytd_revenue,
+            'ytd_target': ytd_target_total,
+            'ytd_achievement_pct': ytd_achievement_pct,
+            'top_lots': top_lots_data,
+            'negative_lots_count': negative_lots_count,
+            'negative_lots_total_loss': negative_lots_total_loss,
         }
 
     @staticmethod

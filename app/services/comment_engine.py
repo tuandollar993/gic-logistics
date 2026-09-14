@@ -166,4 +166,33 @@ class CommentEngine:
                 'content': f"Toàn bộ {kpi['lot_count']} lô hàng trong tháng đã được nhân viên điền và xác nhận đầy đủ số liệu chi phí vận hành thực tế."
             })
             
+        # 6. Cảnh báo CPVH/DT quá cao
+        if rev > 0:
+            cpvh_ratio = kpi.get('cpvh_ratio', 0)
+            if cpvh_ratio > 8:
+                comments.append({
+                    'type': 'danger',
+                    'icon': 'alert-triangle',
+                    'title': f'Chi phí vận hành chiếm tỷ lệ cao: {cpvh_ratio}% doanh thu',
+                    'content': f"Tỷ lệ CPVH/Doanh thu đạt {cpvh_ratio}%, vượt ngưỡng cảnh báo 8%. Cần rà soát các khoản kiểm hoá, bốc xếp, lưu bãi và đàm phán lại với nhà cung cấp dịch vụ."
+                })
+            elif cpvh_ratio > 5:
+                comments.append({
+                    'type': 'info',
+                    'icon': 'percent',
+                    'title': f'CPVH/Doanh thu: {cpvh_ratio}%',
+                    'content': f"Chi phí vận hành chiếm {cpvh_ratio}% doanh thu, trong ngưỡng kiểm soát. Tiếp tục theo dõi và tối ưu các khoản phụ phí phát sinh."
+                })
+
+        # 7. Cảnh báo lô hàng bị lỗ (margin âm)
+        neg_count = kpi.get('negative_lots_count', 0)
+        neg_loss = kpi.get('negative_lots_total_loss', 0)
+        if neg_count > 0:
+            comments.append({
+                'type': 'danger',
+                'icon': 'alert-triangle',
+                'title': f'⚠️ Có {neg_count} lô hàng đang BỊ LỖ',
+                'content': f"Phát hiện {neg_count} lô hàng có lợi nhuận âm, tổng lỗ ước tính {neg_loss:,.0f} ₫. Cần rà soát ngay chi phí mua và chi phí vận hành của các lô này."
+            })
+
         return comments

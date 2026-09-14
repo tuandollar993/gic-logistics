@@ -58,6 +58,36 @@
 </div>
 {% endif %}
 
+{% if kpi.negative_lots_count is defined and kpi.negative_lots_count > 0 %}
+<div class="alert alert-danger border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-4" style="background-color: #fef2f2; border-left: 4px solid #dc2626 !important;">
+    <div class="d-flex align-items-center gap-2">
+        <i class="fa-solid fa-chart-line text-danger fs-5"></i>
+        <div>
+            <strong class="text-dark">⚠️ Có {{ kpi.negative_lots_count }} lô hàng đang BỊ LỖ</strong>
+            <span class="text-muted ms-2">— Tổng lỗ ước tính: <strong class="text-danger font-mono">{{ kpi.negative_lots_total_loss | format_money }}</strong>. Cần rà soát chi phí mua và vận hành ngay.</span>
+        </div>
+    </div>
+    <a href="{{ url_for('lots.index', month=selected_month, year=selected_year) }}" class="btn btn-sm btn-outline-danger fw-bold text-nowrap ms-3">
+        Kiểm Tra <i class="fa-solid fa-arrow-right ms-1"></i>
+    </a>
+</div>
+{% endif %}
+
+{% if overdue_count is defined and overdue_count > 0 %}
+<div class="alert alert-warning border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-4" style="background-color: #fffbeb; border-left: 4px solid #ea580c !important;">
+    <div class="d-flex align-items-center gap-2">
+        <i class="fa-solid fa-bell text-warning fs-5"></i>
+        <div>
+            <strong class="text-dark">{{ overdue_count }} lô hàng QUÁ HẠN điền chi phí vận hành</strong>
+            <span class="text-muted ms-2">— Deadline đã qua nhưng nhân viên chưa hoàn thiện chứng từ CPVH. Cần đốc thúc ngay.</span>
+        </div>
+    </div>
+    <a href="{{ url_for('tasks.tracking') }}" class="btn btn-sm btn-outline-warning text-dark fw-bold text-nowrap ms-3">
+        Theo Dõi <i class="fa-solid fa-arrow-right ms-1"></i>
+    </a>
+</div>
+{% endif %}
+
 <!-- 5 KPI Matrix Cards -->
 <div class="row g-3 mb-4">
     <!-- 1. Doanh Thu -->
@@ -111,7 +141,7 @@
                 <span>•</span>
                 <span>CPVH: <strong>{{ kpi.operating_cost | format_compact_money }}</strong></span>
             </div>
-            <div class="kpi-caption-note font-mono">Cước có VAT + CPVH đối soát</div>
+            <div class="kpi-caption-note font-mono">Cước có VAT + CPVH đối soát · <span class="{% if kpi.cpvh_ratio is defined and kpi.cpvh_ratio > 8 %}text-danger fw-bold{% else %}text-muted{% endif %}">CPVH/DT: {{ kpi.cpvh_ratio if kpi.cpvh_ratio is defined else '—' }}%</span></div>
         </div>
     </div>
 
@@ -124,10 +154,10 @@
             </div>
             <div class="kpi-value-stat text-success">{{ kpi.net_profit | format_compact_money }}</div>
             <div class="kpi-sub-context">
-                <span class="delta-pill delta-positive font-mono">Tỷ suất: {{ kpi.profit_margin }}%</span>
-                <span>trên tổng DT</span>
+                <span class="delta-pill {% if kpi.profit_margin > 0 %}delta-positive{% elif kpi.profit_margin < 0 %}delta-negative{% else %}delta-neutral{% endif %} font-mono">Net: {{ kpi.profit_margin }}%</span>
+                <span class="delta-pill delta-neutral font-mono" title="Lợi nhuận gộp / Doanh thu (chưa trừ CPVH)">Gross: {{ kpi.gross_margin if kpi.gross_margin is defined else '—' }}%</span>
             </div>
-            <div class="kpi-caption-note font-mono">Doanh thu - Cước - Chi phí VH</div>
+            <div class="kpi-caption-note font-mono">DT - Cước - CPVH · Gộp: {{ kpi.gross_profit | format_compact_money if kpi.gross_profit is defined else '—' }}</div>
         </div>
     </div>
 
@@ -149,7 +179,14 @@
                         <div class="progress-bar {% if kpi.achievement_pct >= 100 %}bg-success{% else %}bg-primary{% endif %}" style="width: {{ [kpi.achievement_pct, 100]|min }}%;"></div>
                     </div>
                 </div>
-                <div class="kpi-caption-note font-mono">Kế hoạch chỉ tiêu tháng</div>
+                <div class="kpi-caption-note font-mono">
+                    Kế hoạch tháng
+                    {% if kpi.ytd_achievement_pct is defined and kpi.ytd_achievement_pct is not none %}
+                        · <span class="{% if kpi.ytd_achievement_pct >= 100 %}text-success{% elif kpi.ytd_achievement_pct >= 80 %}text-primary{% else %}text-danger{% endif %} fw-semibold" title="Lũy kế {{ kpi.ytd_revenue | format_compact_money if kpi.ytd_revenue is defined else '—' }} / Target {{ kpi.ytd_target | format_compact_money if kpi.ytd_target is defined else '—' }}">
+                            YTD: {{ kpi.ytd_achievement_pct }}%
+                        </span>
+                    {% endif %}
+                </div>
             {% else %}
                 <div class="kpi-value-stat text-muted fs-5 mt-2">Chưa có target</div>
                 <div class="kpi-caption-note text-muted mt-2">Chưa thiết lập chỉ tiêu kỳ này</div>
@@ -196,6 +233,7 @@
                 <div class="d-flex gap-3 small text-muted font-mono" style="font-size: 0.75rem;">
                     <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #0284c7;"></span>Doanh Thu</span>
                     <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #d97706;"></span>Chi Phí</span>
+                    <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #059669;"></span>Lợi Nhuận</span>
                     <span><span class="d-inline-block rounded-1 me-1" style="width: 10px; height: 10px; background: #dc2626;"></span>Target</span>
                 </div>
             </div>
@@ -219,6 +257,56 @@
         </div>
     </div>
 </div>
+
+<!-- Top 5 Lô Hàng Trọng Điểm -->
+{% if kpi.top_lots is defined and kpi.top_lots %}
+<div class="card border-0 shadow-sm rounded-3 p-4 mb-4" style="border: 1px solid var(--gic-border) !important;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h6 class="fw-bold m-0 text-dark"><i class="fa-solid fa-ranking-star me-2 text-primary"></i>Top Lô Hàng Trọng Điểm T{{ selected_month }}/{{ selected_year }}</h6>
+            <small class="text-muted">{{ kpi.top_lots|length }} lô có doanh thu cao nhất trong kỳ</small>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+            <thead>
+                <tr class="text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                    <th class="fw-bold border-0 pb-2">Lô Hàng</th>
+                    <th class="fw-bold border-0 pb-2">Khách Hàng</th>
+                    <th class="fw-bold border-0 pb-2 text-end">Doanh Thu</th>
+                    <th class="fw-bold border-0 pb-2 text-end">Lợi Nhuận</th>
+                    <th class="fw-bold border-0 pb-2 text-center">Margin</th>
+                    <th class="fw-bold border-0 pb-2 text-center">CPVH</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lot in kpi.top_lots %}
+                <tr>
+                    <td class="border-0">
+                        <a href="{{ url_for('lots.lot_detail', lot_id=lot.id) }}" class="text-decoration-none fw-semibold text-primary">{{ lot.label }}</a>
+                    </td>
+                    <td class="border-0 text-dark">{{ lot.customer }}</td>
+                    <td class="border-0 text-end font-mono fw-bold text-dark">{{ lot.revenue | format_compact_money }}</td>
+                    <td class="border-0 text-end font-mono fw-bold {% if lot.profit < 0 %}text-danger{% else %}text-success{% endif %}">{{ lot.profit | format_compact_money }}</td>
+                    <td class="border-0 text-center">
+                        <span class="badge {% if lot.margin >= 15 %}bg-success{% elif lot.margin >= 0 %}bg-primary{% else %}bg-danger{% endif %} bg-opacity-10 {% if lot.margin >= 15 %}text-success{% elif lot.margin >= 0 %}text-primary{% else %}text-danger{% endif %} font-mono" style="font-size: 0.75rem;">{{ lot.margin }}%</span>
+                    </td>
+                    <td class="border-0 text-center">
+                        {% if lot.cost_status == 'completed' %}
+                            <span class="badge bg-success bg-opacity-10 text-success" style="font-size: 0.7rem;"><i class="fa-solid fa-circle-check me-1"></i>Xong</span>
+                        {% elif lot.cost_status == 'partial' %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning" style="font-size: 0.7rem;"><i class="fa-solid fa-clock me-1"></i>Chưa đủ</span>
+                        {% else %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size: 0.7rem;"><i class="fa-regular fa-circle me-1"></i>Chưa có</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <!-- Executive Commentary Panel (Nhận xét tự động để gửi Sếp) -->
 <div class="executive-summary-panel mb-4">
@@ -304,6 +392,7 @@ function renderTrendChart(data) {
     const revenues = data.map(d => d.revenue / 1000000);
     const costs = data.map(d => d.total_cost / 1000000);
     const targets = data.map(d => d.target / 1000000);
+    const profits = data.map(d => (d.profit || 0) / 1000000);
 
     const canvas = document.getElementById('trendChart');
     if (!canvas) return;
@@ -341,6 +430,17 @@ function renderTrendChart(data) {
                     pointBackgroundColor: '#dc2626',
                     fill: false,
                     order: 1
+                },
+                {
+                    type: 'line',
+                    label: 'Lợi Nhuận',
+                    data: profits,
+                    borderColor: '#059669',
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#059669',
+                    fill: false,
+                    order: 0
                 }
             ]
         },
@@ -413,15 +513,20 @@ function renderCustomerChart(customers) {
     // Render legend
     const legendDiv = document.getElementById('customerLegend');
     if (legendDiv) {
-        legendDiv.innerHTML = customers.map((c, i) => `
+        legendDiv.innerHTML = customers.map((c, i) => {
+            const revFormatted = (c.revenue / 1000000).toLocaleString('vi-VN', {maximumFractionDigits: 1});
+            return `
             <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-light">
-                <span class="text-truncate text-dark" style="max-width: 190px; font-weight: 500;">
+                <span class="text-truncate text-dark" style="max-width: 150px; font-weight: 500;">
                     <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: ${palette[i % palette.length]};"></span>
                     ${c.name}
                 </span>
-                <strong class="font-mono text-dark">${c.share}%</strong>
-            </div>
-        `).join('');
+                <span class="d-flex align-items-center gap-2">
+                    <small class="font-mono text-muted">${revFormatted}Tr</small>
+                    <strong class="font-mono text-dark">${c.share}%</strong>
+                </span>
+            </div>`;
+        }).join('');
     }
 }
 

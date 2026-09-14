@@ -1,5 +1,7 @@
+from datetime import date
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
+from app.models import CostEntryTask, Lot
 from app.security import manager_required
 from app.services.calculator import CalculatorService
 from app.services.comment_engine import CommentEngine
@@ -25,6 +27,14 @@ def index():
     comments = CommentEngine.generate_comments(selected_month, selected_year, kpi=kpi, customers=customers)
     trend = CalculatorService.get_year_trend(selected_year)
     
+    overdue_count = CostEntryTask.query.join(Lot).filter(
+        Lot.month == selected_month,
+        Lot.year == selected_year,
+        Lot.is_deleted == False,
+        CostEntryTask.status != 'completed',
+        CostEntryTask.deadline < date.today()
+    ).count()
+
     return render_template(
         'dashboard.html',
         months=months,
@@ -33,15 +43,16 @@ def index():
         kpi=kpi,
         comments=comments,
         customers=customers,
-        trend=trend
+        trend=trend,
+        overdue_count=overdue_count
     )
 
 @dashboard_bp.route('/api/dashboard/kpis')
 @login_required
 @manager_required
 def api_kpis():
-    month = request.args.get('month', 8, type=int)
-    year = request.args.get('year', 2026, type=int)
+    month = request.args.get('month', date.today().month, type=int)
+    year = request.args.get('year', date.today().year, type=int)
     kpis = CalculatorService.get_monthly_kpi(month, year)
     return jsonify(kpis)
 
@@ -49,7 +60,7 @@ def api_kpis():
 @login_required
 @manager_required
 def api_trend():
-    year = request.args.get('year', 2026, type=int)
+    year = request.args.get('year', date.today().year, type=int)
     data = CalculatorService.get_year_trend(year)
     return jsonify(data)
 
@@ -57,7 +68,7 @@ def api_trend():
 @login_required
 @manager_required
 def api_customers():
-    month = request.args.get('month', 8, type=int)
-    year = request.args.get('year', 2026, type=int)
+    month = request.args.get('month', date.today().month, type=int)
+    year = request.args.get('year', date.today().year, type=int)
     customers = CalculatorService.get_customer_breakdown(month, year)
     return jsonify(customers)
