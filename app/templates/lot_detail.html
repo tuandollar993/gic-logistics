@@ -673,7 +673,7 @@
 <!-- Modal Thêm Khoản Mục Mới (Giá Mua & Bán) -->
 <div class="modal fade" id="unifiedItemModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST" action="{{ url_for('lots.add_revenue_item', lot_id=lot.id) }}" class="modal-content border-0 shadow-lg">
+        <form method="POST" action="{{ url_for('lots.add_revenue_item', lot_id=lot.id) }}" enctype="multipart/form-data" class="modal-content border-0 shadow-lg">
             <div class="modal-header border-bottom py-3">
                 <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
                     <i class="fa-solid fa-circle-plus text-primary"></i>
@@ -820,6 +820,44 @@
                     </div>
 
                     <!-- Hóa Đơn & Chứng Từ -->
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-dark text-uppercase" style="font-size: 0.72rem;">
+                            <i class="fa-solid fa-file-invoice me-1 text-primary"></i> Tình Trạng Hóa Đơn
+                        </label>
+                        <div class="d-flex gap-3 flex-wrap p-2 rounded bg-light border">
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="addInvClsHas" value="has_invoice">
+                                <label class="form-check-label fw-bold text-success cursor-pointer" for="addInvClsHas">
+                                    <i class="fa-solid fa-circle-check me-1"></i> Có HĐ
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="addInvClsNo" value="no_invoice" checked>
+                                <label class="form-check-label fw-bold text-danger cursor-pointer" for="addInvClsNo">
+                                    <i class="fa-solid fa-circle-xmark me-1"></i> Không HĐ
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="addInvClsUnpay" value="unpayable_invoice">
+                                <label class="form-check-label fw-bold text-warning-emphasis cursor-pointer" for="addInvClsUnpay">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i> HĐ không TT được / Biên lai
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File / Ảnh Hóa Đơn Đính Kèm -->
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                            Tải Lên File / Ảnh Hóa Đơn (Nếu có)
+                        </label>
+                        <div class="input-group">
+                            <input type="file" name="invoice_file" class="form-control" accept="image/*,application/pdf">
+                            <span class="input-group-text bg-white"><i class="fa-solid fa-cloud-arrow-up text-primary"></i></span>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Hỗ trợ ảnh JPG, PNG hoặc file PDF hóa đơn điện tử</small>
+                    </div>
+
                     <div class="col-md-6">
                         <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / Hóa Đơn</label>
                         <input type="text" name="invoice_type" class="form-control" placeholder="VD: HĐ GTGT, Phiếu chi...">
@@ -1377,7 +1415,14 @@
                                 <td class="text-end font-mono fw-bold text-danger tabular-nums">{{ cost.total_amount | format_money }}</td>
                                 <td>{{ cost.invoice_type or '-' }}</td>
                                 <td class="font-mono">{{ cost.invoice_symbol or '-' }}</td>
-                                <td class="font-mono fw-semibold">{{ cost.invoice_number or '-' }}</td>
+                                <td class="font-mono fw-semibold">
+                                    {{ cost.invoice_number or '-' }}
+                                    {% if cost.has_invoice_file and cost.latest_invoice_media %}
+                                        <a href="{{ url_for('advances.view_bill', bill_id=cost.latest_invoice_media.id) }}" target="_blank" class="badge bg-primary text-white border-0 text-decoration-none ms-1 p-1 px-2 shadow-sm" style="font-size: 0.65rem;" title="Xem file hóa đơn đính kèm">
+                                            <i class="fa-solid fa-paperclip me-1"></i>Xem HĐ
+                                        </a>
+                                    {% endif %}
+                                </td>
                                 <td class="font-mono">{{ cost.document_date.strftime('%d/%m/%Y') if cost.document_date else '-' }}</td>
                                 <td class="font-mono">{{ cost.supplier_tax_code or '-' }}</td>
                                 <td class="text-truncate" style="max-width: 170px;" title="{{ cost.supplier_name or '' }}">{{ cost.supplier_name or '-' }}</td>

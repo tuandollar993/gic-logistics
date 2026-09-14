@@ -203,7 +203,10 @@ def detail(lot_id):
         return redirect(url_for('lots.index'))
 
     # Batch load all bill media for this lot in 1 query to eliminate N+1 queries
-    bills = CashAdvanceBillMedia.query.filter_by(lot_id=lot.id).order_by(CashAdvanceBillMedia.created_at.desc()).all()
+    cost_ids = [c.id for c in lot.operating_costs]
+    bills = CashAdvanceBillMedia.query.filter(
+        (CashAdvanceBillMedia.lot_id == lot.id) | (CashAdvanceBillMedia.operating_cost_id.in_(cost_ids))
+    ).order_by(CashAdvanceBillMedia.created_at.desc()).all() if cost_ids else CashAdvanceBillMedia.query.filter_by(lot_id=lot.id).all()
     bills_by_cost = {}
     for b in bills:
         if b.operating_cost_id and b.operating_cost_id not in bills_by_cost:
@@ -519,7 +522,30 @@ def add_revenue_item(lot_id):
         revenue_invoice_date=rev_inv_date,
         revenue_invoice_number=rev_inv_num
     )
+    inv_cls = request.form.get('invoice_classification')
+    if inv_cls in ('has_invoice', 'no_invoice', 'unpayable_invoice'):
+        cost.invoice_classification = inv_cls
+
     db.session.add(cost)
+    db.session.flush()
+
+    invoice_file = request.files.get('invoice_file')
+    if invoice_file and invoice_file.filename:
+        file_bytes = invoice_file.read()
+        if len(file_bytes) > 0:
+            from app.services.advance_service import save_bill_media
+            save_bill_media(
+                media_id=None,
+                file_bytes=file_bytes,
+                filename=invoice_file.filename,
+                mime_type=invoice_file.mimetype or 'image/jpeg',
+                operating_cost_id=cost.id,
+                lot_id=lot.id,
+                uploaded_by=current_user.id
+            )
+            if not inv_cls:
+                cost.invoice_classification = 'has_invoice'
+
     db.session.commit()
     flash(f'Đã thêm khoản mục thành công cho {lot.lot_label}!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
