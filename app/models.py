@@ -280,7 +280,8 @@ class Lot(db.Model):
 
     @property
     def active_revenue_items(self):
-        return [item for item in self.revenue_items if not item.is_deleted]
+        items = [item for item in self.revenue_items if not item.is_deleted]
+        return sorted(items, key=lambda x: x.id)
 
     @property
     def active_operating_costs(self):
@@ -337,6 +338,17 @@ class Lot(db.Model):
                     'label': label or cleaned
                 })
 
+        # Thu thập các biển số xe Trung Quốc trung chuyển chở hàng TQ -> VN sang xe cho phương tiện VN trong lô
+        transit_plates = set()
+        for ri in self.active_revenue_items:
+            p_vn = (ri.vehicle_plate_vn or '').strip()
+            p_cn = (ri.vehicle_plate_cn or '').strip()
+            if p_vn and p_cn:
+                for sub in re.split(r'[\s,\n/]+', p_cn):
+                    sub_clean = sub.strip().lower()
+                    if sub_clean and len(sub_clean) >= 3:
+                        transit_plates.add(sub_clean)
+
         # Pass 1: explicit plates from revenue items
         for ri in self.active_revenue_items:
             p_vn = (ri.vehicle_plate_vn or '').strip()
@@ -352,13 +364,22 @@ class Lot(db.Model):
                 vehicle_tag = weight
 
             if p_vn:
-                _add(p_vn, label=f"{vehicle_tag} - {p_vn}" if vehicle_tag else p_vn)
-            if p_cn:
-                _add(p_cn, label=f"Xe TQ - {p_cn}")
+                tag_clean = re.sub(r'[()]', '', vehicle_tag).strip() if vehicle_tag else None
+                _add(p_vn, label=f"{p_vn} ({tag_clean})" if tag_clean else p_vn)
+            elif p_cn:
+                # Xe Trung Quốc chỉ tính là xe riêng nếu nó KHÔNG phải xe trung chuyển của xe VN trong lô
+                is_transit = any(sub in transit_plates for sub in re.split(r'[\s,\n/]+', p_cn.lower()) if sub)
+                if not is_transit:
+                    _add(p_cn, label=f"Xe TQ - {p_cn}")
 
         # Pass 2: explicit plates from operating costs
         for cost in self.active_operating_costs:
-            _add(cost.vehicle_plate)
+            c_plate = (cost.vehicle_plate or '').strip()
+            if not c_plate:
+                continue
+            is_transit = any(sub in transit_plates for sub in re.split(r'[\s,\n/]+', c_plate.lower()) if sub)
+            if not is_transit:
+                _add(c_plate)
 
         # Pass 3: standalone vehicle tags from revenue items ONLY IF not already represented by a vehicle plate
         for ri in self.active_revenue_items:
@@ -369,11 +390,23 @@ class Lot(db.Model):
                 weight = (ri.weight_class or '').strip()
                 cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', f"{desc} {weight}", re.IGNORECASE)
                 tag = cont_m.group(1).title() if cont_m else (weight if any(k in weight.lower() for k in ['cont', 'xe', 't']) else None)
-                if tag and not any(tag.lower() in v['label'].lower() for v in vehicles):
-                    _add(tag, label=tag)
+                if tag:
+                    norm_tag = re.sub(r'[^a-zA-Z0-9]', '', tag).lower()
+                    if not any(norm_tag in re.sub(r'[^a-zA-Z0-9]', '', v['label']).lower() for v in vehicles):
+                        _add(tag, label=tag)
 
-        # Sắp xếp ưu tiên: Các xe giao hàng / cont VN lên trước, xe Trung Quốc sang tải theo sau
-        vehicles.sort(key=lambda x: (1 if 'xe tq' in x['label'].lower() else 0, x['label']))
+        # Sắp xếp xe logic chuẩn logistics: Cont 1, Cont 2... trước, các xe tải trọng tấn (8T, 10T...) tiếp theo
+        def _sort_key(v):
+            lbl = v['label'].lower()
+            m_cont = re.search(r'cont\s*\(?(\d+)\)?', lbl)
+            if m_cont:
+                return (0, int(m_cont.group(1)), lbl)
+            m_t = re.search(r'(\d+)\s*t\b', lbl)
+            if m_t:
+                return (1, int(m_t.group(1)), lbl)
+            return (2, 0, lbl)
+
+        vehicles.sort(key=_sort_key)
         return vehicles
 
     @property
@@ -397,6 +430,9 @@ class Lot(db.Model):
             plate_lower = plate.lower()
             label_lower = label.lower()
 
+            m_cont_label = re.search(r'cont\s*\(?(\d+)\)?', label_lower)
+            m_t_label = re.search(r'(\d+)\s*t\b', label_lower)
+
             v_ri = []
             for ri in all_ri:
                 if ri.id in assigned_ri:
@@ -407,20 +443,17 @@ class Lot(db.Model):
                 weight = (ri.weight_class or '').strip().lower()
 
                 matched = False
-                # Ưu tiên khớp theo Cont (1) / Cont (2) cụ thể
-                if 'cont (1)' in label_lower and ('cont (1)' in weight or 'cont (1)' in desc):
+                m_cont_item = re.search(r'cont\s*\(?(\d+)\)?', f"{desc} {weight}")
+                m_t_item = re.search(r'(\d+)\s*t\b', f"{desc} {weight}")
+
+                if m_cont_label and m_cont_item and m_cont_label.group(1) == m_cont_item.group(1):
                     matched = True
-                elif 'cont (2)' in label_lower and ('cont (2)' in weight or 'cont (2)' in desc):
+                elif m_t_label and m_t_item and m_t_label.group(1) == m_t_item.group(1):
                     matched = True
-                elif plate_lower and not ('cont (1)' in weight or 'cont (2)' in weight):
+                elif plate_lower:
                     if plate_lower == p_vn or (p_vn and plate_lower in p_vn):
                         matched = True
-                    elif plate_lower == p_cn or (p_cn and plate_lower in p_cn):
-                        matched = True
                     elif plate_lower in desc:
-                        matched = True
-                elif 'xe tq' in label_lower and not ('cont (1)' in weight or 'cont (2)' in weight):
-                    if 'xe tq' in desc or 'xe trung quoc' in desc:
                         matched = True
 
                 if matched:
@@ -435,15 +468,16 @@ class Lot(db.Model):
                 c_desc = (c.description or '').strip().lower()
 
                 matched = False
-                if 'cont (1)' in label_lower and ('cont (1)' in c_desc or 'cont 1' in c_desc or plate_lower in c_plate):
+                m_cont_cost = re.search(r'cont\s*\(?(\d+)\)?', c_desc)
+                m_t_cost = re.search(r'(\d+)\s*t\b', c_desc)
+
+                if m_cont_label and m_cont_cost and m_cont_label.group(1) == m_cont_cost.group(1):
                     matched = True
-                elif 'cont (2)' in label_lower and ('cont (2)' in c_desc or 'cont 2' in c_desc or plate_lower in c_plate):
+                elif m_t_label and m_t_cost and m_t_label.group(1) == m_t_cost.group(1):
                     matched = True
-                elif c_plate and (plate_lower == c_plate or plate_lower in c_plate or c_plate in plate_lower):
+                elif plate_lower and c_plate and (plate_lower == c_plate or plate_lower in c_plate or c_plate in plate_lower):
                     matched = True
                 elif plate_lower and plate_lower in c_desc:
-                    matched = True
-                elif 'xe tq' in label_lower and ('xe tq' in c_desc or 'xe trung quoc' in c_desc):
                     matched = True
 
                 if matched:
@@ -455,10 +489,20 @@ class Lot(db.Model):
             ops = sum(c.total_amount for c in v_costs)
             profit = sell - buy - ops
 
+            # Thu thập biển số xe Trung Quốc trung chuyển (nếu có)
+            cn_plates = []
+            for ri in v_ri:
+                if ri.vehicle_plate_cn and ri.vehicle_plate_cn.strip():
+                    for cp in re.split(r'[\n,]+', ri.vehicle_plate_cn.strip()):
+                        cp_clean = cp.strip()
+                        if cp_clean and cp_clean not in cn_plates:
+                            cn_plates.append(cp_clean)
+
             breakdown.append({
                 'index': idx,
                 'plate': plate,
                 'label': label,
+                'transit_cn': ' / '.join(cn_plates) if cn_plates else None,
                 'revenue_items': v_ri,
                 'operating_costs': v_costs,
                 'total_sell': sell,
@@ -481,6 +525,7 @@ class Lot(db.Model):
                 'index': None,
                 'plate': 'general',
                 'label': 'Chi Phí Chung Của Lô Hàng (DVTK, Hải Quan, Quatest...)',
+                'transit_cn': None,
                 'revenue_items': general_ri,
                 'operating_costs': general_costs,
                 'total_sell': sell_gen,

@@ -233,8 +233,13 @@
                         {% endif %}
                     </span>
                     <div>
-                        <h6 class="mb-0 fw-bold text-dark">
-                            {{ v.label }}
+                        <h6 class="mb-0 fw-bold text-dark d-flex align-items-center flex-wrap gap-2">
+                            <span>{{ v.label }}</span>
+                            {% if v.transit_cn %}
+                                <span class="badge bg-light text-secondary border font-sans fw-normal" style="font-size: 0.72rem;" title="Xe Trung Quốc trung chuyển chở hàng TQ -> VN sang xe cho phương tiện này">
+                                    <i class="fa-solid fa-arrow-right-arrow-left text-muted me-1"></i>Từ xe TQ: <strong>{{ v.transit_cn }}</strong>
+                                </span>
+                            {% endif %}
                         </h6>
                         <small class="text-muted font-mono">
                             {{ v.revenue_items|length + v.operating_costs|length }} khoản mục

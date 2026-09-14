@@ -250,3 +250,106 @@ def test_monthly_kpi_vehicle_count(app):
         kpi = CalculatorService.get_monthly_kpi(9, 2026)
         assert kpi['lot_count'] == 2
         assert kpi['vehicle_count'] == 3
+
+def test_cross_border_transit_feeder_and_vn_delivery_vehicles(app):
+    """
+    Kiem tra nghiep vu van tai xuyen bien gioi:
+    Xe Trung Quoc chuyen hang tu TQ -> VN sang xe tai cua khau sang 3 xe Viet Nam:
+    - 50E89476 (Cont 1)
+    - 77H03770 (Cont 2)
+    - 29H81645 (8T)
+    Xe Trung Quoc (R29173, BQ3500) la xe trung chuyen, khong tinh thanh xe van hanh rieng.
+    Tong so xe cua lo phai la chinh xac 3 xe VN.
+    """
+    with app.app_context():
+        c = Customer(code='CUST_KR_TEST', name='Keep Rise Test')
+        db.session.add(c)
+        db.session.commit()
+
+        lot = Lot(lot_label='Lô 4', customer_id=c.id, month=8, year=2026, source_type='sales')
+        db.session.add(lot)
+        db.session.flush()
+
+        r1 = RevenueItem(
+            lot_id=lot.id,
+            service_description='Phí cửa khẩu',
+            weight_class='Cont (1)',
+            buy_price=793000,
+            sell_price=1250000
+        )
+        r2 = RevenueItem(
+            lot_id=lot.id,
+            service_description='Cước vận chuyển Lạng Sơn - TP. Hồ Chí Minh',
+            weight_class='Cont (1)',
+            vehicle_plate_vn='50E89476',
+            vehicle_plate_cn='R29173',
+            buy_price=31000000,
+            sell_price=50925926
+        )
+        r3 = RevenueItem(
+            lot_id=lot.id,
+            service_description='Phí cứa khẩu',
+            weight_class='Cont (2)',
+            buy_price=793000,
+            sell_price=1250000
+        )
+        r4 = RevenueItem(
+            lot_id=lot.id,
+            service_description='Cước vận chuyển Lạng Sơn - TP. Hồ Chí Minh',
+            weight_class='Cont (2)',
+            vehicle_plate_vn='77H03770',
+            vehicle_plate_cn='R29173',
+            buy_price=34000000,
+            sell_price=50925926
+        )
+        r5 = RevenueItem(
+            lot_id=lot.id,
+            service_description='Cước vận chuyển Lạng Sơn -Hà Nội...',
+            weight_class='8T',
+            vehicle_plate_vn='29H81645',
+            vehicle_plate_cn='BQ3500\nBLH994',
+            buy_price=30300000,
+            sell_price=0
+        )
+        r6 = RevenueItem(
+            lot_id=lot.id,
+            service_description='DVTK HQ',
+            buy_price=8000000,
+            sell_price=8540000
+        )
+        db.session.add_all([r1, r2, r3, r4, r5, r6])
+        db.session.commit()
+
+        # 1. Total vehicle count must be 3
+        assert lot.total_vehicle_count == 3
+
+        # 2. Distinct vehicles list must be exactly the 3 VN vehicles
+        vehicles = lot.distinct_vehicles
+        assert len(vehicles) == 3
+        assert vehicles[0]['plate'] == '50E89476'
+        assert 'Cont 1' in vehicles[0]['label']
+        assert vehicles[1]['plate'] == '77H03770'
+        assert 'Cont 2' in vehicles[1]['label']
+        assert vehicles[2]['plate'] == '29H81645'
+        assert '8T' in vehicles[2]['label']
+
+        # 3. Breakdown check
+        breakdown = lot.vehicles_breakdown
+        # 3 vehicles + 1 general cost group
+        assert len(breakdown) == 4
+        # Check Xe 1
+        assert breakdown[0]['plate'] == '50E89476'
+        assert breakdown[0]['transit_cn'] == 'R29173'
+        assert len(breakdown[0]['revenue_items']) == 2
+        # Check Xe 2
+        assert breakdown[1]['plate'] == '77H03770'
+        assert breakdown[1]['transit_cn'] == 'R29173'
+        assert len(breakdown[1]['revenue_items']) == 2
+        # Check Xe 3
+        assert breakdown[2]['plate'] == '29H81645'
+        assert 'BQ3500' in breakdown[2]['transit_cn']
+        assert len(breakdown[2]['revenue_items']) == 1
+        # Check General
+        assert breakdown[3]['plate'] == 'general'
+        assert len(breakdown[3]['revenue_items']) == 1
+

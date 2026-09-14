@@ -391,13 +391,6 @@ class ExcelParserService:
                 if not has_activity and not c1_val:
                     continue
 
-                # Skip unbilled draft row if declaration differs from current lot and no selling revenue
-                if not c1_val and current_lot and decl_num and current_lot.customs_declaration:
-                    curr_d = current_lot.customs_declaration.strip()
-                    new_d = decl_num.strip()
-                    if curr_d and new_d and new_d not in curr_d and curr_d not in new_d and (not sell_p or sell_p == 0) and (not val_tb or val_tb == 0):
-                        continue
-                    
                 is_new_lot = False
                 lot_label = None
                 
@@ -449,8 +442,11 @@ class ExcelParserService:
                             resolved_cust = company if (company and ('anh ' in norm_c or 'chi ' in norm_c or not cust_name)) else (cust_name or company or "Khách vãng lai")
                             cust = get_or_create_customer(resolved_cust)
                             current_lot.customer_id = cust.id
-                        if decl_num and not current_lot.customs_declaration:
-                            current_lot.customs_declaration = decl_num
+                        if decl_num:
+                            if not current_lot.customs_declaration:
+                                current_lot.customs_declaration = decl_num
+                            elif decl_num not in current_lot.customs_declaration:
+                                current_lot.customs_declaration = f"{current_lot.customs_declaration}, {decl_num}"
                         if company and not current_lot.company:
                             current_lot.company = company
                         if start_date and not current_lot.start_date:
