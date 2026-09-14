@@ -270,11 +270,28 @@ class ExcelParserService:
                     col_map[c] = normalize_text(raw_val)
                     
             def get_col_val(r, *keywords):
-                for col_idx, col_name in col_map.items():
-                    for kw in keywords:
+                for kw in keywords:
+                    for col_idx, col_name in col_map.items():
                         if kw in col_name:
-                            return ws.cell(r, col_idx).value
+                            val = ws.cell(r, col_idx).value
+                            if val is not None:
+                                return val
                 return None
+
+            def get_plate_cn(r):
+                return clean_str(get_col_val(r, 'xe cn', 'xe tq', 'trung quoc', 'bien so xe cn', 'bien so xe tq'))
+
+            def get_plate_vn(r):
+                val = get_col_val(r, 'xe vn', 'viet nam', 'bien so xe vn')
+                if val is not None:
+                    return clean_str(val)
+                for kw in ['bien kiem soat', 'bien so xe', 'bien so']:
+                    for col_idx, col_name in col_map.items():
+                        if kw in col_name and not any(x in col_name for x in ['cn', 'tq', 'trung quoc']):
+                            v = ws.cell(r, col_idx).value
+                            if v is not None:
+                                return clean_str(v)
+                return ''
 
             # 3. Locate column for 'tong tien ban' and 'tong tien mua'
             col_tb_idx = None
@@ -373,6 +390,13 @@ class ExcelParserService:
                 
                 if not has_activity and not c1_val:
                     continue
+
+                # Skip unbilled draft row if declaration differs from current lot and no selling revenue
+                if not c1_val and current_lot and decl_num and current_lot.customs_declaration:
+                    curr_d = current_lot.customs_declaration.strip()
+                    new_d = decl_num.strip()
+                    if curr_d and new_d and new_d not in curr_d and curr_d not in new_d and (not sell_p or sell_p == 0) and (not val_tb or val_tb == 0):
+                        continue
                     
                 is_new_lot = False
                 lot_label = None
@@ -439,8 +463,8 @@ class ExcelParserService:
                     item = RevenueItem(
                         lot_id=current_lot.id,
                         supplier=clean_str(get_col_val(r, 'nha xe', 'ncc', 'doi tac')),
-                        vehicle_plate_cn=clean_str(get_col_val(r, 'xe tq')),
-                        vehicle_plate_vn=clean_str(get_col_val(r, 'xe vn', 'bien so xe', 'bien so')),
+                        vehicle_plate_cn=get_plate_cn(r),
+                        vehicle_plate_vn=get_plate_vn(r),
                         weight_class=clean_str(get_col_val(r, 'hang xe', 'loai xe', 'trong tai')),
                         service_description=service_desc,
                         quantity=clean_float(get_col_val(r, 'so luong', 'so xe')) or 1.0,

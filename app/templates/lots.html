@@ -257,8 +257,13 @@
             {% if lots and lots|length > 0 %}
             <tfoot class="bg-light border-top-2">
                 <tr class="fw-bold">
-                    <td colspan="4" class="text-end text-uppercase text-dark py-2">
+                    <td colspan="3" class="text-end text-uppercase text-dark py-2">
                         <span class="fs-6">TỔNG LÔ BÁN HÀNG ({{ lots|length }} lô):</span>
+                    </td>
+                    <td class="text-center font-mono py-2">
+                        <span class="badge bg-light text-primary border px-2 py-1" style="font-size: 0.82rem;" title="Tổng số xe chạy trong kỳ">
+                            <i class="fa-solid fa-truck-moving me-1"></i><strong>{{ total_month_vehicles }}</strong> xe
+                        </span>
                     </td>
                     <td class="text-end font-mono text-primary py-2 fs-6 tabular-nums">
                         {{ totals.sell | format_money }}
@@ -279,9 +284,10 @@
                 </tr>
                 {% if unresolved_total_ops and unresolved_total_ops > 0 %}
                 <tr class="fw-bold bg-warning-subtle text-dark border-top">
-                    <td colspan="4" class="text-end text-uppercase py-2" style="font-size: 0.82rem;">
+                    <td colspan="3" class="text-end text-uppercase py-2" style="font-size: 0.82rem;">
                         <i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> CPVH Chưa Đối Soát ({{ unresolved_groups|length }} nhóm):
                     </td>
+                    <td class="text-center py-2 font-mono text-muted">-</td>
                     <td class="text-end py-2 font-mono text-muted">-</td>
                     <td class="text-end py-2 font-mono text-muted">-</td>
                     <td class="text-end py-2 font-mono text-danger tabular-nums">
@@ -293,8 +299,13 @@
                     <td colspan="4" class="py-2 small text-muted fst-italic">Trừ vào lợi nhuận kỳ</td>
                 </tr>
                 <tr class="fw-bold bg-white border-top-2">
-                    <td colspan="4" class="text-end text-uppercase text-dark py-2 fs-6">
+                    <td colspan="3" class="text-end text-uppercase text-dark py-2 fs-6">
                         TỔNG KỲ (BAO GỒM CPVH CHƯA GHÉP):
+                    </td>
+                    <td class="text-center font-mono py-2">
+                        <span class="badge bg-primary-subtle text-primary border px-2 py-1" style="font-size: 0.82rem;">
+                            <i class="fa-solid fa-truck-moving me-1"></i><strong>{{ total_month_vehicles }}</strong> xe
+                        </span>
                     </td>
                     <td class="text-end font-mono text-primary py-2 fs-6 tabular-nums">
                         {{ totals.sell | format_money }}
@@ -428,6 +439,7 @@
                 </tr>
                 {% endfor %}
             </tbody>
+        </table>
     </div>
     {% else %}
     <div class="p-3 text-muted small">
@@ -527,6 +539,7 @@
 <div class="modal fade" id="assignModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <form method="POST" id="assignForm" class="modal-content border-0 shadow-lg rounded-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-header border-bottom py-3">
                 <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-user-clock text-primary me-2"></i>Phân Công Nhân Viên & Hạn Chót</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

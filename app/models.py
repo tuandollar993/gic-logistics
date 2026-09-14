@@ -337,28 +337,159 @@ class Lot(db.Model):
                     'label': label or cleaned
                 })
 
+        # Pass 1: explicit plates from revenue items
         for ri in self.active_revenue_items:
             p_vn = (ri.vehicle_plate_vn or '').strip()
             p_cn = (ri.vehicle_plate_cn or '').strip()
             desc = ri.service_description or ''
+            weight = (ri.weight_class or '').strip()
+
             vehicle_tag = None
-            cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', desc, re.IGNORECASE)
+            cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', f"{desc} {weight}", re.IGNORECASE)
             if cont_m:
                 vehicle_tag = cont_m.group(1).title()
+            elif weight and any(k in weight.lower() for k in ['cont', 'xe', 't']):
+                vehicle_tag = weight
 
-            if p_vn and p_cn:
-                _add(f"{p_vn} / {p_cn}", label=f"{vehicle_tag} - {p_vn}" if vehicle_tag else p_vn)
-            elif p_vn:
+            if p_vn:
                 _add(p_vn, label=f"{vehicle_tag} - {p_vn}" if vehicle_tag else p_vn)
-            elif p_cn:
-                _add(p_cn, label=f"{vehicle_tag} - {p_cn}" if vehicle_tag else p_cn)
-            elif vehicle_tag:
-                _add(vehicle_tag, label=vehicle_tag)
+            if p_cn:
+                _add(p_cn, label=f"Xe TQ - {p_cn}")
 
+        # Pass 2: explicit plates from operating costs
         for cost in self.active_operating_costs:
             _add(cost.vehicle_plate)
 
+        # Pass 3: standalone vehicle tags from revenue items ONLY IF not already represented by a vehicle plate
+        for ri in self.active_revenue_items:
+            p_vn = (ri.vehicle_plate_vn or '').strip()
+            p_cn = (ri.vehicle_plate_cn or '').strip()
+            if not p_vn and not p_cn:
+                desc = ri.service_description or ''
+                weight = (ri.weight_class or '').strip()
+                cont_m = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+T)\b', f"{desc} {weight}", re.IGNORECASE)
+                tag = cont_m.group(1).title() if cont_m else (weight if any(k in weight.lower() for k in ['cont', 'xe', 't']) else None)
+                if tag and not any(tag.lower() in v['label'].lower() for v in vehicles):
+                    _add(tag, label=tag)
+
+        # Sắp xếp ưu tiên: Các xe giao hàng / cont VN lên trước, xe Trung Quốc sang tải theo sau
+        vehicles.sort(key=lambda x: (1 if 'xe tq' in x['label'].lower() else 0, x['label']))
         return vehicles
+
+    @property
+    def vehicles_breakdown(self):
+        """
+        Bóc tách toàn diện Doanh thu và Chi phí của lô hàng theo từng xe cụ thể
+        để hiển thị trực quan đồng thời trên cùng 1 tab/trang.
+        """
+        vehicles = self.distinct_vehicles
+        all_ri = list(self.active_revenue_items)
+        all_costs = list(self.active_operating_costs)
+
+        breakdown = []
+        assigned_ri = set()
+        assigned_costs = set()
+
+        # Build list of vehicle groups
+        for idx, v in enumerate(vehicles, 1):
+            plate = v['plate'].strip()
+            label = v['label'].strip()
+            plate_lower = plate.lower()
+            label_lower = label.lower()
+
+            v_ri = []
+            for ri in all_ri:
+                if ri.id in assigned_ri:
+                    continue
+                p_vn = (ri.vehicle_plate_vn or '').strip().lower()
+                p_cn = (ri.vehicle_plate_cn or '').strip().lower()
+                desc = (ri.service_description or '').strip().lower()
+                weight = (ri.weight_class or '').strip().lower()
+
+                matched = False
+                # Ưu tiên khớp theo Cont (1) / Cont (2) cụ thể
+                if 'cont (1)' in label_lower and ('cont (1)' in weight or 'cont (1)' in desc):
+                    matched = True
+                elif 'cont (2)' in label_lower and ('cont (2)' in weight or 'cont (2)' in desc):
+                    matched = True
+                elif plate_lower and not ('cont (1)' in weight or 'cont (2)' in weight):
+                    if plate_lower == p_vn or (p_vn and plate_lower in p_vn):
+                        matched = True
+                    elif plate_lower == p_cn or (p_cn and plate_lower in p_cn):
+                        matched = True
+                    elif plate_lower in desc:
+                        matched = True
+                elif 'xe tq' in label_lower and not ('cont (1)' in weight or 'cont (2)' in weight):
+                    if 'xe tq' in desc or 'xe trung quoc' in desc:
+                        matched = True
+
+                if matched:
+                    v_ri.append(ri)
+                    assigned_ri.add(ri.id)
+
+            v_costs = []
+            for c in all_costs:
+                if c.id in assigned_costs:
+                    continue
+                c_plate = (c.vehicle_plate or '').strip().lower()
+                c_desc = (c.description or '').strip().lower()
+
+                matched = False
+                if 'cont (1)' in label_lower and ('cont (1)' in c_desc or 'cont 1' in c_desc or plate_lower in c_plate):
+                    matched = True
+                elif 'cont (2)' in label_lower and ('cont (2)' in c_desc or 'cont 2' in c_desc or plate_lower in c_plate):
+                    matched = True
+                elif c_plate and (plate_lower == c_plate or plate_lower in c_plate or c_plate in plate_lower):
+                    matched = True
+                elif plate_lower and plate_lower in c_desc:
+                    matched = True
+                elif 'xe tq' in label_lower and ('xe tq' in c_desc or 'xe trung quoc' in c_desc):
+                    matched = True
+
+                if matched:
+                    v_costs.append(c)
+                    assigned_costs.add(c.id)
+
+            sell = sum(ri.total_sell_price for ri in v_ri)
+            buy = sum(ri.total_buy_price for ri in v_ri)
+            ops = sum(c.total_amount for c in v_costs)
+            profit = sell - buy - ops
+
+            breakdown.append({
+                'index': idx,
+                'plate': plate,
+                'label': label,
+                'revenue_items': v_ri,
+                'operating_costs': v_costs,
+                'total_sell': sell,
+                'total_buy': buy,
+                'total_ops': ops,
+                'net_profit': profit
+            })
+
+        # Remaining unassigned items -> Chi phí chung của lô hàng
+        general_ri = [ri for ri in all_ri if ri.id not in assigned_ri]
+        general_costs = [c for c in all_costs if c.id not in assigned_costs]
+
+        if general_ri or general_costs or not breakdown:
+            sell_gen = sum(ri.total_sell_price for ri in general_ri)
+            buy_gen = sum(ri.total_buy_price for ri in general_ri)
+            ops_gen = sum(c.total_amount for c in general_costs)
+            profit_gen = sell_gen - buy_gen - ops_gen
+
+            breakdown.append({
+                'index': None,
+                'plate': 'general',
+                'label': 'Chi Phí Chung Của Lô Hàng (DVTK, Hải Quan, Quatest...)',
+                'revenue_items': general_ri,
+                'operating_costs': general_costs,
+                'total_sell': sell_gen,
+                'total_buy': buy_gen,
+                'total_ops': ops_gen,
+                'net_profit': profit_gen
+            })
+
+        return breakdown
 
     @property
     def total_vehicle_count(self):
