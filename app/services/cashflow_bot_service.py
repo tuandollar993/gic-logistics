@@ -567,7 +567,7 @@ def handle_telegram_update(update):
                     f"💳 <b>Loại:</b> {html.escape(str(d.get('loai') or ''))}\n"
                     f"💰 <b>Số tiền:</b> {format_money_vn(d.get('so_tien'))} VNĐ\n"
                     f"👤 <b>Giao dịch:</b> {html.escape(str(d.get('nguoi_giao_dich') or ''))}\n"
-                    f"📂 <b>Sheet:</b> {html.escape(str(sheet_name))} (Dòng {row_a1})\n"
+                    f"📁 <b>Sheet:</b> {html.escape(str(sheet_name))} (Dòng {row_a1})\n"
                     f"📸 <b>Ảnh bill:</b> Đã lưu an toàn lên Supabase"
                 )
                 send_telegram_message(chat_id, text_ok)
