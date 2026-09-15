@@ -60,8 +60,85 @@ def get_allowed_chat_ids():
         return [str(c).strip() for c in raw if str(c).strip()]
     return [c.strip() for c in str(raw).split(',') if c.strip()]
 
+def is_chat_authorized(c_id, allowed_chats=None):
+    if allowed_chats is None:
+        allowed_chats = get_allowed_chat_ids()
+    if not allowed_chats:
+        return True
+    s = str(c_id).strip()
+    if s in allowed_chats:
+        return True
+    if s.startswith('-100') and ('-' + s[4:]) in allowed_chats:
+        return True
+    if s.startswith('-') and not s.startswith('-100') and ('-100' + s[1:]) in allowed_chats:
+        return True
+    return False
+
+def are_chats_matching(c1, c2):
+    if not c1 or not c2:
+        return True
+    s1, s2 = str(c1).strip(), str(c2).strip()
+    if s1 == s2:
+        return True
+    if s1.startswith('-100') and ('-' + s1[4:]) == s2:
+        return True
+    if s2.startswith('-100') and ('-' + s2[4:]) == s1:
+        return True
+    return False
+
 # Cache lưu trữ các giao dịch đang chờ bấm nút Xác nhận
 _pending_confirmations = {}
+
+def _save_pending_tx(confirm_id, pending_data):
+    _pending_confirmations[confirm_id] = pending_data
+    try:
+        import tempfile
+        tmp_path = os.path.join(tempfile.gettempdir(), f"pending_tx_{confirm_id}.json")
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(pending_data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+def _get_pending_tx(confirm_id):
+    if confirm_id in _pending_confirmations:
+        return _pending_confirmations[confirm_id]
+    try:
+        import tempfile
+        tmp_path = os.path.join(tempfile.gettempdir(), f"pending_tx_{confirm_id}.json")
+        if os.path.exists(tmp_path):
+            with open(tmp_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                _pending_confirmations[confirm_id] = data
+                return data
+    except Exception:
+        pass
+    # Phục hồi từ Supabase / PostgreSQL nếu server vừa restart
+    try:
+        media = db.session.get(CashAdvanceBillMedia, confirm_id)
+        if media and media.data_base64:
+            ai_data = extract_receipt_with_gemini(media.data_base64, media.mime_type)
+            render_host = os.environ.get('RENDER_EXTERNAL_URL') or 'https://gic-logistics.onrender.com'
+            rec = {
+                'data': ai_data,
+                'media_id': confirm_id,
+                'public_url': f"{render_host.rstrip('/')}/advances/bill/{confirm_id}",
+                'chat_id': None
+            }
+            _pending_confirmations[confirm_id] = rec
+            return rec
+    except Exception as rec_err:
+        print(f"[CashflowBot] Auto-recovery error: {rec_err}")
+    return None
+
+def _pop_pending_tx(confirm_id):
+    _pending_confirmations.pop(confirm_id, None)
+    try:
+        import tempfile
+        tmp_path = os.path.join(tempfile.gettempdir(), f"pending_tx_{confirm_id}.json")
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    except Exception:
+        pass
 
 def normalize_string(text):
     if not text:
@@ -445,7 +522,7 @@ def handle_telegram_update(update):
         if is_prod and not allowed_chats:
             answer_callback_query(cq_id, "Lỗi bảo mật: ALLOWED_CHAT_IDS chưa được cấu hình.")
             return {'ok': True}
-        if allowed_chats and chat_id not in allowed_chats:
+        if allowed_chats and not is_chat_authorized(chat_id, allowed_chats):
             answer_callback_query(cq_id, "Bạn không có quyền thực hiện thao tác này.")
             return {'ok': True}
 
@@ -454,13 +531,13 @@ def handle_telegram_update(update):
 
         if cb_data.startswith('confirmtx_'):
             confirm_id = cb_data.split('confirmtx_')[1]
-            pending = _pending_confirmations.get(confirm_id)
+            pending = _get_pending_tx(confirm_id)
             if not pending:
-                send_telegram_message(chat_id, "⏳ Phiên xác nhận đã hết hạn. Vui lòng gửi lại ảnh hóa đơn.")
+                send_telegram_message(chat_id, "⏳ Phiên xác nhận đã hết hạn hoặc dữ liệu chưa sẵn sàng. Vui lòng gửi lại ảnh hóa đơn.")
                 return {'ok': True}
 
             # Xác thực người bấm nút phải thuộc cùng chat_id khởi tạo giao dịch
-            if str(pending.get('chat_id')) != str(chat_id):
+            if pending.get('chat_id') and not are_chats_matching(pending.get('chat_id'), chat_id):
                 send_telegram_message(chat_id, "❌ Lỗi bảo mật: Bạn không có quyền xác nhận giao dịch khởi tạo từ cuộc trò chuyện khác.")
                 return {'ok': True}
 
@@ -497,17 +574,17 @@ def handle_telegram_update(update):
             except Exception as e:
                 send_telegram_message(chat_id, f"❌ Lỗi ghi sổ: {html.escape(str(e))}")
             finally:
-                _pending_confirmations.pop(confirm_id, None)
+                _pop_pending_tx(confirm_id)
                 if load_msg and 'result' in load_msg:
                     delete_telegram_message(chat_id, load_msg['result']['message_id'])
 
         elif cb_data.startswith('canceltx_'):
             confirm_id = cb_data.split('canceltx_')[1]
-            pending = _pending_confirmations.get(confirm_id)
-            if pending and str(pending.get('chat_id')) != str(chat_id):
+            pending = _get_pending_tx(confirm_id)
+            if pending and pending.get('chat_id') and not are_chats_matching(pending.get('chat_id'), chat_id):
                 send_telegram_message(chat_id, "❌ Lỗi bảo mật: Bạn không có quyền hủy giao dịch từ cuộc trò chuyện khác.")
                 return {'ok': True}
-            _pending_confirmations.pop(confirm_id, None)
+            _pop_pending_tx(confirm_id)
             send_telegram_message(chat_id, "🚫 Đã hủy. Giao dịch KHÔNG được ghi vào Sổ quỹ.")
 
         return {'ok': True}
@@ -541,19 +618,7 @@ def handle_telegram_update(update):
             print("[CashflowBot Security] Bỏ qua: Production yêu cầu ALLOWED_CHAT_IDS nhưng danh sách đang rỗng.")
             return {'ok': True}
 
-        def _is_chat_authorized(c_id):
-            if not allowed_chats:
-                return True
-            s = str(c_id).strip()
-            if s in allowed_chats:
-                return True
-            if s.startswith('-100') and ('-' + s[4:]) in allowed_chats:
-                return True
-            if s.startswith('-') and not s.startswith('-100') and ('-100' + s[1:]) in allowed_chats:
-                return True
-            return False
-
-        if allowed_chats and not _is_chat_authorized(chat_id) and not _is_chat_authorized(msg.get('chat', {}).get('id')):
+        if allowed_chats and not is_chat_authorized(chat_id, allowed_chats) and not is_chat_authorized(msg.get('chat', {}).get('id'), allowed_chats):
             print(f"[CashflowBot Security] Bỏ qua tin nhắn từ chat không nằm trong ALLOWED_CHAT_IDS: {chat_id}")
             return {'ok': True}
 
@@ -645,12 +710,12 @@ def handle_telegram_update(update):
                 internal_bill_url = f"{render_host.rstrip('/')}/advances/bill/{short_id}"
 
                 confirm_id = short_id
-                _pending_confirmations[confirm_id] = {
+                _save_pending_tx(confirm_id, {
                     'data': ai_data,
                     'media_id': short_id,
                     'public_url': internal_bill_url,
                     'chat_id': chat_id
-                }
+                })
 
                 date_label = html.escape(str(ai_data.get('ngay_giao_dich') or 'Hôm nay'))
                 so_tien_label = format_money_vn(ai_data.get('so_tien', 0))

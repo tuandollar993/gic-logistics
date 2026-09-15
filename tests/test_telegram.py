@@ -204,3 +204,58 @@ def test_set_telegram_webhook_success(auth_client_admin, monkeypatch, app):
         assert audit is not None
         assert 'super_secret_bot_token_abc' not in (audit.details or '')
         assert 'super_secret_bot_token_abc' not in str(audit.after_state or '')
+
+
+def test_telegram_callback_supergroup_authorization(monkeypatch, app):
+    from app.services import cashflow_bot_service
+    monkeypatch.setattr(cashflow_bot_service, 'ALLOWED_CHAT_IDS', ['-5294577893'])
+    
+    # Save a pending transaction under -1005294577893
+    cashflow_bot_service._save_pending_tx('test_rec_123', {
+        'data': {
+            'ngay_giao_dich': '15-Sep',
+            'so_tien': 3800000,
+            'loai': 'CHI',
+            'nguoi_giao_dich': 'NGUYEN MINH NGHI',
+            'nhan_vien': 'ĐỐI TÁC KHÁC',
+            'noi_dung': 'test bill'
+        },
+        'media_id': 'test_rec_123',
+        'public_url': 'https://gic-logistics.onrender.com/advances/bill/test_rec_123',
+        'chat_id': '-1005294577893'
+    })
+
+    answered = []
+    def mock_answer(cq_id, text=None):
+        answered.append({'cq_id': cq_id, 'text': text})
+    monkeypatch.setattr(cashflow_bot_service, 'answer_callback_query', mock_answer)
+    monkeypatch.setattr(cashflow_bot_service, 'edit_message_reply_markup', lambda c, m: None)
+
+    written = []
+    def mock_append(data, url):
+        written.append((data, url))
+        return ('Tháng 09-2026', 15, 9, 2026)
+    monkeypatch.setattr(cashflow_bot_service, 'append_transaction_to_sheet', mock_append)
+    monkeypatch.setattr(cashflow_bot_service, 'sync_month_from_google', lambda m, y: None)
+    monkeypatch.setattr(cashflow_bot_service, 'send_telegram_message', lambda c, t, **k: {'ok': True})
+
+    update = {
+        'callback_query': {
+            'id': 'cq_test_1',
+            'message': {
+                'message_id': 999,
+                'chat': {'id': -1005294577893, 'type': 'supergroup'}
+            },
+            'data': 'confirmtx_test_rec_123'
+        }
+    }
+
+    with app.app_context():
+        res = cashflow_bot_service.handle_telegram_update(update)
+    assert res == {'ok': True}
+    assert len(written) == 1
+    assert written[0][0]['so_tien'] == 3800000
+    # verify answer_callback_query was called without permission error
+    assert any(a['text'] is None for a in answered)
+    assert not any(a['text'] == "Bạn không có quyền thực hiện thao tác này." for a in answered)
+
