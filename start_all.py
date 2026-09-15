@@ -6,8 +6,17 @@ port = os.getenv('PORT', '5000')
 
 print('🚀 [STARTUP] Đang khởi động GIC Logistics All-in-One (Web + Bot + Clock)...')
 
+# Tự động đồng bộ Webhook cho Cashflow Bot (@gidotien_bot)
+from app.config import Config
+tg_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+cf_bot_token = os.getenv('CASHFLOW_BOT_TOKEN') or Config.CASHFLOW_BOT_TOKEN
+
+# Nếu TELEGRAM_BOT_TOKEN thực chất là token của Cashflow Bot (8728564714), dùng làm cashflow_token
+if not cf_bot_token and tg_bot_token and tg_bot_token.startswith('8728564714:'):
+    cf_bot_token = tg_bot_token
+
 bot_thread = None
-if os.getenv('TELEGRAM_BOT_TOKEN'):
+if tg_bot_token and tg_bot_token != cf_bot_token and not tg_bot_token.startswith('8728564714:'):
     print('🤖 [STARTUP] Kích hoạt Telegram Bot background thread...')
     try:
         from bot.telegram_bot import start_bot_thread
@@ -15,25 +24,21 @@ if os.getenv('TELEGRAM_BOT_TOKEN'):
     except Exception as bot_err:
         print(f'⚠️ [STARTUP] Lỗi khởi động Telegram Bot: {bot_err}')
 else:
-    print('⚠️ [STARTUP] Chưa có TELEGRAM_BOT_TOKEN trong biến môi trường.')
+    print('ℹ️ [STARTUP] Bỏ qua polling bot thread (tránh xung đột Webhook với Cashflow Bot).')
 
-# Tự động đồng bộ Webhook cho Cashflow Bot (@gidotien_bot)
-from app.config import Config
-cashflow_token = Config.CASHFLOW_BOT_TOKEN
-secret_token = Config.TELEGRAM_SECRET_TOKEN
+secret_token = Config.TELEGRAM_SECRET_TOKEN or 'gic_tg_sec_2026_9ad8d26c9f413921'
 render_url = os.getenv('RENDER_EXTERNAL_URL') or 'https://gic-logistics.onrender.com'
 
-if cashflow_token:
+if cf_bot_token:
     try:
         import requests
         target_url = f"{render_url.rstrip('/')}/advances/bot-webhook"
         payload = {
             'url': target_url,
-            'allowed_updates': ['message', 'edited_message', 'callback_query']
+            'allowed_updates': ['message', 'edited_message', 'callback_query'],
+            'secret_token': secret_token
         }
-        if secret_token:
-            payload['secret_token'] = secret_token
-        res = requests.post(f"https://api.telegram.org/bot{cashflow_token}/setWebhook", json=payload, timeout=10).json()
+        res = requests.post(f"https://api.telegram.org/bot{cf_bot_token}/setWebhook", json=payload, timeout=10).json()
         print(f"🤖 [STARTUP] Telegram Cashflow Webhook: {res.get('description', res)}")
     except Exception as e:
         print(f"⚠️ [STARTUP] Lỗi đồng bộ Webhook: {e}")
