@@ -63,9 +63,9 @@ class Config:
     PERMANENT_SESSION_LIFETIME = 86400  # 24 hours
 
     # Telegram
-    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN') or '8876222401:AAGrew-7pGQwy4SB_PSvoBzGBzaLU-YtelA'
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
     TELEGRAM_MANAGER_CHAT_ID = os.getenv('TELEGRAM_MANAGER_CHAT_ID', '')
-    CASHFLOW_BOT_TOKEN = os.getenv('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+    CASHFLOW_BOT_TOKEN = os.getenv('CASHFLOW_BOT_TOKEN', '')
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
     ALLOWED_CHAT_IDS = [
         cid.strip() for cid in (os.getenv('ALLOWED_CHAT_IDS') or os.getenv('ALLOWED_CHAT_ID') or '-5294577893,5749845754').split(',')

@@ -17,7 +17,17 @@ from app.services.advance_service import (
     clean_amount
 )
 
-CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN') or '8728564714:AAG0UektNi_8qtk1M7Z92iR7INC584J5Sq0'
+def get_cashflow_bot_token():
+    tok = os.environ.get('CASHFLOW_BOT_TOKEN')
+    if not tok:
+        try:
+            from flask import current_app
+            tok = current_app.config.get('CASHFLOW_BOT_TOKEN', '')
+        except Exception:
+            pass
+    return (tok or '').strip()
+
+CASHFLOW_BOT_TOKEN = os.environ.get('CASHFLOW_BOT_TOKEN', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 def get_gemini_api_key():
@@ -72,7 +82,8 @@ def format_money_vn(val):
         return '0'
 
 def send_telegram_message(chat_id, text, reply_markup=None, reply_to_message_id=None):
-    url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/sendMessage"
+    token = get_cashflow_bot_token()
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         'chat_id': str(chat_id),
         'text': text,
@@ -98,7 +109,8 @@ def send_telegram_message(chat_id, text, reply_markup=None, reply_to_message_id=
         return None
 
 def answer_callback_query(callback_query_id, text=None):
-    url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/answerCallbackQuery"
+    token = get_cashflow_bot_token()
+    url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
     payload = {'callback_query_id': callback_query_id}
     if text:
         payload['text'] = text
@@ -108,14 +120,16 @@ def answer_callback_query(callback_query_id, text=None):
         pass
 
 def delete_telegram_message(chat_id, message_id):
-    url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/deleteMessage"
+    token = get_cashflow_bot_token()
+    url = f"https://api.telegram.org/bot{token}/deleteMessage"
     try:
         requests.post(url, json={'chat_id': str(chat_id), 'message_id': message_id}, timeout=8)
     except Exception:
         pass
 
 def edit_message_reply_markup(chat_id, message_id):
-    url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/editMessageReplyMarkup"
+    token = get_cashflow_bot_token()
+    url = f"https://api.telegram.org/bot{token}/editMessageReplyMarkup"
     try:
         requests.post(url, json={'chat_id': str(chat_id), 'message_id': message_id, 'reply_markup': {'inline_keyboard': []}}, timeout=8)
     except Exception:
@@ -590,12 +604,13 @@ def handle_telegram_update(update):
             load_msg = send_telegram_message(chat_id, "⏳ Mắt thần AI đang đọc biên lai ngân hàng, sếp đợi 5 giây...", reply_to_message_id=msg_id)
             try:
                 # 1. Tải file từ Telegram API
-                get_f_res = requests.get(f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/getFile?file_id={file_id}", timeout=10).json()
+                bot_token = get_cashflow_bot_token()
+                get_f_res = requests.get(f"https://api.telegram.org/bot{bot_token}/getFile?file_id={file_id}", timeout=10).json()
                 if not get_f_res.get('ok'):
                     raise Exception("Không thể lấy đường dẫn file từ Telegram.")
 
                 f_path = get_f_res['result']['file_path']
-                f_url = f"https://api.telegram.org/file/bot{CASHFLOW_BOT_TOKEN}/{f_path}"
+                f_url = f"https://api.telegram.org/file/bot{bot_token}/{f_path}"
                 dl_res = requests.get(f_url, timeout=20)
                 if dl_res.status_code != 200:
                     raise Exception("Không thể tải file nhị phân từ Telegram.")
@@ -677,9 +692,10 @@ def handle_telegram_update(update):
             if payload:
                 from app.services.advance_service import get_bill_media
                 media = get_bill_media(payload)
+                bot_token = get_cashflow_bot_token()
                 if media and media.data_base64:
                     import base64
-                    send_photo_url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/sendPhoto"
+                    send_photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
                     photo_bytes = base64.b64decode(media.data_base64)
                     caption = f"🧾 <b>Biên lai / Chứng từ</b>: <code>{html.escape(payload)}</code>"
                     requests.post(
@@ -690,7 +706,7 @@ def handle_telegram_update(update):
                     )
                     return {'ok': True}
                 elif media and media.file_id:
-                    send_photo_url = f"https://api.telegram.org/bot{CASHFLOW_BOT_TOKEN}/sendPhoto"
+                    send_photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
                     caption = f"🧾 <b>Biên lai / Chứng từ</b>: <code>{html.escape(payload)}</code>"
                     requests.post(
                         send_photo_url,
