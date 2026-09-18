@@ -113,7 +113,7 @@ body {
 
 /* Sidebar Styling: Refined Executive Command Center */
 .gic-sidebar {
-    width: 270px;
+    width: 250px;
     background-color: var(--gic-navy-950);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     color: #e2e8f0;
@@ -281,10 +281,10 @@ body {
 .gic-main-content {
     flex: 1;
     min-width: 0;
-    padding: 32px 36px;
-    margin-left: 270px;
-    width: calc(100% - 270px);
-    max-width: calc(100% - 270px);
+    padding: 24px 28px;
+    margin-left: 250px;
+    width: calc(100% - 250px);
+    max-width: calc(100% - 250px);
     min-height: 100vh;
 }
 
@@ -333,13 +333,16 @@ body {
 }
 
 .kpi-card .kpi-value-stat {
-    font-size: 1.85rem;
+    font-size: clamp(1.25rem, 1.6vw, 1.85rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.15;
     color: var(--gic-text-main);
     font-variant-numeric: tabular-nums;
     margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .kpi-card .kpi-sub-context {
@@ -503,17 +506,17 @@ body {
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 13px 18px;
+    letter-spacing: 0.04em;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--gic-border);
     white-space: nowrap;
 }
 
 .table-custom-clean tbody td {
-    padding: 14px 18px;
+    padding: 9px 12px;
     vertical-align: middle;
     border-bottom: 1px solid #f1f5f9;
-    font-size: 0.88rem;
+    font-size: 0.84rem;
     color: var(--gic-text-main);
 }
 
@@ -524,6 +527,141 @@ body {
 .table-custom-clean tbody tr:last-child td {
     border-bottom: none;
 }
+
+/* Financial Balance Metric Tiles (Lot Detail & Summary) */
+.balance-metric-tile {
+    padding: 12px 10px;
+    border-radius: var(--radius-md);
+    background: #f8fafc;
+    border: 1px solid var(--gic-border);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.balance-metric-tile.balance-tile-profit {
+    background-color: var(--gic-success-surface);
+    border-color: var(--gic-success-border) !important;
+}
+
+.balance-metric-tile.balance-tile-loss {
+    background-color: #fef2f2;
+    border-color: #fecaca !important;
+}
+
+.balance-metric-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gic-text-muted);
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.balance-metric-value {
+    font-size: clamp(0.88rem, 1.12vw, 1.12rem);
+    font-weight: 800;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.balance-metric-sub {
+    font-size: 0.68rem;
+    margin-top: 3px;
+    color: var(--gic-text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Vehicle Header KPI Strip */
+.vehicle-kpi-strip {
+    background-color: #f8fafc;
+    border: 1px solid var(--gic-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.vehicle-kpi-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 0;
+}
+
+.vehicle-kpi-item .kpi-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--gic-text-muted);
+    letter-spacing: 0.03em;
+    line-height: 1;
+    margin-bottom: 2px;
+    white-space: nowrap;
+}
+
+.vehicle-kpi-item .kpi-val {
+    font-size: clamp(0.78rem, 0.9vw, 0.85rem);
+    font-weight: 700;
+    font-family: var(--font-mono);
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+/* Vehicle Breakdown 10-Column Table */
+.table-vehicle-gic {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: collapse;
+}
+
+.table-vehicle-gic thead th {
+    background-color: #f8fafc;
+    color: var(--gic-text-muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 9px 8px;
+    border-bottom: 1px solid var(--gic-border);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.table-vehicle-gic tbody td {
+    padding: 7px 8px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.82rem;
+}
+
+.table-vehicle-gic tfoot td {
+    padding: 8px 8px;
+    vertical-align: middle;
+}
+
+.table-vehicle-gic .col-num { width: 36px; min-width: 34px; max-width: 40px; text-align: center; }
+.table-vehicle-gic .col-cat { width: 105px; min-width: 100px; }
+.table-vehicle-gic .col-desc { min-width: 165px; }
+.table-vehicle-gic .col-supplier { width: 125px; min-width: 105px; max-width: 145px; }
+.table-vehicle-gic .col-plate { width: 85px; min-width: 80px; text-align: center; }
+.table-vehicle-gic .col-buy { width: 115px; min-width: 108px; text-align: right; }
+.table-vehicle-gic .col-sell { width: 115px; min-width: 108px; text-align: right; }
+.table-vehicle-gic .col-profit { width: 105px; min-width: 98px; text-align: right; }
+.table-vehicle-gic .col-invoice { width: 125px; min-width: 115px; }
+.table-vehicle-gic .col-actions { width: 115px; min-width: 110px; text-align: center; }
 
 /* Status Badges */
 .badge-state {
@@ -957,7 +1095,31 @@ body {
     }
 }
 
-/* Currency & Numbers Never Break Line */
+/* Responsive Laptop Optimizations (992px to 1400px, 100% display zoom) */
+@media (min-width: 992px) and (max-width: 1400px) {
+    .gic-sidebar {
+        width: 230px !important;
+    }
+    .gic-main-content {
+        margin-left: 230px !important;
+        width: calc(100% - 230px) !important;
+        max-width: calc(100% - 230px) !important;
+        padding: 20px 18px !important;
+    }
+    .data-table-card .p-3 {
+        padding: 0.75rem !important;
+    }
+    .table-custom-clean thead th {
+        padding: 8px 8px !important;
+        font-size: 0.7rem !important;
+    }
+    .table-custom-clean tbody td {
+        padding: 8px 8px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* Fluid Numbers & Tabular Currency: Fit Perfectly Within Bounds */
 .font-mono, 
 .tabular-nums, 
 td.text-end, 
@@ -967,5 +1129,13 @@ th.text-end,
 .currency-cell,
 .badge-currency {
     white-space: nowrap !important;
+}
+
+/* Prevent Oversized Figures from Spilling Across Containers */
+.fs-3.tabular-nums, .fs-3.font-mono {
+    font-size: clamp(1.15rem, 1.4vw, 1.6rem) !important;
+}
+.fs-4.tabular-nums, .fs-4.font-mono {
+    font-size: clamp(1rem, 1.15vw, 1.35rem) !important;
 }
 
