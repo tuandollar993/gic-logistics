@@ -582,8 +582,16 @@ def add_sub_cost_to_cost(lot_id, parent_id):
     invoice_type = request.form.get('invoice_type', '').strip()
 
     buy_price = clean_money_input(request.form.get('buy_price', 0))
-    sell_price = clean_money_input(request.form.get('sell_price', 0))
-    surcharges = clean_money_input(request.form.get('surcharges', 0))
+    no_sell_price = request.form.get('no_sell_price') == '1'
+    if no_sell_price:
+        final_sell_price = None
+    else:
+        sell_raw = request.form.get('sell_price')
+        if sell_raw is not None and sell_raw.strip() != '':
+            surcharges = clean_money_input(request.form.get('surcharges', 0))
+            final_sell_price = clean_money_input(sell_raw) + surcharges
+        else:
+            final_sell_price = None
 
     rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
 
@@ -596,7 +604,7 @@ def add_sub_cost_to_cost(lot_id, parent_id):
         vehicle_count=1.0,
         unit_price=buy_price,
         total_amount=buy_price,
-        sell_price=sell_price + surcharges,
+        sell_price=final_sell_price,
         invoice_type=invoice_type,
         invoice_number=invoice_number,
         supplier_name=supplier,
@@ -661,8 +669,16 @@ def add_sub_cost_to_revenue_item(lot_id, parent_id):
     invoice_type = request.form.get('invoice_type', '').strip()
 
     buy_price = clean_money_input(request.form.get('buy_price', 0))
-    sell_price = clean_money_input(request.form.get('sell_price', 0))
-    surcharges = clean_money_input(request.form.get('surcharges', 0))
+    no_sell_price = request.form.get('no_sell_price') == '1'
+    if no_sell_price:
+        final_sell_price = None
+    else:
+        sell_raw = request.form.get('sell_price')
+        if sell_raw is not None and sell_raw.strip() != '':
+            surcharges = clean_money_input(request.form.get('surcharges', 0))
+            final_sell_price = clean_money_input(sell_raw) + surcharges
+        else:
+            final_sell_price = None
 
     rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
 
@@ -675,7 +691,7 @@ def add_sub_cost_to_revenue_item(lot_id, parent_id):
         vehicle_count=1.0,
         unit_price=buy_price,
         total_amount=buy_price,
-        sell_price=sell_price + surcharges,
+        sell_price=final_sell_price,
         invoice_type=invoice_type,
         invoice_number=invoice_number,
         supplier_name=supplier,
@@ -737,22 +753,37 @@ def edit_revenue_item(lot_id, item_id):
         
     item.service_description = request.form.get('service_description', item.service_description or '').strip()
     
-    buy_raw = request.form.get('buy_price')
-    if buy_raw is not None and buy_raw != '':
-        item.buy_price = clean_money_input(buy_raw)
-        
-    sell_raw = request.form.get('sell_price')
-    if sell_raw is not None and sell_raw != '':
-        item.sell_price = clean_money_input(sell_raw)
-        
-    surcharges_raw = request.form.get('surcharges')
-    if surcharges_raw is not None and surcharges_raw != '':
-        item.other_surcharge = clean_money_input(surcharges_raw)
+    if item.is_parent:
+        # Mục cha: giá mua luôn tự động bằng tổng các con, không ghi đè từ form
+        sell_raw = request.form.get('sell_price')
+        if sell_raw is not None and sell_raw.strip() != '':
+            item.sell_price = clean_money_input(sell_raw)
+        elif sell_raw is not None:
+            item.sell_price = 0.0
+
+        surcharges_raw = request.form.get('surcharges')
+        if surcharges_raw is not None and surcharges_raw.strip() != '':
+            item.other_surcharge = clean_money_input(surcharges_raw)
+        else:
+            item.other_surcharge = 0.0
+        item.total_sell_price_excel = (item.sell_price or 0.0) + (item.other_surcharge or 0.0)
     else:
-        item.other_surcharge = 0.0
-        
-    item.total_buy_price_excel = item.buy_price
-    item.total_sell_price_excel = (item.sell_price or 0.0) + (item.other_surcharge or 0.0)
+        buy_raw = request.form.get('buy_price')
+        if buy_raw is not None and buy_raw != '':
+            item.buy_price = clean_money_input(buy_raw)
+            
+        sell_raw = request.form.get('sell_price')
+        if sell_raw is not None and sell_raw != '':
+            item.sell_price = clean_money_input(sell_raw)
+            
+        surcharges_raw = request.form.get('surcharges')
+        if surcharges_raw is not None and surcharges_raw != '':
+            item.other_surcharge = clean_money_input(surcharges_raw)
+        else:
+            item.other_surcharge = 0.0
+            
+        item.total_buy_price_excel = item.buy_price
+        item.total_sell_price_excel = (item.sell_price or 0.0) + (item.other_surcharge or 0.0)
 
     rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
     item.revenue_month = rev_m
@@ -852,15 +883,39 @@ def edit_cost_item(lot_id, cost_id):
             if not inv_cls:
                 cost.invoice_classification = 'has_invoice'
 
-    buy_raw = request.form.get('buy_price')
-    if buy_raw is not None and buy_raw != '':
-        buy_p = clean_money_input(buy_raw)
-        cost.total_amount = buy_p
-        cost.unit_price = buy_p
+    if cost.is_parent:
+        # Mục cha: giá mua luôn tự động bằng tổng các con, không ghi đè từ form
+        sell_raw = request.form.get('sell_price')
+        if sell_raw is not None and sell_raw.strip() != '':
+            cost.sell_price = clean_money_input(sell_raw)
+        elif sell_raw is not None:
+            cost.sell_price = 0.0
+    elif cost.is_child:
+        # Mục con:
+        buy_raw = request.form.get('buy_price')
+        if buy_raw is not None and buy_raw != '':
+            cost.total_amount = clean_money_input(buy_raw)
+            cost.unit_price = cost.total_amount
 
-    sell_raw = request.form.get('sell_price')
-    if sell_raw is not None and sell_raw != '':
-        cost.sell_price = clean_money_input(sell_raw)
+        if request.form.get('no_sell_price') == '1':
+            cost.sell_price = None
+        else:
+            sell_raw = request.form.get('sell_price')
+            if sell_raw is not None and sell_raw.strip() != '':
+                cost.sell_price = clean_money_input(sell_raw)
+            else:
+                cost.sell_price = None
+    else:
+        # Mục độc lập:
+        buy_raw = request.form.get('buy_price')
+        if buy_raw is not None and buy_raw != '':
+            buy_p = clean_money_input(buy_raw)
+            cost.total_amount = buy_p
+            cost.unit_price = buy_p
+
+        sell_raw = request.form.get('sell_price')
+        if sell_raw is not None and sell_raw != '':
+            cost.sell_price = clean_money_input(sell_raw)
 
     rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
     cost.revenue_month = rev_m

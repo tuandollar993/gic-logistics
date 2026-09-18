@@ -199,3 +199,79 @@ def test_cascade_delete_parent(auth_client_manager, app):
 
         current_lot = Lot.query.get(lot_id)
         assert current_lot.total_operating_cost == 0.0
+
+def test_sub_cost_optional_sell_price_and_parent_lump_sum(auth_client_manager, app):
+    with app.app_context():
+        lot = Lot(month=8, year=2026, lot_label='Lô Test Phí Cửa Khẩu Trọn Gói')
+        db.session.add(lot)
+        db.session.flush()
+
+        parent_cost = OperatingCost(
+            lot_id=lot.id,
+            cost_type='Cửa khẩu',
+            description='Phí cửa khẩu trọn gói',
+            unit_price=0.0,
+            total_amount=0.0,
+            sell_price=90000.0
+        )
+        db.session.add(parent_cost)
+        db.session.commit()
+
+        lot_id = lot.id
+        parent_id = parent_cost.id
+
+    with auth_client_manager.session_transaction() as sess:
+        csrf_token = sess.get('_csrf_token', 'test_csrf')
+
+    # Add child 1 with no_sell_price=1
+    res1 = auth_client_manager.post(f'/lots/{lot_id}/costs/{parent_id}/sub_cost', data={
+        'csrf_token': csrf_token,
+        'service_description': 'Vé bến bãi',
+        'buy_price': '83.333',
+        'no_sell_price': '1'
+    })
+    assert res1.status_code == 302
+
+    # Add child 2 with no_sell_price=1
+    res2 = auth_client_manager.post(f'/lots/{lot_id}/costs/{parent_id}/sub_cost', data={
+        'csrf_token': csrf_token,
+        'service_description': 'Phí sang tải xe',
+        'buy_price': '250.000',
+        'no_sell_price': '1'
+    })
+    assert res2.status_code == 302
+
+    with app.app_context():
+        p = OperatingCost.query.get(parent_id)
+        assert p.is_parent is True
+        assert len(p.active_sub_costs) == 2
+        # Sum of buy prices
+        assert p.effective_total_amount == 333333.0
+        # No child has sell price -> fall back to parent's lump-sum sell price (90,000)
+        assert p.has_sub_sell_prices is False
+        assert p.effective_sell_price == 90000.0
+        assert p.effective_profit == 90000.0 - 333333.0
+
+        c1 = p.active_sub_costs[0]
+        assert c1.sell_price is None
+        assert c1.has_custom_sell_price is False
+
+    # Edit child 1 to have sell price 50,000
+    with app.app_context():
+        c1_id = c1.id
+
+    res3 = auth_client_manager.post(f'/lots/{lot_id}/costs/{c1_id}/edit', data={
+        'csrf_token': csrf_token,
+        'service_description': 'Vé bến bãi (cập nhật)',
+        'buy_price': '83.333',
+        'sell_price': '50.000',
+        'no_sell_price': '0'
+    })
+    assert res3.status_code == 302
+
+    with app.app_context():
+        p = OperatingCost.query.get(parent_id)
+        assert p.has_sub_sell_prices is True
+        # Parent sell price now sums child 1 (50,000)
+        assert p.effective_sell_price == 50000.0
+

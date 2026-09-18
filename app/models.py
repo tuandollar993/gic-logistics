@@ -1049,14 +1049,33 @@ class RevenueItem(db.Model):
         return self.total_buy_price
 
     @property
+    def has_custom_sell_price(self):
+        """Kiểm tra có điền giá bán riêng (> 0) hay không"""
+        return self.sell_price is not None and self.sell_price > 0
+
+    @property
+    def has_sub_sell_prices(self):
+        """Kiểm tra có bất kỳ khoản con nào có giá bán riêng (> 0) hay không"""
+        return any(c.sell_price is not None and c.sell_price > 0 for c in self.active_sub_costs)
+
+    @property
     def effective_total_sell_price(self):
-        """Nếu có khoản con bóc tách và có khoản con nhập giá bán thì lấy tổng con, ngược lại lấy giá trị gốc"""
+        """Nếu có khoản con bóc tách:
+        - Nếu có con nhập giá bán riêng (> 0) thì lấy tổng con
+        - Nếu các con đều chọn không điền giá bán (thu 1 cục ở mục cha) thì lấy giá trị gốc của mục cha
+        Ngược lại không có con: lấy giá trị gốc"""
         active_children = self.active_sub_costs
         if active_children:
-            sub_sell = sum(c.effective_sell_price for c in active_children)
-            if sub_sell > 0:
-                return sub_sell
-        return self.total_sell_price
+            children_with_sell = [c for c in active_children if c.sell_price is not None and c.sell_price > 0]
+            if children_with_sell:
+                return sum(c.effective_sell_price for c in children_with_sell)
+            return self.total_sell_price or 0.0
+        return self.total_sell_price or 0.0
+
+    @property
+    def effective_profit(self):
+        """Lợi nhuận gộp (Giá bán ra - Chi phí mua vào)"""
+        return (self.effective_total_sell_price or 0.0) - (self.effective_total_buy_price or 0.0)
 
     @property
     def category(self):
@@ -1123,7 +1142,7 @@ class OperatingCost(db.Model):
     vehicle_count = db.Column(db.Float, default=1.0)
     unit_price = db.Column(db.Float, default=0.0)
     total_amount = db.Column(db.Float, default=0.0)        # Đơn giá * SL xe (Giá Mua Vào)
-    sell_price = db.Column(db.Float, default=0.0)          # Giá Bán Ra thu khách (nếu có)
+    sell_price = db.Column(db.Float, nullable=True, default=None)          # Giá Bán Ra thu khách (nếu có, None nếu thu trọn gói ở mục cha)
     
     # Kỳ xuất HĐ / ghi nhận doanh thu bán ra nếu có
     revenue_month = db.Column(db.Integer, nullable=True)
@@ -1182,14 +1201,34 @@ class OperatingCost(db.Model):
         return self.total_amount or 0.0
 
     @property
+    def has_custom_sell_price(self):
+        """Kiểm tra khoản chi phí này có điền giá bán riêng (> 0) hay không"""
+        return self.sell_price is not None and self.sell_price > 0
+
+    @property
+    def has_sub_sell_prices(self):
+        """Kiểm tra có bất kỳ khoản con nào có giá bán riêng (> 0) hay không"""
+        return any(c.sell_price is not None and c.sell_price > 0 for c in self.active_sub_costs)
+
+    @property
     def effective_sell_price(self):
-        """Giá bán ra: nếu có con và có con nhập giá bán thì bằng tổng con, ngược lại lấy giá trị gốc"""
+        """Giá bán ra:
+        - Nếu có con:
+          + Nếu có khoản con nhập giá bán riêng (> 0): bằng tổng con có giá bán
+          + Nếu các con đều chọn không điền giá bán (thu 1 cục ở mục cha): lấy giá bán của mục cha
+        - Nếu không có con: lấy giá trị gốc của mục cha"""
         active_children = self.active_sub_costs
         if active_children:
-            sub_sell = sum(c.effective_sell_price for c in active_children)
-            if sub_sell > 0:
-                return sub_sell
+            children_with_sell = [c for c in active_children if c.sell_price is not None and c.sell_price > 0]
+            if children_with_sell:
+                return sum(c.effective_sell_price for c in children_with_sell)
+            return self.sell_price or 0.0
         return self.sell_price or 0.0
+
+    @property
+    def effective_profit(self):
+        """Lợi nhuận gộp (Giá bán ra - Chi phí mua vào)"""
+        return (self.effective_sell_price or 0.0) - (self.effective_total_amount or 0.0)
 
     @property
     def category(self):

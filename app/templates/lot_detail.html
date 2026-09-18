@@ -396,6 +396,13 @@
                                     </td>
                                     <td class="col-sell font-mono fw-bold text-success tabular-nums">
                                         {{ item.effective_total_sell_price | format_money }}
+                                        {% if item.is_parent %}
+                                            {% if item.has_sub_sell_prices %}
+                                                <div class="text-muted" style="font-size: 0.65rem;">(Tổng con)</div>
+                                            {% else %}
+                                                <div class="text-muted" style="font-size: 0.65rem;">(Trọn gói mục cha)</div>
+                                            {% endif %}
+                                        {% endif %}
                                         {% if item.is_deferred_revenue %}
                                             <span class="badge bg-info-subtle text-primary border border-primary-subtle d-block mt-1 font-mono" style="font-size: 0.65rem;" title="Doanh thu xuất HĐ kỳ T{{ "%02d"|format(item.effective_revenue_month) }}/{{ item.effective_revenue_year }}">
                                                 <i class="fa-solid fa-clock-rotate-left me-1"></i>HĐ: T{{ "%02d"|format(item.effective_revenue_month) }}
@@ -423,12 +430,14 @@
                                             <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-edit-row" style="font-size: 0.75rem;"
                                                 data-type="revenue"
                                                 data-id="{{ item.id }}"
+                                                data-is-parent="{{ '1' if item.is_parent else '0' }}"
+                                                data-has-sub-sell="{{ '1' if item.has_sub_sell_prices else '0' }}"
                                                 data-supplier="{{ item.supplier or '' }}"
                                                 data-plate="{{ item.vehicle_plate_vn or item.vehicle_plate_cn or '' }}"
                                                 data-weight="{{ item.weight_class or '' }}"
                                                 data-desc="{{ item.service_description or '' }}"
-                                                data-buy="{{ ((item.buy_price or item.total_buy_price or 0) | round | int) }}"
-                                                data-sell="{{ ((item.sell_price or 0) | round | int) }}"
+                                                data-buy="{{ ((item.effective_total_buy_price if item.is_parent else (item.buy_price or item.total_buy_price or 0)) | round | int) }}"
+                                                data-sell="{{ ((item.effective_total_sell_price if item.has_sub_sell_prices else (item.sell_price or 0)) | round | int) }}"
                                                 data-surcharge="{{ ((item.other_surcharge or 0) | round | int) }}"
                                                 data-rev-month="{{ item.effective_revenue_month or '' }}"
                                                 data-rev-year="{{ item.effective_revenue_year or '' }}"
@@ -483,12 +492,23 @@
                                     <td class="col-buy font-mono fw-semibold text-danger tabular-nums">
                                         {{ (sub.total_amount or 0) | format_money }}
                                     </td>
-                                    <td class="col-sell font-mono fw-semibold text-success tabular-nums">
-                                        {{ (sub.sell_price or 0) | format_money }}
-                                    </td>
-                                    <td class="col-profit font-mono fw-semibold tabular-nums {% if sub_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if sub_profit > 0 %}+{% endif %}{{ sub_profit | format_money }}
-                                    </td>
+                                     <td class="col-sell font-mono fw-semibold tabular-nums">
+                                         {% if sub.sell_price is not None and sub.sell_price > 0 %}
+                                             <span class="text-success">{{ sub.sell_price | format_money }}</span>
+                                         {% else %}
+                                             <span class="text-muted fst-italic font-sans" style="font-size: 0.74rem;" title="Khoản mục này không có giá bán riêng, thu trọn gói ở mục cha">Theo mục cha</span>
+                                         {% endif %}
+                                     </td>
+                                     <td class="col-profit font-mono fw-semibold tabular-nums">
+                                         {% if sub.sell_price is not None and sub.sell_price > 0 %}
+                                             {% set sub_profit = sub.sell_price - (sub.total_amount or 0) %}
+                                             <span class="{% if sub_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                 {% if sub_profit > 0 %}+{% endif %}{{ sub_profit | format_money }}
+                                             </span>
+                                         {% else %}
+                                             <span class="text-muted font-sans" style="font-size: 0.78rem;" title="Lãi/lỗ được tính chung ở mục cha">-</span>
+                                         {% endif %}
+                                     </td>
                                     <td class="col-invoice">
                                         {% set inv_cls = sub.invoice_classification %}
                                         {% set latest_media = sub.latest_invoice_media %}
@@ -531,12 +551,14 @@
                                             <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-edit-row" style="font-size: 0.75rem;"
                                                 data-type="cost"
                                                 data-id="{{ sub.id }}"
+                                                data-is-child="1"
+                                                data-has-sell-price="{{ '1' if sub.sell_price is not None and sub.sell_price > 0 else '0' }}"
                                                 data-supplier="{{ sub.supplier_name or '' }}"
                                                 data-plate="{{ sub.vehicle_plate or '' }}"
                                                 data-weight="{{ sub.category }}"
                                                 data-desc="{{ sub.description or '' }}"
                                                 data-buy="{{ ((sub.total_amount or sub.unit_price or 0) | round | int) }}"
-                                                data-sell="{{ ((sub.sell_price or 0) | round | int) }}"
+                                                data-sell="{{ ((sub.sell_price or 0) | round | int) if sub.sell_price is not None else '' }}"
                                                 data-surcharge="0"
                                                 data-invoice-type="{{ sub.invoice_type or '' }}"
                                                 data-invoice-symbol="{{ sub.invoice_symbol or '' }}"
@@ -624,6 +646,13 @@
                                     </td>
                                     <td class="col-sell font-mono fw-bold {% if cost.effective_sell_price and cost.effective_sell_price > 0 %}text-success{% else %}text-muted{% endif %} tabular-nums">
                                         {{ (cost.effective_sell_price or 0) | format_money }}
+                                        {% if cost.is_parent %}
+                                            {% if cost.has_sub_sell_prices %}
+                                                <div class="text-muted" style="font-size: 0.65rem;">(Tổng con)</div>
+                                            {% else %}
+                                                <div class="text-muted" style="font-size: 0.65rem;">(Trọn gói mục cha)</div>
+                                            {% endif %}
+                                        {% endif %}
                                         {% if cost.sell_price and cost.sell_price > 0 and cost.is_deferred_revenue %}
                                             <span class="badge bg-info-subtle text-primary border border-primary-subtle d-block mt-1 font-mono" style="font-size: 0.65rem;" title="Doanh thu xuất HĐ kỳ T{{ "%02d"|format(cost.effective_revenue_month) }}/{{ cost.effective_revenue_year }}">
                                                 <i class="fa-solid fa-clock-rotate-left me-1"></i>HĐ: T{{ "%02d"|format(cost.effective_revenue_month) }}
@@ -697,12 +726,14 @@
                                             <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-edit-row" style="font-size: 0.75rem;"
                                                 data-type="cost"
                                                 data-id="{{ cost.id }}"
+                                                data-is-parent="{{ '1' if cost.is_parent else '0' }}"
+                                                data-has-sub-sell="{{ '1' if cost.has_sub_sell_prices else '0' }}"
                                                 data-supplier="{{ cost.supplier_name or '' }}"
                                                 data-plate="{{ cost.vehicle_plate or '' }}"
                                                 data-weight="{{ cost.category }}"
                                                 data-desc="{{ cost.description or '' }}"
-                                                data-buy="{{ ((cost.total_amount or cost.unit_price or 0) | round | int) }}"
-                                                data-sell="{{ ((cost.sell_price or 0) | round | int) }}"
+                                                data-buy="{{ ((cost.effective_total_amount if cost.is_parent else (cost.total_amount or cost.unit_price or 0)) | round | int) }}"
+                                                data-sell="{{ ((cost.effective_sell_price if cost.has_sub_sell_prices else (cost.sell_price or 0)) | round | int) }}"
                                                 data-surcharge="0"
                                                 data-invoice-type="{{ cost.invoice_type or '' }}"
                                                 data-invoice-symbol="{{ cost.invoice_symbol or '' }}"
@@ -766,11 +797,22 @@
                                     <td class="col-buy font-mono fw-semibold text-danger tabular-nums">
                                         {{ (sub.total_amount or 0) | format_money }}
                                     </td>
-                                    <td class="col-sell font-mono fw-semibold text-success tabular-nums">
-                                        {{ (sub.sell_price or 0) | format_money }}
+                                    <td class="col-sell font-mono fw-semibold tabular-nums">
+                                        {% if sub.sell_price is not None and sub.sell_price > 0 %}
+                                            <span class="text-success">{{ sub.sell_price | format_money }}</span>
+                                        {% else %}
+                                            <span class="text-muted fst-italic font-sans" style="font-size: 0.74rem;" title="Khoản mục này không có giá bán riêng, thu trọn gói ở mục cha">Theo mục cha</span>
+                                        {% endif %}
                                     </td>
-                                    <td class="col-profit font-mono fw-semibold tabular-nums {% if sub_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if sub_diff > 0 %}+{% endif %}{{ sub_diff | format_money }}
+                                    <td class="col-profit font-mono fw-semibold tabular-nums">
+                                        {% if sub.sell_price is not None and sub.sell_price > 0 %}
+                                            {% set sub_diff = sub.sell_price - (sub.total_amount or 0) %}
+                                            <span class="{% if sub_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                {% if sub_diff > 0 %}+{% endif %}{{ sub_diff | format_money }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted font-sans" style="font-size: 0.78rem;" title="Lãi/lỗ được tính chung ở mục cha">-</span>
+                                        {% endif %}
                                     </td>
                                     <td class="col-invoice">
                                         {% set inv_cls = sub.invoice_classification %}
@@ -814,12 +856,14 @@
                                             <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-edit-row" style="font-size: 0.75rem;"
                                                 data-type="cost"
                                                 data-id="{{ sub.id }}"
+                                                data-is-child="1"
+                                                data-has-sell-price="{{ '1' if sub.sell_price is not None and sub.sell_price > 0 else '0' }}"
                                                 data-supplier="{{ sub.supplier_name or '' }}"
                                                 data-plate="{{ sub.vehicle_plate or '' }}"
                                                 data-weight="{{ sub.category }}"
                                                 data-desc="{{ sub.description or '' }}"
                                                 data-buy="{{ ((sub.total_amount or sub.unit_price or 0) | round | int) }}"
-                                                data-sell="{{ ((sub.sell_price or 0) | round | int) }}"
+                                                data-sell="{{ ((sub.sell_price or 0) | round | int) if sub.sell_price is not None else '' }}"
                                                 data-surcharge="0"
                                                 data-invoice-type="{{ sub.invoice_type or '' }}"
                                                 data-invoice-symbol="{{ sub.invoice_symbol or '' }}"
@@ -1246,26 +1290,37 @@
                     
                     <!-- Giá Mua Vào -->
                     <div class="col-md-4">
-                        <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Trả NCC) <span class="text-danger">*</span>
+                        <label class="form-label small fw-bold text-danger text-uppercase d-flex align-items-center justify-content-between" style="font-size: 0.7rem;">
+                            <span><i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Trả NCC) <span class="text-danger">*</span></span>
+                            <span id="editBuyAutoBadge" class="badge bg-secondary-subtle text-secondary border font-sans" style="display: none; font-size: 0.65rem;">🔒 Tổng từ các con</span>
                         </label>
                         <div class="input-group">
                             <input type="text" inputmode="numeric" name="buy_price" id="editBuyPrice" class="form-control font-mono fw-bold text-danger format-money-input" required>
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
-                        <small class="text-muted" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe (có VAT)</small>
+                        <small class="text-muted" id="editBuyHelp" style="font-size: 0.72rem;">Chi phí trả NCC/nhà xe (có VAT)</small>
                     </div>
                     
                     <!-- Giá Bán Ra -->
                     <div class="col-md-4">
-                        <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Doanh Thu Thu Khách)
-                        </label>
-                        <div class="input-group">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label class="form-label small fw-bold text-success text-uppercase mb-0" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Thu Khách)
+                            </label>
+                            <span id="editSellAutoBadge" class="badge bg-secondary-subtle text-secondary border font-sans" style="display: none; font-size: 0.65rem;">🔒 Tổng từ các con</span>
+                            <span id="editSellLumpBadge" class="badge bg-primary-subtle text-primary border font-sans" style="display: none; font-size: 0.65rem;">Trọn gói mục cha</span>
+                        </div>
+                        <div id="editChildNoSellWrapper" class="form-check form-switch mb-1" style="display: none;">
+                            <input class="form-check-input" type="checkbox" id="editNoSellPrice" name="no_sell_price" value="1">
+                            <label class="form-check-label small fw-bold text-dark cursor-pointer" for="editNoSellPrice" style="font-size: 0.75rem;">
+                                Không điền giá bán (Thu 1 cục ở mục cha)
+                            </label>
+                        </div>
+                        <div class="input-group" id="editSellGroup">
                             <input type="text" inputmode="numeric" name="sell_price" id="editSellPrice" class="form-control font-mono fw-bold text-success format-money-input" placeholder="0">
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
-                        <small class="text-muted" style="font-size: 0.72rem;">Doanh thu thu khách hàng</small>
+                        <small class="text-muted" id="editSellHelp" style="font-size: 0.72rem;">Doanh thu thu khách hàng</small>
                     </div>
                     
                     <!-- Phụ Phí Bán Ra -->
@@ -1476,14 +1531,24 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
-                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Thu Khách - Nếu có)
-                        </label>
-                        <div class="input-group">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label class="form-label small fw-bold text-success text-uppercase mb-0" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Thu Khách)
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mb-2 p-2 rounded bg-light border">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" id="subCostNoSellPrice" name="no_sell_price" value="1" checked>
+                            <label class="form-check-label small fw-bold text-dark cursor-pointer" for="subCostNoSellPrice" style="font-size: 0.75rem;">
+                                Không điền giá bán (Thu 1 cục ở mục cha)
+                            </label>
+                        </div>
+                        <div class="input-group" id="subCostSellGroup" style="display: none;">
                             <input type="text" inputmode="numeric" name="sell_price" id="subCostSellPrice" class="form-control font-mono fw-bold text-success format-money-input" placeholder="0">
                             <span class="input-group-text font-mono text-muted">₫</span>
                         </div>
-                        <small class="text-muted" style="font-size: 0.72rem;">Để 0 nếu giá bán thu khách đã tính gộp ở khoản mục cha</small>
+                        <div id="subCostSellHelpText" class="small text-muted" style="font-size: 0.72rem;">
+                            <i class="fa-solid fa-circle-info text-primary me-1"></i>Doanh thu đã tính trọn gói ở mục cha, không tính giá bán riêng cho mục này.
+                        </div>
                     </div>
 
                     <!-- Tình Trạng Hóa Đơn Chi Phí Con -->
@@ -1999,11 +2064,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+
+        const editNoSellPrice = document.getElementById('editNoSellPrice');
+        const editSellGroup = document.getElementById('editSellGroup');
+        const editSellHelp = document.getElementById('editSellHelp');
+        const editSellPrice = document.getElementById('editSellPrice');
+        if (editNoSellPrice && editSellGroup) {
+            editNoSellPrice.addEventListener('change', function() {
+                if (this.checked) {
+                    editSellGroup.style.display = 'none';
+                    if (editSellHelp) editSellHelp.innerText = 'Doanh thu đã tính trọn gói ở mục cha';
+                    if (editSellPrice) editSellPrice.value = '';
+                } else {
+                    editSellGroup.style.display = 'flex';
+                    if (editSellHelp) editSellHelp.innerText = 'Doanh thu bán riêng cho mục này';
+                    if (editSellPrice) editSellPrice.focus();
+                }
+            });
+        }
         
         document.querySelectorAll('.btn-edit-row').forEach(btn => {
             btn.addEventListener('click', function() {
                 const rowType = this.getAttribute('data-type');
                 const itemId = this.getAttribute('data-id');
+                const isParent = this.getAttribute('data-is-parent') === '1';
+                const isChild = this.getAttribute('data-is-child') === '1';
+                const hasSubSell = this.getAttribute('data-has-sub-sell') === '1';
+                const hasSellPrice = this.getAttribute('data-has-sell-price') === '1';
+
                 const supplier = this.getAttribute('data-supplier') || '';
                 const plate = this.getAttribute('data-plate') || '';
                 const weight = (this.getAttribute('data-weight') || '').trim();
@@ -2024,12 +2112,96 @@ document.addEventListener('DOMContentLoaded', function() {
                 const revInvNum = this.getAttribute('data-rev-inv-num') || '';
                 const isDeferred = this.getAttribute('data-is-deferred') === '1';
 
+                const editBuyPriceEl = document.getElementById('editBuyPrice');
+                const editBuyAutoBadge = document.getElementById('editBuyAutoBadge');
+                const editBuyHelpEl = document.getElementById('editBuyHelp');
+
+                const editSellPriceEl = document.getElementById('editSellPrice');
+                const editSellAutoBadge = document.getElementById('editSellAutoBadge');
+                const editSellLumpBadge = document.getElementById('editSellLumpBadge');
+                const editSellGroupEl = document.getElementById('editSellGroup');
+                const editSellHelpEl = document.getElementById('editSellHelp');
+                const editChildNoSellWrapper = document.getElementById('editChildNoSellWrapper');
+                const editNoSellPriceEl = document.getElementById('editNoSellPrice');
+
                 document.getElementById('editSupplier').value = supplier;
                 document.getElementById('editPlate').value = plate;
                 document.getElementById('editDesc').value = desc;
-                document.getElementById('editBuyPrice').value = formatMoneyNumber(buy);
-                document.getElementById('editSellPrice').value = formatMoneyNumber(sell);
+                if (editBuyPriceEl) editBuyPriceEl.value = formatMoneyNumber(buy);
+                if (editSellPriceEl) editSellPriceEl.value = formatMoneyNumber(sell);
                 document.getElementById('editSurcharges').value = formatMoneyNumber(surcharge);
+
+                if (isParent) {
+                    if (editBuyPriceEl) {
+                        editBuyPriceEl.readOnly = true;
+                        editBuyPriceEl.style.backgroundColor = '#f1f5f9';
+                    }
+                    if (editBuyAutoBadge) editBuyAutoBadge.style.display = 'inline';
+                    if (editBuyHelpEl) editBuyHelpEl.innerText = 'Giá mua tự động tính từ tổng các mục con';
+
+                    if (hasSubSell) {
+                        if (editSellPriceEl) {
+                            editSellPriceEl.readOnly = true;
+                            editSellPriceEl.style.backgroundColor = '#f1f5f9';
+                        }
+                        if (editSellAutoBadge) editSellAutoBadge.style.display = 'inline';
+                        if (editSellLumpBadge) editSellLumpBadge.style.display = 'none';
+                        if (editSellHelpEl) editSellHelpEl.innerText = 'Giá bán tự động tính từ tổng các mục con có giá bán riêng';
+                    } else {
+                        if (editSellPriceEl) {
+                            editSellPriceEl.readOnly = false;
+                            editSellPriceEl.style.backgroundColor = '';
+                        }
+                        if (editSellAutoBadge) editSellAutoBadge.style.display = 'none';
+                        if (editSellLumpBadge) editSellLumpBadge.style.display = 'inline';
+                        if (editSellHelpEl) editSellHelpEl.innerText = 'Doanh thu thu khách trọn gói cho toàn bộ khoản mục này';
+                    }
+                    if (editChildNoSellWrapper) editChildNoSellWrapper.style.display = 'none';
+                    if (editSellGroupEl) editSellGroupEl.style.display = 'flex';
+                } else if (isChild) {
+                    if (editBuyPriceEl) {
+                        editBuyPriceEl.readOnly = false;
+                        editBuyPriceEl.style.backgroundColor = '';
+                    }
+                    if (editBuyAutoBadge) editBuyAutoBadge.style.display = 'none';
+                    if (editBuyHelpEl) editBuyHelpEl.innerText = 'Chi phí trả NCC/nhà xe (có VAT)';
+
+                    if (editSellPriceEl) {
+                        editSellPriceEl.readOnly = false;
+                        editSellPriceEl.style.backgroundColor = '';
+                    }
+                    if (editSellAutoBadge) editSellAutoBadge.style.display = 'none';
+                    if (editSellLumpBadge) editSellLumpBadge.style.display = 'none';
+                    if (editChildNoSellWrapper) editChildNoSellWrapper.style.display = 'block';
+
+                    if (hasSellPrice) {
+                        if (editNoSellPriceEl) editNoSellPriceEl.checked = false;
+                        if (editSellGroupEl) editSellGroupEl.style.display = 'flex';
+                        if (editSellHelpEl) editSellHelpEl.innerText = 'Doanh thu bán riêng cho mục này';
+                    } else {
+                        if (editNoSellPriceEl) editNoSellPriceEl.checked = true;
+                        if (editSellGroupEl) editSellGroupEl.style.display = 'none';
+                        if (editSellHelpEl) editSellHelpEl.innerText = 'Doanh thu đã tính trọn gói ở mục cha';
+                    }
+                } else {
+                    if (editBuyPriceEl) {
+                        editBuyPriceEl.readOnly = false;
+                        editBuyPriceEl.style.backgroundColor = '';
+                    }
+                    if (editBuyAutoBadge) editBuyAutoBadge.style.display = 'none';
+                    if (editBuyHelpEl) editBuyHelpEl.innerText = 'Chi phí trả NCC/nhà xe (có VAT)';
+
+                    if (editSellPriceEl) {
+                        editSellPriceEl.readOnly = false;
+                        editSellPriceEl.style.backgroundColor = '';
+                    }
+                    if (editSellAutoBadge) editSellAutoBadge.style.display = 'none';
+                    if (editSellLumpBadge) editSellLumpBadge.style.display = 'none';
+                    if (editChildNoSellWrapper) editChildNoSellWrapper.style.display = 'none';
+                    if (editSellGroupEl) editSellGroupEl.style.display = 'flex';
+                    if (editSellHelpEl) editSellHelpEl.innerText = 'Doanh thu thu khách hàng';
+                }
+
                 document.getElementById('editInvoiceType').value = invType;
                 document.getElementById('editInvoiceNumber').value = invNum;
                 const symEl = document.getElementById('editInvoiceSymbol');
@@ -2449,6 +2621,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const subNoSellSwitch = document.getElementById('subCostNoSellPrice');
+    const subSellGroup = document.getElementById('subCostSellGroup');
+    const subSellHelp = document.getElementById('subCostSellHelpText');
+    const subSellPrice = document.getElementById('subCostSellPrice');
+
+    if (subNoSellSwitch && subSellGroup) {
+        subNoSellSwitch.addEventListener('change', function() {
+            if (this.checked) {
+                subSellGroup.style.display = 'none';
+                if (subSellHelp) subSellHelp.style.display = 'block';
+                if (subSellPrice) subSellPrice.value = '0';
+            } else {
+                subSellGroup.style.display = 'flex';
+                if (subSellHelp) subSellHelp.style.display = 'none';
+                if (subSellPrice && subSellPrice.value === '0') subSellPrice.value = '';
+                if (subSellPrice) subSellPrice.focus();
+            }
+        });
+    }
+
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.btn-add-subcost');
         if (!btn) return;
@@ -2482,6 +2674,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const sellEl = document.getElementById('subCostSellPrice');
         if (sellEl) sellEl.value = '0';
+
+        if (subNoSellSwitch) {
+            subNoSellSwitch.checked = true;
+            if (subSellGroup) subSellGroup.style.display = 'none';
+            if (subSellHelp) subSellHelp.style.display = 'block';
+        }
 
         const suppEl = document.getElementById('subCostSupplier');
         if (suppEl) suppEl.value = '';
