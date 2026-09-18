@@ -3,6 +3,99 @@
 {% block title %}Chi Tiết {{ lot.lot_label }} - GIC Logistics{% endblock %}
 
 {% block content %}
+<style>
+/* =========================================================
+   HIERARCHICAL SUB-COST TREE STYLING (CHUYÊN NGHIỆP & TINH TẾ)
+   ========================================================= */
+.parent-cost-row {
+    background-color: #ffffff;
+}
+.btn-icon-collapse {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #2563eb;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.btn-icon-collapse:hover {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+    transform: scale(1.08);
+}
+.btn-icon-collapse i {
+    font-size: 0.62rem;
+    transition: transform 0.2s ease;
+}
+
+/* Dòng con: background nhẹ, viền phân cách nét đứt, thanh bracket màu xanh dọc bên trái */
+.sub-cost-row {
+    background-color: #f8fafc !important;
+    transition: background-color 0.15s ease;
+}
+.sub-cost-row:hover {
+    background-color: #f1f5f9 !important;
+}
+.sub-cost-row td {
+    border-top: 1px dashed #e2e8f0 !important;
+    border-bottom: 1px dashed #e2e8f0 !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    vertical-align: middle;
+}
+.sub-cost-row .col-num {
+    border-left: 3.5px solid #3b82f6 !important;
+    position: relative;
+}
+
+/* Nhãn chỉ mục con: 4.1, 4.2 */
+.sub-child-index {
+    display: inline-block;
+    font-family: var(--bs-font-monospace);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #2563eb;
+    background: #eff6ff;
+    border: 1px solid #dbeafe;
+    padding: 1px 6px;
+    border-radius: 4px;
+    line-height: 1.2;
+}
+
+/* Biểu tượng nhánh cây connector */
+.sub-tree-branch {
+    display: inline-flex;
+    align-items: center;
+    color: #3b82f6;
+    opacity: 0.65;
+    margin-right: 6px;
+    font-size: 0.72rem;
+    user-select: none;
+}
+
+/* Tag Theo mục cha */
+.sub-pill-lump {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+</style>
+
 <!-- Top Header -->
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
@@ -338,11 +431,12 @@
                             <tbody>
                                 <!-- Danh Sách 8 Hạng Mục Tiêu Chuẩn & Chi Phí Của Xe -->
                                 {% for row in v.vehicle_items %}
+                                {% set row_idx = loop.index %}
                                 {% if row.type == 'revenue' %}
                                 {% set item = row.obj %}
                                 {% set profit = item.effective_total_sell_price - item.effective_total_buy_price %}
-                                <tr class="item-row revenue-item-row">
-                                    <td class="col-num font-mono text-muted">{{ loop.index }}</td>
+                                <tr class="item-row revenue-item-row {% if item.is_parent %}parent-cost-row{% endif %}">
+                                    <td class="col-num font-mono text-muted">{{ row_idx }}</td>
                                     <td class="col-cat">
                                         {% set cat = item.category %}
                                         {% if cat == 'Cửa khẩu' %}
@@ -360,16 +454,16 @@
                                         {% endif %}
                                     </td>
                                     <td class="col-desc">
-                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
                                             {% if item.is_parent %}
-                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-toggle-subcosts" data-target="sub-rev-{{ item.id }}" title="Đóng / Mở danh sách chi phí con">
-                                                <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+                                            <button type="button" class="btn btn-sm btn-icon-collapse btn-toggle-subcosts" data-target="sub-rev-{{ item.id }}" title="Thu gọn / Mở rộng chi phí con">
+                                                <i class="fa-solid fa-chevron-down"></i>
                                             </button>
                                             {% endif %}
                                             <span class="fw-bold text-dark">{{ item.display_description }}</span>
                                             {% if item.is_parent %}
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-mono" style="font-size: 0.68rem;" title="Khoản mục gồm {{ item.active_sub_costs|length }} chi phí con bên trong">
-                                                <i class="fa-solid fa-sitemap me-1"></i>{{ item.active_sub_costs|length }} mục con
+                                            <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle font-sans" style="font-size: 0.7rem; font-weight: 500;" title="Khoản mục gồm {{ item.active_sub_costs|length }} chi phí con bên trong">
+                                                <i class="fa-solid fa-layer-group me-1"></i>{{ item.active_sub_costs|length }} mục con
                                             </span>
                                             {% endif %}
                                         </div>
@@ -459,21 +553,24 @@
                                 {% if item.is_parent %}
                                 {% for sub in item.active_sub_costs %}
                                 {% set sub_profit = (sub.sell_price or 0) - (sub.total_amount or 0) %}
-                                <tr id="cost-tr-{{ sub.id }}" class="item-row sub-cost-row sub-rev-{{ item.id }}" style="background-color: #f8fafc;">
-                                    <td class="col-num font-mono text-muted ps-2" style="font-size: 0.75rem;">
-                                        <span class="text-primary fw-bold">↳</span> {{ loop.index }}
+                                <tr id="cost-tr-{{ sub.id }}" class="item-row sub-cost-row sub-rev-{{ item.id }}">
+                                    <td class="col-num font-mono text-center">
+                                        <span class="sub-child-index">{{ row_idx }}.{{ loop.index }}</span>
                                     </td>
                                     <td class="col-cat">
-                                        <span class="badge bg-light text-secondary border font-sans" style="font-size: 0.72rem;">
-                                            <i class="fa-solid fa-turn-up fa-rotate-90 me-1"></i>{{ sub.category }}
+                                        <span class="badge bg-white text-secondary border font-sans" style="font-size: 0.7rem; font-weight: 500;">
+                                            <i class="fa-solid fa-tag text-muted me-1" style="font-size: 0.65rem;"></i>{{ sub.category }}
                                         </span>
                                     </td>
-                                    <td class="col-desc ps-3">
-                                        <div class="fw-semibold text-dark" style="font-size: 0.82rem;">
-                                            <span class="text-muted me-1">↳</span>{{ sub.display_description }}
+                                    <td class="col-desc ps-2">
+                                        <div class="d-flex align-items-center">
+                                            <span class="sub-tree-branch"><i class="fa-solid fa-arrow-turn-down fa-rotate-270"></i></span>
+                                            <span class="fw-semibold text-dark" style="font-size: 0.82rem;">{{ sub.display_description }}</span>
                                         </div>
                                         {% if sub.pic or (sub.filler and sub.filler.full_name) %}
-                                            <small class="text-muted" style="font-size: 0.7rem;"><i class="fa-solid fa-user-pen me-1"></i>{{ sub.pic or sub.filler.full_name }}</small>
+                                            <div class="text-muted ps-3" style="font-size: 0.68rem;">
+                                                <i class="fa-solid fa-user-pen me-1 opacity-75"></i>{{ sub.pic or sub.filler.full_name }}
+                                            </div>
                                         {% endif %}
                                     </td>
                                     <td class="col-supplier">
@@ -489,24 +586,26 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="col-buy font-mono fw-semibold text-danger tabular-nums">
+                                    <td class="col-buy font-mono fw-semibold text-danger tabular-nums" style="font-size: 0.82rem;">
                                         {{ (sub.total_amount or 0) | format_money }}
                                     </td>
                                      <td class="col-sell font-mono fw-semibold tabular-nums">
                                          {% if sub.has_custom_sell_price %}
-                                             <span class="text-success">{{ sub.sell_price | format_money }}</span>
+                                             <span class="text-success" style="font-size: 0.82rem;">{{ sub.sell_price | format_money }}</span>
                                          {% else %}
-                                             <span class="text-muted fst-italic font-sans" style="font-size: 0.74rem;" title="Khoản mục này không có giá bán riêng, thu trọn gói ở mục cha">Theo mục cha</span>
+                                             <span class="sub-pill-lump" title="Khoản mục này không có giá bán riêng, thu trọn gói ở mục cha">
+                                                 <i class="fa-solid fa-layer-group me-1 opacity-75"></i>Theo mục cha
+                                             </span>
                                          {% endif %}
                                      </td>
                                      <td class="col-profit font-mono fw-semibold tabular-nums">
                                          {% if sub.has_custom_sell_price %}
                                              {% set sub_profit = sub.sell_price - (sub.total_amount or 0) %}
-                                             <span class="{% if sub_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                             <span class="{% if sub_profit >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.82rem;">
                                                  {% if sub_profit > 0 %}+{% endif %}{{ sub_profit | format_money }}
                                              </span>
                                          {% else %}
-                                             <span class="text-muted font-sans" style="font-size: 0.78rem;" title="Lãi/lỗ được tính chung ở mục cha">-</span>
+                                             <span class="text-muted font-mono" style="font-size: 0.8rem;">—</span>
                                          {% endif %}
                                      </td>
                                     <td class="col-invoice">
@@ -589,8 +688,8 @@
                                 {% endif %}
                                 {% else %}
                                 {% set cost = row.obj %}
-                                <tr id="cost-tr-{{ cost.id }}" class="item-row cost-item-row" data-cost-amount="{{ cost.effective_total_amount or 0 }}">
-                                    <td class="col-num font-mono text-muted">{{ loop.index }}</td>
+                                <tr id="cost-tr-{{ cost.id }}" class="item-row cost-item-row {% if cost.is_parent %}parent-cost-row{% endif %}" data-cost-amount="{{ cost.effective_total_amount or 0 }}">
+                                    <td class="col-num font-mono text-muted">{{ row_idx }}</td>
                                     <td class="col-cat">
                                         {% set cat = cost.category %}
                                         {% if cat == 'Cửa khẩu' %}
@@ -608,16 +707,16 @@
                                         {% endif %}
                                     </td>
                                     <td class="col-desc">
-                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
                                             {% if cost.is_parent %}
-                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-toggle-subcosts" data-target="sub-cost-{{ cost.id }}" title="Đóng / Mở danh sách chi phí con">
-                                                <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+                                            <button type="button" class="btn btn-sm btn-icon-collapse btn-toggle-subcosts" data-target="sub-cost-{{ cost.id }}" title="Thu gọn / Mở rộng chi phí con">
+                                                <i class="fa-solid fa-chevron-down"></i>
                                             </button>
                                             {% endif %}
                                             <span class="fw-bold text-dark">{{ cost.display_description }}</span>
                                             {% if cost.is_parent %}
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-mono" style="font-size: 0.68rem;" title="Khoản mục gồm {{ cost.active_sub_costs|length }} chi phí con bên trong">
-                                                <i class="fa-solid fa-sitemap me-1"></i>{{ cost.active_sub_costs|length }} mục con
+                                            <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle font-sans" style="font-size: 0.7rem; font-weight: 500;" title="Khoản mục gồm {{ cost.active_sub_costs|length }} chi phí con bên trong">
+                                                <i class="fa-solid fa-layer-group me-1"></i>{{ cost.active_sub_costs|length }} mục con
                                             </span>
                                             {% endif %}
                                         </div>
@@ -764,21 +863,24 @@
                                 {% if cost.is_parent %}
                                 {% for sub in cost.active_sub_costs %}
                                 {% set sub_diff = (sub.sell_price or 0) - (sub.total_amount or 0) %}
-                                <tr id="cost-tr-{{ sub.id }}" class="item-row sub-cost-row sub-cost-{{ cost.id }}" style="background-color: #f8fafc;">
-                                    <td class="col-num font-mono text-muted ps-2" style="font-size: 0.75rem;">
-                                        <span class="text-primary fw-bold">↳</span> {{ loop.index }}
+                                <tr id="cost-tr-{{ sub.id }}" class="item-row sub-cost-row sub-cost-{{ cost.id }}">
+                                    <td class="col-num font-mono text-center">
+                                        <span class="sub-child-index">{{ row_idx }}.{{ loop.index }}</span>
                                     </td>
                                     <td class="col-cat">
-                                        <span class="badge bg-light text-secondary border font-sans" style="font-size: 0.72rem;">
-                                            <i class="fa-solid fa-turn-up fa-rotate-90 me-1"></i>{{ sub.category }}
+                                        <span class="badge bg-white text-secondary border font-sans" style="font-size: 0.7rem; font-weight: 500;">
+                                            <i class="fa-solid fa-tag text-muted me-1" style="font-size: 0.65rem;"></i>{{ sub.category }}
                                         </span>
                                     </td>
-                                    <td class="col-desc ps-3">
-                                        <div class="fw-semibold text-dark" style="font-size: 0.82rem;">
-                                            <span class="text-muted me-1">↳</span>{{ sub.display_description }}
+                                    <td class="col-desc ps-2">
+                                        <div class="d-flex align-items-center">
+                                            <span class="sub-tree-branch"><i class="fa-solid fa-arrow-turn-down fa-rotate-270"></i></span>
+                                            <span class="fw-semibold text-dark" style="font-size: 0.82rem;">{{ sub.display_description }}</span>
                                         </div>
                                         {% if sub.pic or (sub.filler and sub.filler.full_name) %}
-                                            <small class="text-muted" style="font-size: 0.7rem;"><i class="fa-solid fa-user-pen me-1"></i>{{ sub.pic or sub.filler.full_name }}</small>
+                                            <div class="text-muted ps-3" style="font-size: 0.68rem;">
+                                                <i class="fa-solid fa-user-pen me-1 opacity-75"></i>{{ sub.pic or sub.filler.full_name }}
+                                            </div>
                                         {% endif %}
                                     </td>
                                     <td class="col-supplier">
@@ -794,24 +896,26 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="col-buy font-mono fw-semibold text-danger tabular-nums">
+                                    <td class="col-buy font-mono fw-semibold text-danger tabular-nums" style="font-size: 0.82rem;">
                                         {{ (sub.total_amount or 0) | format_money }}
                                     </td>
                                     <td class="col-sell font-mono fw-semibold tabular-nums">
                                         {% if sub.has_custom_sell_price %}
-                                            <span class="text-success">{{ sub.sell_price | format_money }}</span>
+                                            <span class="text-success" style="font-size: 0.82rem;">{{ sub.sell_price | format_money }}</span>
                                         {% else %}
-                                            <span class="text-muted fst-italic font-sans" style="font-size: 0.74rem;" title="Khoản mục này không có giá bán riêng, thu trọn gói ở mục cha">Theo mục cha</span>
+                                            <span class="sub-pill-lump" title="Khoản mục này không có giá bán riêng, thu trọn gói ở mục cha">
+                                                <i class="fa-solid fa-layer-group me-1 opacity-75"></i>Theo mục cha
+                                            </span>
                                         {% endif %}
                                     </td>
                                     <td class="col-profit font-mono fw-semibold tabular-nums">
                                         {% if sub.has_custom_sell_price %}
                                             {% set sub_diff = sub.sell_price - (sub.total_amount or 0) %}
-                                            <span class="{% if sub_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            <span class="{% if sub_diff >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.82rem;">
                                                  {% if sub_diff > 0 %}+{% endif %}{{ sub_diff | format_money }}
                                             </span>
                                         {% else %}
-                                            <span class="text-muted font-sans" style="font-size: 0.78rem;" title="Lãi/lỗ được tính chung ở mục cha">-</span>
+                                            <span class="text-muted font-mono" style="font-size: 0.8rem;">—</span>
                                         {% endif %}
                                     </td>
                                     <td class="col-invoice">
