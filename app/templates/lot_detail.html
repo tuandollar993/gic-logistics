@@ -120,34 +120,35 @@
                 <h6 class="fw-bold text-dark m-0">Cân Đối Tài Chính Lô Hàng</h6>
             </div>
             <div class="row g-2 text-center my-auto">
-                <div class="col-6 col-xl-3">
-                    <div class="balance-metric-tile">
-                        <div class="balance-metric-title">1. Doanh Thu (Bán)</div>
-                        <div class="balance-metric-value text-primary font-mono tabular-nums">{{ lot.total_sell_revenue | format_money }}</div>
-                        <div class="balance-metric-sub font-mono">Chưa VAT</div>
+                <div class="col-6 col-sm-3">
+                    <div class="p-2 py-3 rounded-3 bg-light border h-100 d-flex flex-column justify-content-center text-center balance-metric-tile" style="background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important;">
+                        <div class="balance-metric-title text-muted fw-bold text-uppercase text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">1. Doanh Thu (Bán)</div>
+                        <div class="balance-metric-value text-primary font-mono tabular-nums text-nowrap my-1" style="font-size: clamp(0.85rem, 1.1vw, 1.12rem); font-weight: 800;">{{ lot.total_sell_revenue | format_money }}</div>
+                        <div class="balance-metric-sub text-muted font-mono" style="font-size: 0.68rem;">Chưa VAT</div>
                     </div>
                 </div>
-                <div class="col-6 col-xl-3">
-                    <div class="balance-metric-tile">
-                        <div class="balance-metric-title">2. Giá Mua (Cước)</div>
-                        <div class="balance-metric-value text-secondary font-mono tabular-nums">{{ lot.total_buy_cost | format_money }}</div>
-                        <div class="balance-metric-sub font-mono">Đã có VAT</div>
+                <div class="col-6 col-sm-3">
+                    <div class="p-2 py-3 rounded-3 bg-light border h-100 d-flex flex-column justify-content-center text-center balance-metric-tile" style="background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important;">
+                        <div class="balance-metric-title text-muted fw-bold text-uppercase text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">2. Giá Mua (Cước)</div>
+                        <div class="balance-metric-value text-secondary font-mono tabular-nums text-nowrap my-1" style="font-size: clamp(0.85rem, 1.1vw, 1.12rem); font-weight: 800;">{{ lot.total_buy_cost | format_money }}</div>
+                        <div class="balance-metric-sub text-muted font-mono" style="font-size: 0.68rem;">Đã có VAT</div>
                     </div>
                 </div>
-                <div class="col-6 col-xl-3">
-                    <div class="balance-metric-tile">
-                        <div class="balance-metric-title">3. Chi Phí Vận Hành</div>
-                        <div class="balance-metric-value text-warning text-dark font-mono tabular-nums">{{ lot.total_operating_cost | format_money }}</div>
-                        <div class="balance-metric-sub font-mono">{{ lot.active_operating_costs|length }} mục thực tế</div>
+                <div class="col-6 col-sm-3">
+                    <div class="p-2 py-3 rounded-3 bg-light border h-100 d-flex flex-column justify-content-center text-center balance-metric-tile" style="background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important;">
+                        <div class="balance-metric-title text-muted fw-bold text-uppercase text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em;">3. Chi Phí Vận Hành</div>
+                        <div class="balance-metric-value text-dark font-mono tabular-nums text-nowrap my-1" style="font-size: clamp(0.85rem, 1.1vw, 1.12rem); font-weight: 800;">{{ lot.total_operating_cost | format_money }}</div>
+                        <div class="balance-metric-sub text-muted font-mono text-truncate" style="font-size: 0.68rem;">{{ lot.active_operating_costs|length }} mục thực tế</div>
                     </div>
                 </div>
-                <div class="col-6 col-xl-3">
-                    <div class="balance-metric-tile {% if lot.net_profit >= 0 %}balance-tile-profit{% else %}balance-tile-loss{% endif %}">
-                        <div class="balance-metric-title" style="color: {% if lot.net_profit >= 0 %}var(--gic-success-text){% else %}#b91c1c{% endif %};">4. Lợi Nhuận Ròng</div>
-                        <div class="balance-metric-value font-mono tabular-nums {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                <div class="col-6 col-sm-3">
+                    <div class="p-2 py-3 rounded-3 h-100 d-flex flex-column justify-content-center text-center balance-metric-tile {% if lot.net_profit >= 0 %}balance-tile-profit{% else %}balance-tile-loss{% endif %}"
+                         style="background-color: {% if lot.net_profit >= 0 %}#f0fdf4{% else %}#fef2f2{% endif %} !important; border: 1px solid {% if lot.net_profit >= 0 %}#bbf7d0{% else %}#fecaca{% endif %} !important;">
+                        <div class="balance-metric-title fw-bold text-uppercase text-truncate" style="font-size: 0.68rem; letter-spacing: 0.04em; color: {% if lot.net_profit >= 0 %}#15803d{% else %}#b91c1c{% endif %};">4. Lợi Nhuận Ròng</div>
+                        <div class="balance-metric-value font-mono tabular-nums text-nowrap my-1 {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: clamp(0.85rem, 1.1vw, 1.12rem); font-weight: 800;">
                             {{ lot.net_profit | format_money }}
                         </div>
-                        <div class="balance-metric-sub fw-bold font-mono {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">(Biên: {{ "%.1f"|format(lot.profit_margin) }}%)</div>
+                        <div class="balance-metric-sub fw-bold font-mono text-truncate {% if lot.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.68rem;">(Biên: {{ "%.1f"|format(lot.profit_margin) }}%)</div>
                     </div>
                 </div>
             </div>
@@ -287,31 +288,31 @@
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
-                    <div class="vehicle-kpi-strip">
-                        <div class="vehicle-kpi-item">
-                            <span class="kpi-label">Doanh Thu</span>
-                            <span class="kpi-val text-success tabular-nums">{{ v.total_sell | format_money }}</span>
+                <div class="d-flex align-items-center gap-2 ms-auto flex-nowrap">
+                    <div class="d-inline-flex align-items-center gap-3 px-2 py-1 rounded bg-light border flex-shrink-0 vehicle-kpi-strip" style="background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important;">
+                        <div class="d-flex flex-column align-items-end vehicle-kpi-item" style="line-height: 1.1;">
+                            <span class="text-muted fw-bold text-uppercase kpi-label" style="font-size: 0.6rem; letter-spacing: 0.03em;">Doanh Thu</span>
+                            <span class="fw-bold font-mono text-success tabular-nums text-nowrap kpi-val mt-1" style="font-size: 0.85rem;">{{ v.total_sell | format_money }}</span>
                         </div>
-                        <div class="vr my-1 opacity-25"></div>
-                        <div class="vehicle-kpi-item">
-                            <span class="kpi-label">Mua Vào & CP</span>
-                            <span class="kpi-val text-danger tabular-nums">{{ (v.total_buy + v.total_ops) | format_money }}</span>
+                        <div class="vr my-1 opacity-25" style="height: 22px; min-height: 22px; width: 1px;"></div>
+                        <div class="d-flex flex-column align-items-end vehicle-kpi-item" style="line-height: 1.1;">
+                            <span class="text-muted fw-bold text-uppercase kpi-label" style="font-size: 0.6rem; letter-spacing: 0.03em;">Mua Vào & CP</span>
+                            <span class="fw-bold font-mono text-danger tabular-nums text-nowrap kpi-val mt-1" style="font-size: 0.85rem;">{{ (v.total_buy + v.total_ops) | format_money }}</span>
                         </div>
-                        <div class="vr my-1 opacity-25"></div>
-                        <div class="vehicle-kpi-item">
-                            <span class="kpi-label">Lãi / Lỗ</span>
-                            <span class="kpi-val tabular-nums {% if v.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        <div class="vr my-1 opacity-25" style="height: 22px; min-height: 22px; width: 1px;"></div>
+                        <div class="d-flex flex-column align-items-end vehicle-kpi-item" style="line-height: 1.1;">
+                            <span class="text-muted fw-bold text-uppercase kpi-label" style="font-size: 0.6rem; letter-spacing: 0.03em;">Lãi / Lỗ</span>
+                            <span class="fw-bold font-mono tabular-nums text-nowrap kpi-val mt-1 {% if v.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.85rem;">
                                 {% if v.net_profit > 0 %}+{% endif %}{{ v.net_profit | format_money }}
                             </span>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 text-nowrap" 
+                    <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 text-nowrap flex-shrink-0" 
                             title="Thêm khoản mục chi phí riêng cho xe này"
                             onclick="event.stopPropagation(); openAddItemForVehicle('{{ v.plate if v.plate != 'general' else '' }}');">
                         <i class="fa-solid fa-plus me-1"></i>Thêm CP
                     </button>
-                    <i class="fa-solid fa-chevron-down text-muted ms-1"></i>
+                    <i class="fa-solid fa-chevron-down text-muted ms-1 flex-shrink-0"></i>
                 </div>
             </div>
 
