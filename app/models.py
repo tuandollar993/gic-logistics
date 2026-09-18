@@ -160,6 +160,133 @@ class Target(db.Model):
         # 1 nghìn đồng = 1,000 VND
         return (self.target_amount or 0) * 1000
 
+STANDARD_VEHICLE_SLOTS = {
+    1: {'category': 'Vận chuyển', 'default_name': 'Cước vận chuyển'},
+    2: {'category': 'Bốc xếp', 'default_name': 'Chi phí dịch vụ bốc xếp'},
+    3: {'category': 'Kiểm định', 'default_name': 'Dịch vụ Quatest'},
+    4: {'category': 'Cửa khẩu', 'default_name': 'Phí cửa khẩu'},
+    5: {'category': 'Tờ khai', 'default_name': 'Dịch vụ tờ khai Hải quan'},
+    6: {'category': 'Cửa khẩu', 'default_name': 'Phí Cơ sở hạ tầng'},
+    7: {'category': 'Cửa khẩu', 'default_name': 'Vé xe'},
+    8: {'category': 'Phụ phí', 'default_name': 'Chi phí lưu kho HTT'},
+}
+
+def classify_standard_vehicle_slot(item_or_desc, fallback_cat=None):
+    """
+    Xác định thứ tự vị trí chuẩn hóa (Slot 1 -> 8) cho 8 hạng mục bắt buộc của từng xe:
+    1. Vận chuyển: Cước vận chuyển
+    2. Bốc xếp: Chi phí dịch vụ bốc xếp
+    3. Kiểm định: Dịch vụ Quatest
+    4. Cửa khẩu: Phí cửa khẩu
+    5. Tờ khai: Dịch vụ tờ khai Hải quan
+    6. Cửa khẩu: Phí Cơ sở hạ tầng
+    7. Cửa khẩu: Vé xe
+    8. Phụ phí: Chi phí lưu kho HTT (1 cont TQ = 2 cont VN) / Chi phí lưu kho HTT
+    9+: Các chi phí phụ trợ khác phát sinh thêm
+    """
+    if hasattr(item_or_desc, 'service_description'):
+        raw_desc = item_or_desc.service_description or ''
+        raw_cat = getattr(item_or_desc, 'category', '') or ''
+    elif hasattr(item_or_desc, 'description'):
+        raw_desc = item_or_desc.description or ''
+        raw_cat = getattr(item_or_desc, 'category', '') or ''
+    else:
+        raw_desc = str(item_or_desc or '')
+        raw_cat = str(fallback_cat or '')
+
+    combined = f"{raw_desc} {raw_cat}".lower()
+    combined_nfc = unicodedata.normalize('NFC', combined)
+    combined_ascii = ''.join(c for c in unicodedata.normalize('NFD', combined) if unicodedata.category(c) != 'Mn')
+
+    # Slot 6: Phí Cơ sở hạ tầng (ưu tiên lọc trước Cửa khẩu chung)
+    if any(k in combined_nfc for k in ['cơ sở hạ tầng', 'csht', 'hạ tầng']) or \
+       any(k in combined_ascii for k in ['co so ha tang', 'csht', 'ha tang']):
+        return 6
+
+    # Slot 7: Vé xe (ưu tiên lọc trước Cửa khẩu chung)
+    if any(k in combined_nfc for k in ['vé xe', 've xe', 'vé cổng', 'cổng b1']) or \
+       any(k in combined_ascii for k in ['ve xe', 've cong', 'cong b1']):
+        return 7
+
+    # Slot 8: Phụ phí / Lưu kho
+    if any(k in combined_nfc for k in ['lưu kho', 'kho htt', 'htt', 'lưu ca', 'phụ phí']) or \
+       any(k in combined_ascii for k in ['luu kho', 'kho htt', 'htt', 'luu ca', 'phu phi']):
+        return 8
+
+    # Slot 3: Kiểm định / Quatest / Giám định
+    if any(k in combined_nfc for k in ['quatest', 'kiểm định', 'giám định', 'giám đinh', 'lấy mẫu', 'kiểm dịch', 'kiểm tra chất lượng']) or \
+       any(k in combined_ascii for k in ['quatest', 'kiem dinh', 'giam dinh', 'lay mau', 'kiem dich', 'kiem tra chat luong']) or \
+       raw_cat == 'Kiểm định':
+        return 3
+
+    # Slot 2: Bốc xếp
+    if any(k in combined_nfc for k in ['bốc xếp', 'bốp xếp', 'boc xep', 'sang tải', 'nâng hạ', 'sang hàng', 'bốc dỡ']) or \
+       any(k in combined_ascii for k in ['boc xep', 'bop xep', 'sang tai', 'nang ha', 'sang hang', 'boc do']) or \
+       raw_cat == 'Bốc xếp':
+        return 2
+
+    # Slot 5: Tờ khai / Hải quan
+    if any(k in combined_nfc for k in ['tờ khai', 'to khai', 'dvtk', 'dvtkhq', 'hải quan', 'thông quan']) or \
+       any(k in combined_ascii for k in ['to khai', 'dvtk', 'dvtkhq', 'hai quan', 'thong quan']) or \
+       raw_cat == 'Tờ khai':
+        return 5
+
+    # Slot 4: Phí cửa khẩu (sau khi đã tách riêng CSHT và Vé xe)
+    if any(k in combined_nfc for k in ['cửa khẩu', 'cưa khẩu', 'phí cửa khẩu']) or \
+       any(k in combined_ascii for k in ['cua khau', 'phi cua khau']) or \
+       raw_cat == 'Cửa khẩu':
+        return 4
+
+    # Slot 1: Vận chuyển / Cước
+    if any(k in combined_nfc for k in ['vận chuyển', 'cước']) or \
+       any(k in combined_ascii for k in ['van chuyen', 'cuoc']) or \
+       raw_cat == 'Vận chuyển':
+        return 1
+
+    return 9
+
+def _item_matches_vehicle(item, plate, label):
+    """Kiểm tra xem một RevenueItem hoặc OperatingCost có thuộc về xe được chỉ định hay không."""
+    plate_lower = (plate or '').lower().strip()
+    label_lower = (label or '').lower().strip()
+    norm_plate = re.sub(r'[^a-zA-Z0-9]', '', plate_lower)
+    m_cont_label = re.search(r'cont\s*\(?(\d+)\)?', label_lower)
+    m_t_label = re.search(r'(\d+)\s*t\b', label_lower)
+
+    if hasattr(item, 'service_description'):
+        # RevenueItem
+        p_vn = (item.vehicle_plate_vn or '').strip().lower()
+        desc = (item.service_description or '').strip().lower()
+        weight = (item.weight_class or '').strip().lower()
+        norm_p_vn = re.sub(r'[^a-zA-Z0-9]', '', p_vn)
+        if norm_p_vn:
+            return norm_p_vn == norm_plate
+        m_cont_item = re.search(r'cont\s*\(?(\d+)\)?', f"{desc} {weight}")
+        m_t_item = re.search(r'(?<![,\.\d])(\d+)\s*t\b', f"{desc} {weight}")
+        if m_cont_label and m_cont_item and m_cont_label.group(1) == m_cont_item.group(1):
+            return True
+        if m_t_label and m_t_item and m_t_label.group(1) == m_t_item.group(1):
+            return True
+        if norm_plate and norm_plate in re.sub(r'[^a-zA-Z0-9]', '', desc):
+            return True
+        return False
+    else:
+        # OperatingCost
+        c_plate = (item.vehicle_plate or '').strip().lower()
+        c_desc = (item.description or '').strip().lower()
+        norm_c_plate = re.sub(r'[^a-zA-Z0-9]', '', c_plate)
+        if norm_c_plate:
+            return norm_c_plate == norm_plate
+        m_cont_cost = re.search(r'cont\s*\(?(\d+)\)?', c_desc)
+        m_t_cost = re.search(r'(?<![,\.\d])(\d+)\s*t\b', c_desc)
+        if m_cont_label and m_cont_cost and m_cont_label.group(1) == m_cont_cost.group(1):
+            return True
+        if m_t_label and m_t_cost and m_t_label.group(1) == m_t_cost.group(1):
+            return True
+        if norm_plate and norm_plate in re.sub(r'[^a-zA-Z0-9]', '', c_desc):
+            return True
+        return False
+
 class Lot(db.Model):
     __tablename__ = 'lots'
     
@@ -454,39 +581,12 @@ class Lot(db.Model):
         for idx, v in enumerate(vehicles, 1):
             plate = v['plate'].strip()
             label = v['label'].strip()
-            plate_lower = plate.lower()
-            label_lower = label.lower()
-
-            m_cont_label = re.search(r'cont\s*\(?(\d+)\)?', label_lower)
-            m_t_label = re.search(r'(\d+)\s*t\b', label_lower)
 
             v_ri = []
             for ri in all_ri:
                 if ri.id in assigned_ri:
                     continue
-                p_vn = (ri.vehicle_plate_vn or '').strip().lower()
-                p_cn = (ri.vehicle_plate_cn or '').strip().lower()
-                desc = (ri.service_description or '').strip().lower()
-                weight = (ri.weight_class or '').strip().lower()
-
-                matched = False
-                norm_p_vn = re.sub(r'[^a-zA-Z0-9]', '', p_vn)
-                norm_plate = re.sub(r'[^a-zA-Z0-9]', '', plate_lower)
-                if norm_p_vn:
-                    if norm_p_vn == norm_plate:
-                        matched = True
-                else:
-                    m_cont_item = re.search(r'cont\s*\(?(\d+)\)?', f"{desc} {weight}")
-                    m_t_item = re.search(r'(?<![,\.\d])(\d+)\s*t\b', f"{desc} {weight}")
-
-                    if m_cont_label and m_cont_item and m_cont_label.group(1) == m_cont_item.group(1):
-                        matched = True
-                    elif m_t_label and m_t_item and m_t_label.group(1) == m_t_item.group(1):
-                        matched = True
-                    elif norm_plate and norm_plate in re.sub(r'[^a-zA-Z0-9]', '', desc):
-                        matched = True
-
-                if matched:
+                if _item_matches_vehicle(ri, plate, label):
                     v_ri.append(ri)
                     assigned_ri.add(ri.id)
 
@@ -494,28 +594,28 @@ class Lot(db.Model):
             for c in all_costs:
                 if c.id in assigned_costs:
                     continue
-                c_plate = (c.vehicle_plate or '').strip().lower()
-                c_desc = (c.description or '').strip().lower()
-
-                matched = False
-                norm_c_plate = re.sub(r'[^a-zA-Z0-9]', '', c_plate)
-                if norm_c_plate:
-                    if norm_c_plate == norm_plate:
-                        matched = True
-                else:
-                    m_cont_cost = re.search(r'cont\s*\(?(\d+)\)?', c_desc)
-                    m_t_cost = re.search(r'(?<![,\.\d])(\d+)\s*t\b', c_desc)
-
-                    if m_cont_label and m_cont_cost and m_cont_label.group(1) == m_cont_cost.group(1):
-                        matched = True
-                    elif m_t_label and m_t_cost and m_t_label.group(1) == m_t_cost.group(1):
-                        matched = True
-                    elif norm_plate and norm_plate in re.sub(r'[^a-zA-Z0-9]', '', c_desc):
-                        matched = True
-
-                if matched:
+                if _item_matches_vehicle(c, plate, label):
                     v_costs.append(c)
                     assigned_costs.add(c.id)
+
+            # Sắp xếp các mục theo đúng 8 slot tiêu chuẩn
+            v_ri.sort(key=lambda x: (classify_standard_vehicle_slot(x), x.id or 0))
+            v_costs.sort(key=lambda x: (classify_standard_vehicle_slot(x), x.id or 0))
+
+            all_v_items = []
+            for ri in v_ri:
+                all_v_items.append({
+                    'type': 'revenue',
+                    'slot': classify_standard_vehicle_slot(ri),
+                    'obj': ri
+                })
+            for c in v_costs:
+                all_v_items.append({
+                    'type': 'cost',
+                    'slot': classify_standard_vehicle_slot(c),
+                    'obj': c
+                })
+            all_v_items.sort(key=lambda x: (x['slot'], x['obj'].id or 0))
 
             sell = sum(ri.effective_total_sell_price for ri in v_ri) + sum(c.effective_sell_price for c in v_costs)
             buy = sum(ri.effective_total_buy_price for ri in v_ri)
@@ -536,6 +636,8 @@ class Lot(db.Model):
                 'plate': plate,
                 'label': label,
                 'transit_cn': ' / '.join(cn_plates) if cn_plates else None,
+                'vehicle_items': all_v_items,
+                'items': all_v_items,
                 'revenue_items': v_ri,
                 'operating_costs': v_costs,
                 'total_sell': sell,
@@ -554,11 +656,28 @@ class Lot(db.Model):
             ops_gen = sum(c.effective_total_amount for c in general_costs)
             profit_gen = sell_gen - buy_gen - ops_gen
 
+            gen_items = []
+            for ri in general_ri:
+                gen_items.append({
+                    'type': 'revenue',
+                    'slot': classify_standard_vehicle_slot(ri),
+                    'obj': ri
+                })
+            for c in general_costs:
+                gen_items.append({
+                    'type': 'cost',
+                    'slot': classify_standard_vehicle_slot(c),
+                    'obj': c
+                })
+            gen_items.sort(key=lambda x: (x['slot'], x['obj'].id or 0))
+
             breakdown.append({
                 'index': None,
                 'plate': 'general',
                 'label': 'Chi Phí Chung Của Lô Hàng (DVTK, Hải Quan, Quatest...)',
                 'transit_cn': None,
+                'vehicle_items': gen_items,
+                'items': gen_items,
                 'revenue_items': general_ri,
                 'operating_costs': general_costs,
                 'total_sell': sell_gen,
@@ -568,6 +687,93 @@ class Lot(db.Model):
             })
 
         return breakdown
+
+    def ensure_standard_vehicle_items(self):
+        """
+        Bảo đảm mỗi xe trong lô hàng đều có đủ 8 mục tiêu chuẩn (từ slot 1 đến 8).
+        Nếu mục nào chưa có, tự động tạo mới bản ghi RevenueItem với giá trị 0 đ.
+        Bảo toàn 100% doanh thu, chi phí và lợi nhuận của lô.
+        """
+        vehicles = self.distinct_vehicles
+        if not vehicles:
+            return 0
+
+        all_ri = list(self.active_revenue_items)
+        all_costs = list(self.root_operating_costs)
+        created_count = 0
+
+        for v in vehicles:
+            plate = v['plate'].strip()
+            label = v['label'].strip()
+            plate_lower = plate.lower()
+            label_lower = label.lower()
+
+            v_items = []
+            supplier = None
+            weight_class = None
+            cn_plate = None
+
+            for ri in all_ri:
+                if _item_matches_vehicle(ri, plate, label):
+                    v_items.append(ri)
+                    if not supplier and ri.supplier:
+                        supplier = ri.supplier
+                    if not weight_class and ri.weight_class:
+                        weight_class = ri.weight_class
+                    if not cn_plate and ri.vehicle_plate_cn:
+                        cn_plate = ri.vehicle_plate_cn
+
+            for c in all_costs:
+                if _item_matches_vehicle(c, plate, label):
+                    v_items.append(c)
+                    if not supplier and c.supplier_name:
+                        supplier = c.supplier_name
+
+            if not weight_class:
+                m_cont_tag = re.search(r'\b(Cont\s*\(\d+\)|Cont\s*\d+|Xe\s*\d+T|\d+(?:[,\.]\d+)?T)\b', label, re.IGNORECASE)
+                if m_cont_tag:
+                    weight_class = m_cont_tag.group(1).title()
+
+            existing_slots = set()
+            for it in v_items:
+                s = classify_standard_vehicle_slot(it)
+                if 1 <= s <= 8:
+                    existing_slots.add(s)
+
+            for slot_num in range(1, 9):
+                if slot_num not in existing_slots:
+                    spec = STANDARD_VEHICLE_SLOTS[slot_num]
+                    desc_name = spec['default_name']
+                    if slot_num == 8:
+                        if 'cont' in label_lower or (weight_class and 'cont' in weight_class.lower()):
+                            desc_name = 'Chi phí lưu kho HTT (1 cont TQ = 2 cont VN)'
+                        else:
+                            desc_name = 'Chi phí lưu kho HTT'
+
+                    is_tq = plate_lower.startswith('xe tq')
+                    clean_vn = None if is_tq else plate
+                    clean_cn = plate.replace('Xe TQ - ', '').strip() if is_tq else cn_plate
+
+                    new_ri = RevenueItem(
+                        lot_id=self.id,
+                        supplier=supplier,
+                        vehicle_plate_vn=clean_vn,
+                        vehicle_plate_cn=clean_cn,
+                        weight_class=weight_class,
+                        service_description=desc_name,
+                        quantity=1.0,
+                        buy_price=0.0,
+                        buy_price_loading=0.0,
+                        sell_price=0.0,
+                        total_buy_price_excel=0.0,
+                        total_sell_price_excel=0.0,
+                        is_deleted=False
+                    )
+                    db.session.add(new_ri)
+                    all_ri.append(new_ri)
+                    created_count += 1
+
+        return created_count
 
     @property
     def total_vehicle_count(self):

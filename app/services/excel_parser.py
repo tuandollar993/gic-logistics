@@ -550,6 +550,9 @@ class ExcelParserService:
                         db.session.add(sc_item)
                         total_items += 1
 
+                # Đảm bảo mỗi xe trong lô đều có đủ 8 mục tiêu chuẩn (0 đ nếu không dùng)
+                lot.ensure_standard_vehicle_items()
+
             for r in range(header_row + 1, ws.max_row + 1):
                 row_check = [ws.cell(r, c).value for c in range(1, min(ws.max_column + 1, 30))]
                 if (total_row and r >= total_row) or is_summary_or_footer_row(row_check):

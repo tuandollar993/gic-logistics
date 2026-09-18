@@ -112,8 +112,19 @@ try:
             if updated_costs > 0:
                 db.session.commit()
                 print(f'✅ [STARTUP] Đã chuẩn hóa phân loại cho {updated_costs} khoản chi phí vận hành!')
-        except Exception as cat_sync_err:
-            print(f'⚠️ [STARTUP] Cảnh báo chuẩn hóa phân loại: {cat_sync_err}')
+        # Tự động bảo đảm mỗi xe trong các lô hàng đều có đủ 8 mục tiêu chuẩn (0 đ nếu không dùng)
+        try:
+            from app.models import Lot
+            active_lots = Lot.query.filter(Lot.is_deleted == False).all()
+            total_added_slots = 0
+            for l in active_lots:
+                added = l.ensure_standard_vehicle_items()
+                total_added_slots += added
+            if total_added_slots > 0:
+                db.session.commit()
+                print(f'✅ [STARTUP] Đã tự động bổ sung {total_added_slots} hạng mục xe chuẩn hóa (0 đ) trên toàn hệ thống!')
+        except Exception as std_veh_err:
+            print(f'⚠️ [STARTUP] Cảnh báo chuẩn hóa 8 mục xe: {std_veh_err}')
         finally:
             db.session.remove()
 

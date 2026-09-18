@@ -282,7 +282,7 @@
                             {% endif %}
                         </h6>
                         <small class="text-muted font-mono">
-                            {{ v.revenue_items|length + v.operating_costs|length }} khoản mục
+                            {{ v.vehicle_items|length }} khoản mục
                         </small>
                     </div>
                 </div>
@@ -293,7 +293,7 @@
                         <div class="fw-bold font-mono text-success tabular-nums" style="font-size: 0.85rem;">{{ v.total_sell | format_money }}</div>
                     </div>
                     <div class="text-end">
-                        <div class="text-muted text-uppercase" style="font-size: 0.65rem;">Mua Vào + CPVH</div>
+                        <div class="text-muted text-uppercase" style="font-size: 0.65rem;">Mua Vào & CP</div>
                         <div class="fw-bold font-mono text-danger tabular-nums" style="font-size: 0.85rem;">{{ (v.total_buy + v.total_ops) | format_money }}</div>
                     </div>
                     <div class="text-end">
@@ -313,7 +313,7 @@
 
             <div id="collapseVehicle{{ loop.index }}" class="collapse show">
                 <div class="card-body p-0 border-top">
-                    {% if v.revenue_items or v.operating_costs %}
+                    {% if v.vehicle_items %}
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0" style="font-size: 0.84rem;">
                             <thead class="table-light">
@@ -331,8 +331,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- 1. Doanh Thu Bán Ra & Cước -->
-                                {% for item in v.revenue_items %}
+                                <!-- Danh Sách 8 Hạng Mục Tiêu Chuẩn & Chi Phí Của Xe -->
+                                {% for row in v.vehicle_items %}
+                                {% if row.type == 'revenue' %}
+                                {% set item = row.obj %}
                                 {% set profit = item.effective_total_sell_price - item.effective_total_buy_price %}
                                 <tr class="item-row revenue-item-row">
                                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
@@ -556,12 +558,10 @@
                                 </tr>
                                 {% endfor %}
                                 {% endif %}
-                                {% endfor %}
-
-                                <!-- 2. Chi Phí Vận Hành (Mua vào NCC) -->
-                                {% for cost in v.operating_costs %}
+                                {% else %}
+                                {% set cost = row.obj %}
                                 <tr id="cost-tr-{{ cost.id }}" class="item-row cost-item-row" data-cost-amount="{{ cost.effective_total_amount or 0 }}">
-                                    <td class="text-center font-mono text-muted">{{ v.revenue_items|length + loop.index }}</td>
+                                    <td class="text-center font-mono text-muted">{{ loop.index }}</td>
                                     <td>
                                         {% set cat = cost.category %}
                                         {% if cat == 'Cửa khẩu' %}
@@ -840,6 +840,7 @@
                                     </td>
                                 </tr>
                                 {% endfor %}
+                                {% endif %}
                                 {% endif %}
                                 {% endfor %}
                             </tbody>

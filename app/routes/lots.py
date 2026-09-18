@@ -226,6 +226,11 @@ def detail(lot_id):
             Lot.is_deleted == False
         ).with_entities(Lot.id, Lot.lot_label, Lot.month, Lot.year).order_by(Lot.year.desc(), Lot.month.desc(), Lot.lot_label).all()
         
+    # Tự động đảm bảo mỗi xe đều có đủ 8 mục tiêu chuẩn (0 đ nếu không dùng)
+    added_count = lot.ensure_standard_vehicle_items()
+    if added_count > 0:
+        db.session.commit()
+
     return render_template('lot_detail.html', lot=lot, staff_users=staff_users, suppliers=suppliers, other_lots=other_lots)
 
 @lots_bp.route('/new', methods=['GET', 'POST'])
