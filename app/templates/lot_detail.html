@@ -333,7 +333,7 @@
                             <tbody>
                                 <!-- 1. Doanh Thu Bán Ra & Cước -->
                                 {% for item in v.revenue_items %}
-                                {% set profit = item.total_sell_price - item.total_buy_price %}
+                                {% set profit = item.effective_total_sell_price - item.effective_total_buy_price %}
                                 <tr class="item-row revenue-item-row">
                                     <td class="text-center font-mono text-muted">{{ loop.index }}</td>
                                     <td>
@@ -353,7 +353,19 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark">{{ item.display_description }}</div>
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            {% if item.is_parent %}
+                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-toggle-subcosts" data-target="sub-rev-{{ item.id }}" title="Đóng / Mở danh sách chi phí con">
+                                                <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+                                            </button>
+                                            {% endif %}
+                                            <span class="fw-bold text-dark">{{ item.display_description }}</span>
+                                            {% if item.is_parent %}
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-mono" style="font-size: 0.68rem;" title="Khoản mục gồm {{ item.active_sub_costs|length }} chi phí con bên trong">
+                                                <i class="fa-solid fa-sitemap me-1"></i>{{ item.active_sub_costs|length }} mục con
+                                            </span>
+                                            {% endif %}
+                                        </div>
                                         {% if item.weight_class %}
                                             <small class="text-muted"><i class="fa-solid fa-truck me-1"></i>Loại xe: {{ item.weight_class }}</small>
                                         {% endif %}
@@ -368,10 +380,13 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-end font-mono fw-semibold text-danger tabular-nums">
-                                        {{ item.total_buy_price | format_money }}
+                                        {{ item.effective_total_buy_price | format_money }}
+                                        {% if item.is_parent %}
+                                            <div class="text-muted" style="font-size: 0.65rem;">(Tổng con)</div>
+                                        {% endif %}
                                     </td>
                                     <td class="text-end font-mono fw-bold text-success tabular-nums">
-                                        {{ item.total_sell_price | format_money }}
+                                        {{ item.effective_total_sell_price | format_money }}
                                         {% if item.is_deferred_revenue %}
                                             <span class="badge bg-info-subtle text-primary border border-primary-subtle d-block mt-1 font-mono" style="font-size: 0.65rem;" title="Doanh thu xuất HĐ kỳ T{{ "%02d"|format(item.effective_revenue_month) }}/{{ item.effective_revenue_year }}">
                                                 <i class="fa-solid fa-clock-rotate-left me-1"></i>HĐ: T{{ "%02d"|format(item.effective_revenue_month) }}/{{ item.effective_revenue_year }}
@@ -387,6 +402,15 @@
                                     <td><small class="text-muted font-mono">Báo cáo bán hàng</small></td>
                                     <td class="text-center">
                                         <div class="d-inline-flex align-items-center gap-1">
+                                            <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 btn-add-subcost"
+                                                data-parent-type="revenue"
+                                                data-parent-id="{{ item.id }}"
+                                                data-parent-desc="{{ item.display_description }}"
+                                                data-parent-plate="{{ item.vehicle_plate_vn or item.vehicle_plate_cn or '' }}"
+                                                data-parent-cat="{{ item.category }}"
+                                                title="Bóc tách thêm chi phí con bên trong mục này">
+                                                <i class="fa-solid fa-diagram-project me-1"></i>Bóc con
+                                            </button>
                                             <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-row" style="font-size: 0.75rem;"
                                                 data-type="revenue"
                                                 data-id="{{ item.id }}"
@@ -405,7 +429,7 @@
                                                 title="Sửa dòng này">
                                                 <i class="fa-solid fa-pen-to-square text-primary"></i>
                                             </button>
-                                            <form method="POST" action="{{ url_for('lots.delete_revenue_item', lot_id=lot.id, item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa mục cước này?');">
+                                            <form method="POST" action="{{ url_for('lots.delete_revenue_item', lot_id=lot.id, item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa mục cước này (bao gồm cả các chi phí con nếu có)?');">
                                                 <button type="submit" class="btn-secondary-gic py-1 px-2 text-danger" style="font-size: 0.75rem;" title="Xóa mục">
                                                     <i class="fa-solid fa-trash"></i>
                                                 </button>
@@ -413,11 +437,130 @@
                                         </div>
                                     </td>
                                 </tr>
+
+                                {% if item.is_parent %}
+                                {% for sub in item.active_sub_costs %}
+                                {% set sub_profit = (sub.sell_price or 0) - (sub.total_amount or 0) %}
+                                <tr id="cost-tr-{{ sub.id }}" class="item-row sub-cost-row sub-rev-{{ item.id }}" style="background-color: #f8fafc;">
+                                    <td class="text-center font-mono text-muted ps-2" style="font-size: 0.75rem;">
+                                        <span class="text-primary fw-bold">↳</span> {{ loop.index }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-secondary border font-sans" style="font-size: 0.72rem;">
+                                            <i class="fa-solid fa-turn-up fa-rotate-90 me-1"></i>{{ sub.category }}
+                                        </span>
+                                    </td>
+                                    <td class="ps-3">
+                                        <div class="fw-semibold text-dark" style="font-size: 0.82rem;">
+                                            <span class="text-muted me-1">↳</span>{{ sub.display_description }}
+                                        </div>
+                                        {% if sub.pic or (sub.filler and sub.filler.full_name) %}
+                                            <small class="text-muted" style="font-size: 0.7rem;"><i class="fa-solid fa-user-pen me-1"></i>{{ sub.pic or sub.filler.full_name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-dark">{{ sub.supplier_name or '-' }}</span>
+                                        {% if sub.supplier_tax_code %}
+                                            <br><small class="text-muted font-mono" style="font-size: 0.68rem;">MST: {{ sub.supplier_tax_code }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sub.vehicle_plate %}
+                                            <span class="badge bg-light text-dark border font-mono">{{ sub.vehicle_plate }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end font-mono fw-semibold text-danger tabular-nums">
+                                        {{ (sub.total_amount or 0) | format_money }}
+                                    </td>
+                                    <td class="text-end font-mono fw-semibold text-success tabular-nums">
+                                        {{ (sub.sell_price or 0) | format_money }}
+                                    </td>
+                                    <td class="text-end font-mono fw-semibold tabular-nums {% if sub_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {% if sub_profit > 0 %}+{% endif %}{{ sub_profit | format_money }}
+                                    </td>
+                                    <td>
+                                        {% set inv_cls = sub.invoice_classification %}
+                                        {% set latest_media = sub.latest_invoice_media %}
+                                        <div class="mb-1 d-flex align-items-center gap-1 flex-wrap">
+                                            <button type="button" class="btn btn-xs p-1 px-2 border rounded-pill d-inline-flex align-items-center gap-1 btn-open-invoice-modal {% if inv_cls == 'has_invoice' %}bg-success-subtle text-success border-success-subtle{% elif inv_cls == 'no_invoice' %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-warning-subtle text-warning-emphasis border-warning-subtle{% endif %}"
+                                                style="font-size: 0.65rem; line-height: 1.2;"
+                                                data-id="{{ sub.id }}"
+                                                data-cls="{{ inv_cls }}"
+                                                data-desc="{{ sub.display_description }}"
+                                                data-inv-type="{{ sub.invoice_type or '' }}"
+                                                data-inv-num="{{ sub.invoice_number or '' }}"
+                                                data-inv-symbol="{{ sub.invoice_symbol or '' }}"
+                                                data-supplier-tax-code="{{ sub.supplier_tax_code or '' }}"
+                                                data-has-file="{{ '1' if sub.has_invoice_file else '0' }}"
+                                                data-media-id="{{ latest_media.id if latest_media else '' }}"
+                                                title="Click để xác nhận tình trạng hóa đơn">
+                                                {% if inv_cls == 'has_invoice' %}
+                                                    <i class="fa-solid fa-circle-check"></i>Có HĐ
+                                                {% elif inv_cls == 'no_invoice' %}
+                                                    <i class="fa-solid fa-circle-xmark"></i>Không HĐ
+                                                {% else %}
+                                                    <i class="fa-solid fa-triangle-exclamation"></i>HĐ không TT
+                                                {% endif %}
+                                                <i class="fa-solid fa-pen ms-1 opacity-75" style="font-size: 0.55rem;"></i>
+                                            </button>
+                                            {% if sub.has_invoice_file and latest_media %}
+                                                <a href="{{ url_for('advances.view_bill', bill_id=latest_media.id) }}" target="_blank" class="badge bg-primary text-white border-0 text-decoration-none p-1 px-2 shadow-sm" style="font-size: 0.65rem;" title="Xem ảnh/file hóa đơn đã đính kèm">
+                                                    <i class="fa-solid fa-paperclip me-1"></i>Xem HĐ
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                        {% if sub.invoice_number or sub.invoice_type %}
+                                            <div class="fw-semibold text-dark font-mono" style="font-size: 0.72rem;">
+                                                {{ sub.invoice_type or 'HĐ' }} {{ sub.invoice_number or '' }}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-row" style="font-size: 0.75rem;"
+                                                data-type="cost"
+                                                data-id="{{ sub.id }}"
+                                                data-supplier="{{ sub.supplier_name or '' }}"
+                                                data-plate="{{ sub.vehicle_plate or '' }}"
+                                                data-weight="{{ sub.category }}"
+                                                data-desc="{{ sub.description or '' }}"
+                                                data-buy="{{ ((sub.total_amount or sub.unit_price or 0) | round | int) }}"
+                                                data-sell="{{ ((sub.sell_price or 0) | round | int) }}"
+                                                data-surcharge="0"
+                                                data-invoice-type="{{ sub.invoice_type or '' }}"
+                                                data-invoice-symbol="{{ sub.invoice_symbol or '' }}"
+                                                data-invoice-number="{{ sub.invoice_number or '' }}"
+                                                data-invoice-classification="{{ sub.invoice_classification }}"
+                                                data-has-file="{{ '1' if sub.has_invoice_file else '0' }}"
+                                                data-media-id="{{ latest_media.id if latest_media else '' }}"
+                                                data-rev-month="{{ sub.effective_revenue_month or '' }}"
+                                                data-rev-year="{{ sub.effective_revenue_year or '' }}"
+                                                data-rev-inv-date="{{ sub.revenue_invoice_date.strftime('%Y-%m-%d') if sub.revenue_invoice_date else '' }}"
+                                                data-rev-inv-num="{{ sub.revenue_invoice_number or '' }}"
+                                                data-is-deferred="{{ '1' if sub.is_deferred_revenue else '0' }}"
+                                                title="Sửa chi phí con này">
+                                                <i class="fa-solid fa-pen-to-square text-primary"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 btn-quick-x-delete"
+                                                data-cost-id="{{ sub.id }}"
+                                                data-lot-id="{{ lot.id }}"
+                                                data-cost-desc="{{ sub.display_description }}"
+                                                data-cost-amount="{{ sub.total_amount or 0 }}"
+                                                title="Bỏ mục chi phí con này">
+                                                <i class="fa-solid fa-xmark fw-bold"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% endif %}
                                 {% endfor %}
 
                                 <!-- 2. Chi Phí Vận Hành (Mua vào NCC) -->
                                 {% for cost in v.operating_costs %}
-                                <tr id="cost-tr-{{ cost.id }}" class="item-row cost-item-row" data-cost-amount="{{ cost.total_amount or 0 }}">
+                                <tr id="cost-tr-{{ cost.id }}" class="item-row cost-item-row" data-cost-amount="{{ cost.effective_total_amount or 0 }}">
                                     <td class="text-center font-mono text-muted">{{ v.revenue_items|length + loop.index }}</td>
                                     <td>
                                         {% set cat = cost.category %}
@@ -436,7 +579,19 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark">{{ cost.display_description }}</div>
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            {% if cost.is_parent %}
+                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btn-toggle-subcosts" data-target="sub-cost-{{ cost.id }}" title="Đóng / Mở danh sách chi phí con">
+                                                <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+                                            </button>
+                                            {% endif %}
+                                            <span class="fw-bold text-dark">{{ cost.display_description }}</span>
+                                            {% if cost.is_parent %}
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-mono" style="font-size: 0.68rem;" title="Khoản mục gồm {{ cost.active_sub_costs|length }} chi phí con bên trong">
+                                                <i class="fa-solid fa-sitemap me-1"></i>{{ cost.active_sub_costs|length }} mục con
+                                            </span>
+                                            {% endif %}
+                                        </div>
                                         {% if cost.pic or (cost.filler and cost.filler.full_name) %}
                                             <small class="text-muted"><i class="fa-solid fa-user-pen me-1"></i>{{ cost.pic or cost.filler.full_name }}</small>
                                         {% endif %}
@@ -455,17 +610,20 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-end font-mono fw-bold text-danger tabular-nums">
-                                        {{ cost.total_amount | format_money }}
+                                        {{ cost.effective_total_amount | format_money }}
+                                        {% if cost.is_parent %}
+                                            <div class="text-muted" style="font-size: 0.65rem;">(Tổng con)</div>
+                                        {% endif %}
                                     </td>
-                                    <td class="text-end font-mono fw-bold {% if cost.sell_price and cost.sell_price > 0 %}text-success{% else %}text-muted{% endif %} tabular-nums">
-                                        {{ (cost.sell_price or 0) | format_money }}
+                                    <td class="text-end font-mono fw-bold {% if cost.effective_sell_price and cost.effective_sell_price > 0 %}text-success{% else %}text-muted{% endif %} tabular-nums">
+                                        {{ (cost.effective_sell_price or 0) | format_money }}
                                         {% if cost.sell_price and cost.sell_price > 0 and cost.is_deferred_revenue %}
                                             <span class="badge bg-info-subtle text-primary border border-primary-subtle d-block mt-1 font-mono" style="font-size: 0.65rem;" title="Doanh thu xuất HĐ kỳ T{{ "%02d"|format(cost.effective_revenue_month) }}/{{ cost.effective_revenue_year }}">
                                                 <i class="fa-solid fa-clock-rotate-left me-1"></i>HĐ: T{{ "%02d"|format(cost.effective_revenue_month) }}/{{ cost.effective_revenue_year }}
                                             </span>
                                         {% endif %}
                                     </td>
-                                    {% set cost_diff = (cost.sell_price or 0) - (cost.total_amount or 0) %}
+                                    {% set cost_diff = (cost.effective_sell_price or 0) - (cost.effective_total_amount or 0) %}
                                     <td class="text-end font-mono fw-semibold tabular-nums {% if cost_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
                                         {% if cost_diff > 0 %}+{% endif %}{{ cost_diff | format_money }}
                                     </td>
@@ -520,6 +678,15 @@
                                      </td>
                                     <td class="text-center">
                                         <div class="d-inline-flex align-items-center gap-1">
+                                            <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 btn-add-subcost"
+                                                data-parent-type="cost"
+                                                data-parent-id="{{ cost.id }}"
+                                                data-parent-desc="{{ cost.display_description }}"
+                                                data-parent-plate="{{ cost.vehicle_plate or '' }}"
+                                                data-parent-cat="{{ cost.category }}"
+                                                title="Bóc tách thêm chi phí con bên trong mục này">
+                                                <i class="fa-solid fa-diagram-project me-1"></i>Bóc con
+                                            </button>
                                             <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-row" style="font-size: 0.75rem;"
                                                 data-type="cost"
                                                 data-id="{{ cost.id }}"
@@ -555,6 +722,125 @@
                                         </div>
                                     </td>
                                 </tr>
+
+                                {% if cost.is_parent %}
+                                {% for sub in cost.active_sub_costs %}
+                                {% set sub_diff = (sub.sell_price or 0) - (sub.total_amount or 0) %}
+                                <tr id="cost-tr-{{ sub.id }}" class="item-row sub-cost-row sub-cost-{{ cost.id }}" style="background-color: #f8fafc;">
+                                    <td class="text-center font-mono text-muted ps-2" style="font-size: 0.75rem;">
+                                        <span class="text-primary fw-bold">↳</span> {{ loop.index }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-secondary border font-sans" style="font-size: 0.72rem;">
+                                            <i class="fa-solid fa-turn-up fa-rotate-90 me-1"></i>{{ sub.category }}
+                                        </span>
+                                    </td>
+                                    <td class="ps-3">
+                                        <div class="fw-semibold text-dark" style="font-size: 0.82rem;">
+                                            <span class="text-muted me-1">↳</span>{{ sub.display_description }}
+                                        </div>
+                                        {% if sub.pic or (sub.filler and sub.filler.full_name) %}
+                                            <small class="text-muted" style="font-size: 0.7rem;"><i class="fa-solid fa-user-pen me-1"></i>{{ sub.pic or sub.filler.full_name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-dark">{{ sub.supplier_name or '-' }}</span>
+                                        {% if sub.supplier_tax_code %}
+                                            <br><small class="text-muted font-mono" style="font-size: 0.68rem;">MST: {{ sub.supplier_tax_code }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sub.vehicle_plate %}
+                                            <span class="badge bg-light text-dark border font-mono">{{ sub.vehicle_plate }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end font-mono fw-semibold text-danger tabular-nums">
+                                        {{ (sub.total_amount or 0) | format_money }}
+                                    </td>
+                                    <td class="text-end font-mono fw-semibold text-success tabular-nums">
+                                        {{ (sub.sell_price or 0) | format_money }}
+                                    </td>
+                                    <td class="text-end font-mono fw-semibold tabular-nums {% if sub_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {% if sub_diff > 0 %}+{% endif %}{{ sub_diff | format_money }}
+                                    </td>
+                                    <td>
+                                        {% set inv_cls = sub.invoice_classification %}
+                                        {% set latest_media = sub.latest_invoice_media %}
+                                        <div class="mb-1 d-flex align-items-center gap-1 flex-wrap">
+                                            <button type="button" class="btn btn-xs p-1 px-2 border rounded-pill d-inline-flex align-items-center gap-1 btn-open-invoice-modal {% if inv_cls == 'has_invoice' %}bg-success-subtle text-success border-success-subtle{% elif inv_cls == 'no_invoice' %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-warning-subtle text-warning-emphasis border-warning-subtle{% endif %}"
+                                                style="font-size: 0.65rem; line-height: 1.2;"
+                                                data-id="{{ sub.id }}"
+                                                data-cls="{{ inv_cls }}"
+                                                data-desc="{{ sub.display_description }}"
+                                                data-inv-type="{{ sub.invoice_type or '' }}"
+                                                data-inv-num="{{ sub.invoice_number or '' }}"
+                                                data-inv-symbol="{{ sub.invoice_symbol or '' }}"
+                                                data-supplier-tax-code="{{ sub.supplier_tax_code or '' }}"
+                                                data-has-file="{{ '1' if sub.has_invoice_file else '0' }}"
+                                                data-media-id="{{ latest_media.id if latest_media else '' }}"
+                                                title="Click để xác nhận tình trạng hóa đơn">
+                                                {% if inv_cls == 'has_invoice' %}
+                                                    <i class="fa-solid fa-circle-check"></i>Có HĐ
+                                                {% elif inv_cls == 'no_invoice' %}
+                                                    <i class="fa-solid fa-circle-xmark"></i>Không HĐ
+                                                {% else %}
+                                                    <i class="fa-solid fa-triangle-exclamation"></i>HĐ không TT
+                                                {% endif %}
+                                                <i class="fa-solid fa-pen ms-1 opacity-75" style="font-size: 0.55rem;"></i>
+                                            </button>
+                                            {% if sub.has_invoice_file and latest_media %}
+                                                <a href="{{ url_for('advances.view_bill', bill_id=latest_media.id) }}" target="_blank" class="badge bg-primary text-white border-0 text-decoration-none p-1 px-2 shadow-sm" style="font-size: 0.65rem;" title="Xem ảnh/file hóa đơn đã đính kèm">
+                                                    <i class="fa-solid fa-paperclip me-1"></i>Xem HĐ
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                        {% if sub.invoice_number or sub.invoice_type %}
+                                            <div class="fw-semibold text-dark font-mono" style="font-size: 0.72rem;">
+                                                {{ sub.invoice_type or 'HĐ' }} {{ sub.invoice_number or '' }}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-inline-flex align-items-center gap-1">
+                                            <button type="button" class="btn-secondary-gic py-1 px-2 btn-edit-row" style="font-size: 0.75rem;"
+                                                data-type="cost"
+                                                data-id="{{ sub.id }}"
+                                                data-supplier="{{ sub.supplier_name or '' }}"
+                                                data-plate="{{ sub.vehicle_plate or '' }}"
+                                                data-weight="{{ sub.category }}"
+                                                data-desc="{{ sub.description or '' }}"
+                                                data-buy="{{ ((sub.total_amount or sub.unit_price or 0) | round | int) }}"
+                                                data-sell="{{ ((sub.sell_price or 0) | round | int) }}"
+                                                data-surcharge="0"
+                                                data-invoice-type="{{ sub.invoice_type or '' }}"
+                                                data-invoice-symbol="{{ sub.invoice_symbol or '' }}"
+                                                data-invoice-number="{{ sub.invoice_number or '' }}"
+                                                data-invoice-classification="{{ sub.invoice_classification }}"
+                                                data-has-file="{{ '1' if sub.has_invoice_file else '0' }}"
+                                                data-media-id="{{ latest_media.id if latest_media else '' }}"
+                                                data-rev-month="{{ sub.effective_revenue_month or '' }}"
+                                                data-rev-year="{{ sub.effective_revenue_year or '' }}"
+                                                data-rev-inv-date="{{ sub.revenue_invoice_date.strftime('%Y-%m-%d') if sub.revenue_invoice_date else '' }}"
+                                                data-rev-inv-num="{{ sub.revenue_invoice_number or '' }}"
+                                                data-is-deferred="{{ '1' if sub.is_deferred_revenue else '0' }}"
+                                                title="Sửa chi phí con này">
+                                                <i class="fa-solid fa-pen-to-square text-primary"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 btn-quick-x-delete"
+                                                data-cost-id="{{ sub.id }}"
+                                                data-lot-id="{{ lot.id }}"
+                                                data-cost-desc="{{ sub.display_description }}"
+                                                data-cost-amount="{{ sub.total_amount or 0 }}"
+                                                title="Bỏ mục chi phí con này">
+                                                <i class="fa-solid fa-xmark fw-bold"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% endif %}
                                 {% endfor %}
                             </tbody>
                             <tfoot class="table-light border-top">
@@ -1092,6 +1378,156 @@
                 <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
                 <button type="submit" class="btn-primary-gic">
                     <i class="fa-solid fa-save me-1"></i> Lưu Cập Nhật
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Bóc Tách Chi Phí Con (Sub Cost Modal) -->
+<div class="modal fade" id="subCostModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form method="POST" id="subCostForm" action="" enctype="multipart/form-data" class="modal-content border-0 shadow-lg">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header border-bottom py-3 bg-primary-subtle">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-diagram-project text-primary"></i>
+                    <span>Bóc Tách Chi Phí Con: <span id="subCostParentTitle" class="text-primary"></span></span>
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-info py-2 px-3 small d-flex align-items-center gap-2 mb-3">
+                    <i class="fa-solid fa-circle-info fs-5"></i>
+                    <div>
+                        Khoản mục chi phí con được thêm vào đây sẽ tự động cộng dồn vào giá của mục cha và bảng tổng hợp, cho phép quản lý riêng từng nhà xe/NCC, biển số xe và hóa đơn chứng từ đính kèm.
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nhà Cung Cấp / Nhà Xe Riêng (Nếu có)</label>
+                        <input type="text" name="supplier" id="subCostSupplier" class="form-control" list="supplierDatalist" placeholder="Chọn hoặc nhập tên NCC riêng...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Biển Số Xe Riêng (BKS)</label>
+                        <input type="text" name="vehicle_plate" id="subCostPlate" class="form-control font-mono" placeholder="VD: 98C-123.45 hoặc xe TQ...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Phân Loại Nghiệp Vụ</label>
+                        <select class="form-select" id="subCostWeightSelect" name="weight_class_select">
+                            <option value="">-- Kế thừa phân loại của mục cha --</option>
+                            <optgroup label="🚛 Cước Vận Tải / Loại Xe">
+                                <option value="Vận chuyển">Vận chuyển</option>
+                                <option value="Xe 1.25T">Xe 1.25T</option>
+                                <option value="Xe 2.5T">Xe 2.5T</option>
+                                <option value="Xe 3.5T">Xe 3.5T</option>
+                                <option value="Xe 5T">Xe 5T</option>
+                                <option value="Xe 8T">Xe 8T</option>
+                                <option value="Xe 10T">Xe 10T</option>
+                                <option value="Xe 15T">Xe 15T</option>
+                                <option value="Xe 25T">Xe 25T</option>
+                                <option value="Cont 20'">Cont 20'</option>
+                                <option value="Cont 40'">Cont 40'</option>
+                                <option value="Mooc sàn">Mooc sàn</option>
+                            </optgroup>
+                            <optgroup label="📦 Phân Loại Nghiệp Vụ">
+                                <option value="Cửa khẩu">Cửa khẩu (Phí bến bãi, CSHT, Vé xe, Biên phòng)</option>
+                                <option value="Tờ khai">Tờ khai (Dịch vụ tờ khai, Hải quan, Thông quan)</option>
+                                <option value="Bốc xếp">Bốc xếp (Dịch vụ bốc xếp, Sang tải, Nâng hạ)</option>
+                                <option value="Kiểm định">Kiểm định (Quatest, Kiểm dịch y tế, Giám định)</option>
+                                <option value="Phụ phí">Phụ phí (Lưu ca, Lưu kho, Vé cầu đường / BOT)</option>
+                            </optgroup>
+                            <optgroup label="✏️ Phân Loại Khác">
+                                <option value="Khác">➕ Khác (Điền tay)...</option>
+                            </optgroup>
+                        </select>
+                        <div id="subCostCustomWeightGroup" class="mt-2 d-none">
+                            <input type="text" id="subCostCustomWeightInput" name="weight_class_custom" class="form-control form-control-sm" placeholder="Nhập tên phân loại mới...">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Nội Dung Chi Phí Con <span class="text-danger">*</span></label>
+                        <input type="text" name="service_description" id="subCostDesc" class="form-control" placeholder="VD: Cước xe chuyển tải, Nâng hạ ca đêm, Vé BOT..." required>
+                    </div>
+
+                    <div class="col-12"><hr class="my-2"></div>
+
+                    <!-- Giá Mua Vào & Bán Ra của Chi Phí Con -->
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-danger text-uppercase" style="font-size: 0.7rem;">
+                            <i class="fa-solid fa-money-bill-wave me-1"></i> Giá Mua Vào (Chi Phí Trả NCC) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="text" inputmode="numeric" name="buy_price" id="subCostBuyPrice" class="form-control font-mono fw-bold text-danger format-money-input" placeholder="0" required>
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Số tiền thực tế thanh toán cho chi phí con này</small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-success text-uppercase" style="font-size: 0.7rem;">
+                            <i class="fa-solid fa-hand-holding-dollar me-1"></i> Giá Bán Ra (Thu Khách - Nếu có)
+                        </label>
+                        <div class="input-group">
+                            <input type="text" inputmode="numeric" name="sell_price" id="subCostSellPrice" class="form-control font-mono fw-bold text-success format-money-input" placeholder="0">
+                            <span class="input-group-text font-mono text-muted">₫</span>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Để 0 nếu giá bán thu khách đã tính gộp ở khoản mục cha</small>
+                    </div>
+
+                    <!-- Tình Trạng Hóa Đơn Chi Phí Con -->
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-dark text-uppercase" style="font-size: 0.72rem;">
+                            <i class="fa-solid fa-file-invoice me-1 text-primary"></i> Tình Trạng Hóa Đơn
+                        </label>
+                        <div class="d-flex gap-3 flex-wrap p-2 rounded bg-light border">
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="subInvClsHas" value="has_invoice">
+                                <label class="form-check-label fw-bold text-success cursor-pointer" for="subInvClsHas">
+                                    <i class="fa-solid fa-circle-check me-1"></i> Có HĐ
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="subInvClsNo" value="no_invoice" checked>
+                                <label class="form-check-label fw-bold text-danger cursor-pointer" for="subInvClsNo">
+                                    <i class="fa-solid fa-circle-xmark me-1"></i> Không HĐ
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="radio" name="invoice_classification" id="subInvClsUnpay" value="unpayable_invoice">
+                                <label class="form-check-label fw-bold text-warning-emphasis cursor-pointer" for="subInvClsUnpay">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i> HĐ không TT được / Biên lai
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File / Ảnh Hóa Đơn -->
+                    <div class="col-12">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">
+                            Tải Lên File / Ảnh Hóa Đơn Cho Mục Con (Nếu có)
+                        </label>
+                        <div class="input-group">
+                            <input type="file" name="invoice_file" class="form-control" accept="image/*,application/pdf">
+                            <span class="input-group-text bg-white"><i class="fa-solid fa-cloud-arrow-up text-primary"></i></span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Loại Chứng Từ / Hóa Đơn</label>
+                        <input type="text" name="invoice_type" class="form-control" placeholder="VD: HĐ GTGT, Vé xe, Biên lai...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;">Số Hóa Đơn / Ký Hiệu</label>
+                        <input type="text" name="invoice_number" class="form-control font-mono" placeholder="VD: 0012345...">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2">
+                <button type="button" class="btn-secondary-gic" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn-primary-gic">
+                    <i class="fa-solid fa-plus me-1"></i> Thêm Chi Phí Con
                 </button>
             </div>
         </form>
@@ -1955,14 +2391,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     setTimeout(() => modalTr.remove(), 300);
                 }
 
-                // Update total displays
-                if (data.total_operating_cost !== undefined) {
-                    const fmt = formatMoneyNumber(data.total_operating_cost);
-                    const modalTotal = document.getElementById('modalTotalOpsDisplay');
-                    if (modalTotal) modalTotal.innerText = fmt;
-                    const modalHdr = document.getElementById('modalHeaderCostSum');
-                    if (modalHdr) modalHdr.innerText = fmt;
-                }
+                // Reload to refresh parent sums and vehicle subtotals
+                setTimeout(() => window.location.reload(), 350);
             } else {
                 alert('Không thể xóa: ' + (data.error || 'Lỗi không xác định'));
                 btn.disabled = false;
@@ -1983,6 +2413,115 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.appendChild(fallbackForm);
             fallbackForm.submit();
         });
+    });
+
+    // =========================================================
+    // 3. Xử Lý Bóc Tách Chi Phí Con (Sub Cost Modal) & Đóng/Mở
+    // =========================================================
+    const subModalEl = document.getElementById('subCostModal');
+    const subCostModal = subModalEl ? new bootstrap.Modal(subModalEl) : null;
+    const subWeightSelect = document.getElementById('subCostWeightSelect');
+    const subCustomGroup = document.getElementById('subCostCustomWeightGroup');
+    const subCustomInput = document.getElementById('subCostCustomWeightInput');
+
+    if (subWeightSelect && subCustomGroup) {
+        subWeightSelect.addEventListener('change', function() {
+            if (this.value === 'Khác') {
+                subCustomGroup.classList.remove('d-none');
+                if (subCustomInput) subCustomInput.setAttribute('required', 'required');
+            } else {
+                subCustomGroup.classList.add('d-none');
+                if (subCustomInput) {
+                    subCustomInput.removeAttribute('required');
+                    subCustomInput.value = '';
+                }
+            }
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-add-subcost');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const pType = btn.getAttribute('data-parent-type');
+        const pId = btn.getAttribute('data-parent-id');
+        const pDesc = btn.getAttribute('data-parent-desc') || '';
+        const pPlate = btn.getAttribute('data-parent-plate') || '';
+        const pCat = btn.getAttribute('data-parent-cat') || '';
+
+        const form = document.getElementById('subCostForm');
+        if (pType === 'revenue') {
+            form.action = `/lots/{{ lot.id }}/items/${pId}/sub_cost`;
+        } else {
+            form.action = `/lots/{{ lot.id }}/costs/${pId}/sub_cost`;
+        }
+
+        const titleEl = document.getElementById('subCostParentTitle');
+        if (titleEl) titleEl.innerText = pDesc;
+
+        const plateEl = document.getElementById('subCostPlate');
+        if (plateEl) plateEl.value = pPlate;
+
+        const descEl = document.getElementById('subCostDesc');
+        if (descEl) descEl.value = '';
+
+        const buyEl = document.getElementById('subCostBuyPrice');
+        if (buyEl) buyEl.value = '';
+
+        const sellEl = document.getElementById('subCostSellPrice');
+        if (sellEl) sellEl.value = '0';
+
+        const suppEl = document.getElementById('subCostSupplier');
+        if (suppEl) suppEl.value = '';
+
+        const sel = document.getElementById('subCostWeightSelect');
+        if (sel) {
+            let matched = false;
+            for (let opt of sel.options) {
+                if (opt.value && opt.value === pCat) {
+                    sel.value = pCat;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) sel.value = '';
+            if (subCustomGroup) subCustomGroup.classList.add('d-none');
+        }
+
+        if (subCostModal) subCostModal.show();
+    });
+
+    // Đóng / Mở danh sách chi phí con
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-toggle-subcosts');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetClass = btn.getAttribute('data-target');
+        const rows = document.querySelectorAll(`.${targetClass}`);
+        let isExpanded = true;
+        rows.forEach(r => {
+            if (r.style.display === 'none') {
+                r.style.display = '';
+                isExpanded = true;
+            } else {
+                r.style.display = 'none';
+                isExpanded = false;
+            }
+        });
+        const icon = btn.querySelector('i');
+        if (icon) {
+            if (isExpanded) {
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            }
+        }
     });
 });
 </script>

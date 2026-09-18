@@ -550,6 +550,164 @@ def add_revenue_item(lot_id):
     flash(f'Đã thêm khoản mục thành công cho {lot.lot_label}!', 'success')
     return redirect(url_for('lots.detail', lot_id=lot.id))
 
+@lots_bp.route('/<int:lot_id>/costs/<int:parent_id>/sub_cost', methods=['POST'])
+@login_required
+def add_sub_cost_to_cost(lot_id, parent_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if not current_user.is_manager and lot.assigned_to != current_user.id:
+        flash('Bạn không có quyền chỉnh sửa lô hàng này.', 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+
+    parent_cost = OperatingCost.query.filter_by(id=parent_id, lot_id=lot.id, is_deleted=False).first_or_404()
+
+    supplier = request.form.get('supplier', '').strip()
+    vehicle_plate = request.form.get('vehicle_plate', '').strip() or parent_cost.vehicle_plate
+    service_description = request.form.get('service_description', '').strip() or f"Chi phí con của {parent_cost.display_description}"
+
+    weight_select = request.form.get('weight_class_select', '').strip()
+    weight_custom = request.form.get('weight_class_custom', '').strip()
+    if weight_select == 'Khác':
+        weight_class = weight_custom or 'Khác'
+    elif weight_select:
+        weight_class = weight_select
+    else:
+        weight_class = parent_cost.cost_type or 'Khoản mục chi phí'
+
+    invoice_number = request.form.get('invoice_number', '').strip()
+    invoice_type = request.form.get('invoice_type', '').strip()
+
+    buy_price = clean_money_input(request.form.get('buy_price', 0))
+    sell_price = clean_money_input(request.form.get('sell_price', 0))
+    surcharges = clean_money_input(request.form.get('surcharges', 0))
+
+    rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
+
+    sub_cost = OperatingCost(
+        lot_id=lot.id,
+        parent_cost_id=parent_cost.id,
+        cost_type=weight_class,
+        description=service_description,
+        vehicle_plate=vehicle_plate,
+        vehicle_count=1.0,
+        unit_price=buy_price,
+        total_amount=buy_price,
+        sell_price=sell_price + surcharges,
+        invoice_type=invoice_type,
+        invoice_number=invoice_number,
+        supplier_name=supplier,
+        filled_by=current_user.id,
+        revenue_month=rev_m or parent_cost.revenue_month,
+        revenue_year=rev_y or parent_cost.revenue_year,
+        revenue_invoice_date=rev_inv_date or parent_cost.revenue_invoice_date,
+        revenue_invoice_number=rev_inv_num or parent_cost.revenue_invoice_number
+    )
+    inv_cls = request.form.get('invoice_classification')
+    if inv_cls in ('has_invoice', 'no_invoice', 'unpayable_invoice'):
+        sub_cost.invoice_classification = inv_cls
+
+    db.session.add(sub_cost)
+    db.session.flush()
+
+    invoice_file = request.files.get('invoice_file')
+    if invoice_file and invoice_file.filename:
+        file_bytes = invoice_file.read()
+        if len(file_bytes) > 0:
+            from app.services.advance_service import save_bill_media
+            save_bill_media(
+                media_id=None,
+                file_bytes=file_bytes,
+                filename=invoice_file.filename,
+                mime_type=invoice_file.mimetype or 'image/jpeg',
+                operating_cost_id=sub_cost.id,
+                lot_id=lot.id,
+                uploaded_by=current_user.id
+            )
+            if not inv_cls:
+                sub_cost.invoice_classification = 'has_invoice'
+
+    db.session.commit()
+    flash(f'Đã bóc tách chi phí con thành công cho mục "{parent_cost.display_description}"!', 'success')
+    return redirect(url_for('lots.detail', lot_id=lot.id))
+
+@lots_bp.route('/<int:lot_id>/items/<int:parent_id>/sub_cost', methods=['POST'])
+@login_required
+def add_sub_cost_to_revenue_item(lot_id, parent_id):
+    lot = Lot.query.get_or_404(lot_id)
+    if not current_user.is_manager and lot.assigned_to != current_user.id:
+        flash('Bạn không có quyền chỉnh sửa lô hàng này.', 'danger')
+        return redirect(url_for('lots.detail', lot_id=lot.id))
+
+    parent_item = RevenueItem.query.filter_by(id=parent_id, lot_id=lot.id, is_deleted=False).first_or_404()
+
+    supplier = request.form.get('supplier', '').strip()
+    vehicle_plate = request.form.get('vehicle_plate', '').strip() or parent_item.vehicle_plate_vn or parent_item.vehicle_plate_cn
+    service_description = request.form.get('service_description', '').strip() or f"Chi phí con của {parent_item.display_description}"
+
+    weight_select = request.form.get('weight_class_select', '').strip()
+    weight_custom = request.form.get('weight_class_custom', '').strip()
+    if weight_select == 'Khác':
+        weight_class = weight_custom or 'Khác'
+    elif weight_select:
+        weight_class = weight_select
+    else:
+        weight_class = parent_item.weight_class or 'Vận chuyển'
+
+    invoice_number = request.form.get('invoice_number', '').strip()
+    invoice_type = request.form.get('invoice_type', '').strip()
+
+    buy_price = clean_money_input(request.form.get('buy_price', 0))
+    sell_price = clean_money_input(request.form.get('sell_price', 0))
+    surcharges = clean_money_input(request.form.get('surcharges', 0))
+
+    rev_m, rev_y, rev_inv_date, rev_inv_num = parse_revenue_period_from_form(request.form, lot)
+
+    sub_cost = OperatingCost(
+        lot_id=lot.id,
+        parent_revenue_item_id=parent_item.id,
+        cost_type=weight_class,
+        description=service_description,
+        vehicle_plate=vehicle_plate,
+        vehicle_count=1.0,
+        unit_price=buy_price,
+        total_amount=buy_price,
+        sell_price=sell_price + surcharges,
+        invoice_type=invoice_type,
+        invoice_number=invoice_number,
+        supplier_name=supplier,
+        filled_by=current_user.id,
+        revenue_month=rev_m or parent_item.effective_revenue_month,
+        revenue_year=rev_y or parent_item.effective_revenue_year,
+        revenue_invoice_date=rev_inv_date or parent_item.revenue_invoice_date,
+        revenue_invoice_number=rev_inv_num or parent_item.revenue_invoice_number
+    )
+    inv_cls = request.form.get('invoice_classification')
+    if inv_cls in ('has_invoice', 'no_invoice', 'unpayable_invoice'):
+        sub_cost.invoice_classification = inv_cls
+
+    db.session.add(sub_cost)
+    db.session.flush()
+
+    invoice_file = request.files.get('invoice_file')
+    if invoice_file and invoice_file.filename:
+        file_bytes = invoice_file.read()
+        if len(file_bytes) > 0:
+            from app.services.advance_service import save_bill_media
+            save_bill_media(
+                media_id=None,
+                file_bytes=file_bytes,
+                filename=invoice_file.filename,
+                mime_type=invoice_file.mimetype or 'image/jpeg',
+                operating_cost_id=sub_cost.id,
+                lot_id=lot.id,
+                uploaded_by=current_user.id
+            )
+            if not inv_cls:
+                sub_cost.invoice_classification = 'has_invoice'
+
+    db.session.commit()
+    flash(f'Đã bóc tách chi phí con thành công cho mục "{parent_item.display_description}"!', 'success')
+    return redirect(url_for('lots.detail', lot_id=lot.id))
+
 @lots_bp.route('/<int:lot_id>/items/<int:item_id>/edit', methods=['POST'])
 @login_required
 def edit_revenue_item(lot_id, item_id):
@@ -614,6 +772,10 @@ def delete_revenue_item(lot_id, item_id):
         item.is_deleted = True
         item.deleted_at = datetime.now(timezone.utc)
         item.deleted_by = current_user.id
+        for sub in item.active_sub_costs:
+            sub.is_deleted = True
+            sub.deleted_at = datetime.now(timezone.utc)
+            sub.deleted_by = current_user.id
         log_audit('delete_revenue_item', 'revenue_item', item.id,
                   f'Soft deleted revenue item {item.id} from lot {lot.id}',
                   before_state={'lot_id': lot.id, 'total_buy_price': item.total_buy_price,
@@ -802,6 +964,10 @@ def delete_cost_item(lot_id, cost_id):
         cost.is_deleted = True
         cost.deleted_at = datetime.now(timezone.utc)
         cost.deleted_by = current_user.id
+        for sub in cost.active_sub_costs:
+            sub.is_deleted = True
+            sub.deleted_at = datetime.now(timezone.utc)
+            sub.deleted_by = current_user.id
         db.session.flush()
         db.session.commit()
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', ''):

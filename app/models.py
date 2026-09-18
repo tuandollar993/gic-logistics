@@ -193,22 +193,30 @@ class Lot(db.Model):
     tasks = db.relationship('CostEntryTask', backref='lot', cascade='all, delete-orphan', lazy='dynamic')
     
     @property
+    def root_operating_costs(self):
+        """Danh sách các khoản chi phí vận hành cấp gốc (không tính các khoản con để tránh trùng lặp)"""
+        return [
+            cost for cost in self.operating_costs
+            if not cost.is_deleted and not cost.parent_cost_id and not cost.parent_revenue_item_id
+        ]
+
+    @property
     def total_sell_revenue(self):
         """Tổng doanh thu bán (chưa VAT) của lô"""
-        revenue_items_total = sum(item.total_sell_price for item in self.revenue_items if not item.is_deleted)
+        revenue_items_total = sum(item.effective_total_sell_price for item in self.active_revenue_items)
         operating_costs_sell = sum(
-            cost.sell_price or 0 for cost in self.operating_costs if not cost.is_deleted
+            cost.effective_sell_price for cost in self.root_operating_costs
         )
         return revenue_items_total + operating_costs_sell
     
     def get_recognized_revenue(self, month, year):
         """Doanh thu của lô này được ghi nhận trong một kỳ tháng/năm cụ thể theo kỳ xuất HĐ"""
         ri_rev = sum(
-            item.total_sell_price for item in self.active_revenue_items
+            item.effective_total_sell_price for item in self.active_revenue_items
             if item.effective_revenue_month == month and item.effective_revenue_year == year
         )
         ops_rev = sum(
-            cost.sell_price or 0 for cost in self.active_operating_costs
+            cost.effective_sell_price for cost in self.root_operating_costs
             if cost.effective_revenue_month == month and cost.effective_revenue_year == year
         )
         return ri_rev + ops_rev
@@ -222,12 +230,12 @@ class Lot(db.Model):
     @property
     def total_buy_cost(self):
         """Tổng chi phí mua (đã có VAT) từ báo cáo bán hàng"""
-        return sum(item.total_buy_price for item in self.revenue_items if not item.is_deleted)
+        return sum(item.effective_total_buy_price for item in self.active_revenue_items)
     
     @property
     def total_operating_cost(self):
-        """Tổng chi phí vận hành thực tế do nhân viên điền"""
-        return sum(cost.total_amount or 0 for cost in self.operating_costs if not cost.is_deleted)
+        """Tổng chi phí vận hành thực tế (chỉ tính khoản gốc, tự cộng từ các khoản con nếu có)"""
+        return sum(cost.effective_total_amount for cost in self.root_operating_costs)
     
     @property
     def gross_profit(self):
@@ -313,7 +321,7 @@ class Lot(db.Model):
         - 'partial': Có chi phí nhưng chưa đủ thông tin hợp lệ
         - 'completed': Đã đủ thông tin hợp lệ và hoàn tất
         """
-        costs = [cost for cost in self.operating_costs if not cost.is_deleted]
+        costs = [cost for cost in self.operating_costs if not cost.is_deleted and not cost.is_parent]
         if not costs or len(costs) == 0:
             return 'none'
         all_valid = True
@@ -436,7 +444,7 @@ class Lot(db.Model):
         """
         vehicles = self.distinct_vehicles
         all_ri = list(self.active_revenue_items)
-        all_costs = list(self.active_operating_costs)
+        all_costs = list(self.root_operating_costs)
 
         breakdown = []
         assigned_ri = set()
@@ -509,9 +517,9 @@ class Lot(db.Model):
                     v_costs.append(c)
                     assigned_costs.add(c.id)
 
-            sell = sum(ri.total_sell_price for ri in v_ri)
-            buy = sum(ri.total_buy_price for ri in v_ri)
-            ops = sum(c.total_amount for c in v_costs)
+            sell = sum(ri.effective_total_sell_price for ri in v_ri) + sum(c.effective_sell_price for c in v_costs)
+            buy = sum(ri.effective_total_buy_price for ri in v_ri)
+            ops = sum(c.effective_total_amount for c in v_costs)
             profit = sell - buy - ops
 
             # Thu thập biển số xe Trung Quốc trung chuyển (nếu có)
@@ -541,9 +549,9 @@ class Lot(db.Model):
         general_costs = [c for c in all_costs if c.id not in assigned_costs]
 
         if general_ri or general_costs or not breakdown:
-            sell_gen = sum(ri.total_sell_price for ri in general_ri)
-            buy_gen = sum(ri.total_buy_price for ri in general_ri)
-            ops_gen = sum(c.total_amount for c in general_costs)
+            sell_gen = sum(ri.effective_total_sell_price for ri in general_ri) + sum(c.effective_sell_price for c in general_costs)
+            buy_gen = sum(ri.effective_total_buy_price for ri in general_ri)
+            ops_gen = sum(c.effective_total_amount for c in general_costs)
             profit_gen = sell_gen - buy_gen - ops_gen
 
             breakdown.append({
@@ -582,7 +590,7 @@ class Lot(db.Model):
     @property
     def invoice_stats(self):
         """Thống kê chi phí theo phân loại hóa đơn (Có HĐ, Không HĐ, HĐ không TT được)"""
-        costs = self.active_operating_costs
+        costs = [c for c in self.operating_costs if not c.is_deleted and not c.is_parent]
         has_inv = [c for c in costs if c.invoice_classification == 'has_invoice']
         no_inv = [c for c in costs if c.invoice_classification == 'no_invoice']
         unpay_inv = [c for c in costs if c.invoice_classification == 'unpayable_invoice']
@@ -812,6 +820,38 @@ class RevenueItem(db.Model):
                       (self.other_surcharge or 0))
         return (self.sell_price or 0) + surcharges
 
+    # Chi phí con bóc tách gắn với khoản cước này
+    sub_costs = db.relationship('OperatingCost', foreign_keys='OperatingCost.parent_revenue_item_id', backref='parent_revenue_item', cascade='all, delete-orphan', lazy='selectin')
+
+    @property
+    def active_sub_costs(self):
+        """Danh sách các khoản chi phí con bóc tách gắn vào mục này"""
+        if not self.sub_costs:
+            return []
+        return [c for c in self.sub_costs if not c.is_deleted]
+
+    @property
+    def is_parent(self):
+        return len(self.active_sub_costs) > 0
+
+    @property
+    def effective_total_buy_price(self):
+        """Nếu có khoản con bóc tách thì tự động lấy tổng mua từ các con, ngược lại lấy giá trị gốc"""
+        active_children = self.active_sub_costs
+        if active_children:
+            return sum(c.effective_total_amount for c in active_children)
+        return self.total_buy_price
+
+    @property
+    def effective_total_sell_price(self):
+        """Nếu có khoản con bóc tách và có khoản con nhập giá bán thì lấy tổng con, ngược lại lấy giá trị gốc"""
+        active_children = self.active_sub_costs
+        if active_children:
+            sub_sell = sum(c.effective_sell_price for c in active_children)
+            if sub_sell > 0:
+                return sub_sell
+        return self.total_sell_price
+
     @property
     def category(self):
         """Phân loại nghiệp vụ chuẩn hóa: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
@@ -865,6 +905,11 @@ class OperatingCost(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'), nullable=False, index=True)
+    parent_cost_id = db.Column(db.Integer, db.ForeignKey('operating_costs.id', ondelete='CASCADE'), nullable=True, index=True)
+    parent_revenue_item_id = db.Column(db.Integer, db.ForeignKey('revenue_items.id', ondelete='CASCADE'), nullable=True, index=True)
+
+    # Relationships
+    sub_costs = db.relationship('OperatingCost', foreign_keys=[parent_cost_id], backref=db.backref('parent_cost', remote_side=[id]), cascade='all, delete-orphan', lazy='selectin')
     
     cost_type = db.Column(db.String(100), nullable=True)  # Phí thông quan, Phí cửa khẩu...
     description = db.Column(db.Text, nullable=False)       # Nội dung chi tiết
@@ -906,7 +951,40 @@ class OperatingCost(db.Model):
     filler = db.relationship('User', foreign_keys=[filled_by])
 
     invoice_classification_manual = db.Column('invoice_classification', db.String(50), nullable=True, default=None)
-    
+
+    @property
+    def active_sub_costs(self):
+        """Danh sách các khoản chi con còn hiệu lực (chưa xóa)"""
+        if not self.sub_costs:
+            return []
+        return [c for c in self.sub_costs if not c.is_deleted]
+
+    @property
+    def is_parent(self):
+        return len(self.active_sub_costs) > 0
+
+    @property
+    def is_child(self):
+        return bool(self.parent_cost_id or self.parent_revenue_item_id)
+
+    @property
+    def effective_total_amount(self):
+        """Tổng tiền mua: nếu có con thì bằng tổng tiền các con, ngược lại lấy giá trị gốc"""
+        active_children = self.active_sub_costs
+        if active_children:
+            return sum(c.effective_total_amount for c in active_children)
+        return self.total_amount or 0.0
+
+    @property
+    def effective_sell_price(self):
+        """Giá bán ra: nếu có con và có con nhập giá bán thì bằng tổng con, ngược lại lấy giá trị gốc"""
+        active_children = self.active_sub_costs
+        if active_children:
+            sub_sell = sum(c.effective_sell_price for c in active_children)
+            if sub_sell > 0:
+                return sub_sell
+        return self.sell_price or 0.0
+
     @property
     def category(self):
         """Phân loại nghiệp vụ chuẩn hóa 6 nhóm: Cửa khẩu, Tờ khai, Bốc xếp, Kiểm định, Phụ phí, Vận chuyển"""
