@@ -1455,7 +1455,11 @@
 <script>
 function formatMoneyNumber(val) {
     if (val === null || val === undefined || val === '') return '';
-    let str = String(val).replace(/[,.]0+$/, '').replace(/[^\d-]/g, '');
+    if (typeof val === 'number') {
+        if (isNaN(val)) return '';
+        val = Math.round(val);
+    }
+    let str = String(val).replace(/[^\d-]/g, '');
     if (!str || str === '-') return str;
     let isNeg = str.startsWith('-');
     let numStr = isNeg ? str.slice(1) : str;
@@ -1824,11 +1828,56 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-format money inputs with dot separators
     document.querySelectorAll('.format-money-input').forEach(input => {
         input.addEventListener('input', function() {
-            let cursor = this.selectionStart;
             let oldVal = this.value;
-            this.value = formatMoneyNumber(this.value);
-            let diff = this.value.length - oldVal.length;
-            if (cursor !== null) this.setSelectionRange(cursor + diff, cursor + diff);
+            let cursor = this.selectionStart;
+            
+            let digitsBefore = 0;
+            if (cursor !== null) {
+                digitsBefore = (oldVal.slice(0, cursor).match(/\d/g) || []).length;
+            }
+            
+            let formatted = formatMoneyNumber(oldVal);
+            this.value = formatted;
+            
+            if (cursor !== null) {
+                let newCursor = 0;
+                let count = 0;
+                for (let i = 0; i < formatted.length; i++) {
+                    if (/\d/.test(formatted[i])) count++;
+                    if (count === digitsBefore) {
+                        newCursor = i + 1;
+                        break;
+                    }
+                }
+                if (digitsBefore === 0) newCursor = 0;
+                this.setSelectionRange(newCursor, newCursor);
+            }
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace') {
+                let cursor = this.selectionStart;
+                if (cursor === this.selectionEnd && cursor > 1 && this.value[cursor - 1] === '.') {
+                    // Khi xóa ngay sau dấu chấm phân cách hàng nghìn, xóa luôn chữ số liền trước dấu chấm
+                    e.preventDefault();
+                    let val = this.value;
+                    let digitsBefore = (val.slice(0, cursor - 2).match(/\d/g) || []).length;
+                    let newVal = val.slice(0, cursor - 2) + val.slice(cursor - 1);
+                    let formatted = formatMoneyNumber(newVal);
+                    this.value = formatted;
+                    let newCursor = 0;
+                    let count = 0;
+                    for (let i = 0; i < formatted.length; i++) {
+                        if (/\d/.test(formatted[i])) count++;
+                        if (count === digitsBefore) {
+                            newCursor = i + 1;
+                            break;
+                        }
+                    }
+                    if (digitsBefore === 0) newCursor = 0;
+                    this.setSelectionRange(newCursor, newCursor);
+                }
+            }
         });
     });
 
