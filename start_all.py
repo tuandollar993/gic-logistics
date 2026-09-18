@@ -112,6 +112,9 @@ try:
             if updated_costs > 0:
                 db.session.commit()
                 print(f'✅ [STARTUP] Đã chuẩn hóa phân loại cho {updated_costs} khoản chi phí vận hành!')
+        except Exception as op_err:
+            print(f'⚠️ [STARTUP] Cảnh báo chuẩn hóa phân loại chi phí: {op_err}')
+
         # Tự động bảo đảm mỗi xe trong các lô hàng đều có đủ 8 mục tiêu chuẩn (0 đ nếu không dùng)
         try:
             from app.models import Lot
