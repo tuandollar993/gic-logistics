@@ -148,8 +148,11 @@ def normalize_string(text):
     return text.replace('đ', 'd').replace('Đ', 'D').lower().strip()
 
 def is_total_label(text):
-    norm = normalize_string(text).rstrip(':-').strip()
-    return norm in ('tong', 'tong cong', 'tong tam tinh')
+    if not text:
+        return False
+    norm = normalize_string(str(text)).strip().rstrip(':-').strip()
+    return norm.startswith('tong') or norm.startswith('tong cong') or norm in ('tong', 'tong cong', 'tong tam tinh')
+
 
 def format_money_vn(val):
     try:
@@ -301,54 +304,89 @@ Lưu ý RẤT QUAN TRỌNG:
     raise Exception(f"Gemini API lỗi trên tất cả các models: {last_err}")
 
 def detect_columns(token, sheet_name):
-    url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{sheet_name}!A4:O6"
-    resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
-    rows = resp.json().get('values', [])
-    if len(rows) < 2:
-        return None
-    header = rows[0]
-    sub_header = rows[1] if len(rows) > 1 else []
-    if 'luong' not in normalize_string(''.join(header)) and len(rows) > 2:
-        header = rows[1]
-        sub_header = rows[2]
+    # Cấu hình mặc định chuẩn trên toàn bộ các sheet Tháng của GIDO
+    default_cols = {
+        'ngay': 0,           # Col A: NGÀY
+        'noi_dung': 1,       # Col B: NỘI DUNG
+        'tuan_start': 2,     # Col C: TUẤN
+        'tuan_ton': 2,       # Col C: Tồn
+        'thu_cty': 3,        # Col D: Thu từ Công ty
+        'thu_hb': 4,         # Col E: Thu từ Hải Bân
+        'thu_khac': 5,       # Col F: Thu khác
+        'chi_hb': 6,         # Col G: Chi tiền Hải Bân về công ty
+        'tuan_chi': 7,       # Col H: Chi (của Tuấn)
+        'xuyen': 8,          # Col I: XUYÊN
+        'luong_start': 9,    # Col J: LƯƠNG
+        'luong_thu': 9,      # Col J: Lương Thu
+        'luong_chi': 10,     # Col K: Lương Chi
+        'truong': 11,        # Col L: TRƯỜNG
+        'doi_tac': 12,       # Col M: Đối tác
+        'hoa_don': 13,       # Col N: Hóa đơn đối tác
+        'link_bill': 14,     # Col O: Link Bill ck
+        'hoan_ung': 15,      # Col P: Hoàn ứng
+        'ke_toan': 16,       # Col Q: Đã được kế toán thanh toán
+        'ext_id': 17,        # Col R: External ID / UUID
+        'max_col': 18
+    }
+    cols = dict(default_cols)
+    try:
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{GIDO_SPREADSHEET_ID}/values/{sheet_name}!A5:R6"
+        resp = requests.get(url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+        rows = resp.json().get('values', [])
+        if len(rows) >= 1:
+            header = rows[0]
+            sub_header = rows[1] if len(rows) > 1 else []
+            for j, h in enumerate(header):
+                nh = normalize_string(h)
+                if 'ngay' in nh: cols['ngay'] = j
+                if 'thang' in nh: cols['thang'] = j
+                if 'noi dung' in nh: cols['noi_dung'] = j
+                if 'tuan' in nh and 'tuan_start' not in cols: cols['tuan_start'] = j
+                if 'xuyen' in nh: cols['xuyen'] = j
+                if 'luong' in nh: cols['luong_start'] = j
+                if 'truong' in nh: cols['truong'] = j
+                if ('doi tac' in nh or 'doi tac khac' in nh) and 'hoa don' not in nh: cols['doi_tac'] = j
+                if 'hoa don' in nh: cols['hoa_don'] = j
+                if 'link bill' in nh or 'bill' in nh: cols['link_bill'] = j
 
-    cols = {'max_col': max(len(header), len(sub_header), 15)}
-    xuyen_idx = -1
-    for j, h in enumerate(header):
-        nh = normalize_string(h)
-        if 'ngay' in nh: cols['ngay'] = j
-        if 'thang' in nh: cols['thang'] = j
-        if 'noi dung' in nh: cols['noi_dung'] = j
-        if 'tuan' in nh and 'tuan_start' not in cols: cols['tuan_start'] = j
-        if 'xuyen' in nh: cols['xuyen'] = j; xuyen_idx = j
-        if 'luong' in nh: cols['luong_start'] = j
-        if 'truong' in nh: cols['truong'] = j
-        if ('doi tac' in nh or 'doi tac khac' in nh) and 'hoa don' not in nh: cols['doi_tac'] = j
-        if 'hoa don' in nh: cols['hoa_don'] = j
-        if 'link bill' in nh or 'bill' in nh: cols['link_bill'] = j
+            if sub_header:
+                for j, sh in enumerate(sub_header):
+                    nsh = normalize_string(sh)
+                    if 'thu' in nsh and 'cong ty' in nsh: cols['thu_cty'] = j
+                    elif 'thu' in nsh and 'hai ban' in nsh: cols['thu_hb'] = j
+                    elif 'thu khac' in nsh: cols['thu_khac'] = j
+                    elif 'chi' in nsh and 'hai ban' in nsh: cols['chi_hb'] = j
+                    elif nsh == 'chi' and j < cols.get('xuyen', 8): cols['tuan_chi'] = j
+                    elif 'thu' in nsh and j >= cols.get('luong_start', 9): cols['luong_thu'] = j
+                    elif nsh == 'chi' and j >= cols.get('luong_start', 9) and j < cols.get('truong', 11): cols['luong_chi'] = j
+    except Exception as e:
+        print(f"[CashflowBot] Error detecting columns dynamically, fallback to standard defaults: {e}")
 
-    tuan_end = xuyen_idx if xuyen_idx != -1 else len(sub_header)
-    for j in range(cols.get('tuan_start', 0), tuan_end):
-        if j >= len(sub_header): break
-        nsh = normalize_string(sub_header[j])
-        if 'thu' in nsh and 'cong ty' in nsh: cols['thu_cty'] = j
-        elif 'thu' in nsh and 'hai ban' in nsh: cols['thu_hb'] = j
-        elif 'thu khac' in nsh: cols['thu_khac'] = j
-        elif 'chi' in nsh and 'hai ban' in nsh: cols['chi_hb'] = j
-        elif nsh == 'chi': cols['tuan_chi'] = j
-
-    if 'luong_start' in cols:
-        luong_end = cols.get('truong', cols.get('doi_tac', len(sub_header)))
-        for j in range(cols['luong_start'], luong_end):
-            if j >= len(sub_header): break
-            nsh = normalize_string(sub_header[j])
-            if 'thu' in nsh: cols['luong_thu'] = j
-            if nsh == 'chi': cols['luong_chi'] = j
-
+    # Đảm bảo tuan_chi luôn có giá trị chuẩn (cột H = 7)
+    if 'tuan_chi' not in cols:
+        cols['tuan_chi'] = 7
     return cols
 
 def _insert_row_before_total(token, spreadsheet_id, sheet_name):
-    """Tìm dòng TỔNG và chèn 1 dòng trống ngay trước dòng TỔNG trên Google Sheet, trả về row_a1 (1-indexed)."""
+    """
+    Tìm vị trí dòng trống tiếp theo để chèn giao dịch:
+    - Row 1-4: Tiêu đề
+    - Row 5: Header chính (NGÀY, NỘI DUNG, TUẤN, ...)
+    - Row 6: Sub-header (Tồn, Thu từ Công ty, ..., Chi)
+    - Row 7 trở đi: Giao dịch phát sinh (bắt buộc >= dòng 7)
+    - Row TỔNG: Tìm dòng có tiêu đề TỔNG / TỔNG CỘNG.
+    
+    Quy tắc an toàn tuyệt đối không bao giờ làm nhảy dòng:
+    1. Giao dịch luôn bắt đầu từ Dòng 7 trở đi (1-indexed >= 7). Tuyệt đối không chạm vào dòng 5, 6.
+    2. Quét các dòng từ Dòng 7 đến trước dòng TỔNG:
+       - Tìm dòng giao dịch cuối cùng đã có dữ liệu (Col A hoặc Col B có nội dung).
+       - Dòng cần ghi = last_tx_row + 1 (hoặc dòng 7 nếu chưa có giao dịch nào).
+    3. Nếu dòng cần ghi vẫn nằm trước dòng TỔNG:
+       - Ghi trực tiếp vào dòng đó mà không cần gọi insertDimension (không làm xô lệch cấu trúc và công thức sheet).
+    4. Nếu dòng cần ghi đã chạm vào hoặc vượt quá dòng TỔNG (hết dòng trống có sẵn trong template):
+       - Gọi batchUpdate chèn 1 dòng mới ngay trước dòng TỔNG (insertDimension tại vị trí TỔNG).
+       - Trả về vị trí dòng mới (1-indexed).
+    """
     meta_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?fields=sheets.properties"
     m_resp = requests.get(meta_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
     sheets_list = m_resp.json().get('sheets', [])
@@ -359,19 +397,41 @@ def _insert_row_before_total(token, spreadsheet_id, sheet_name):
     v_resp = requests.get(f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{sheet_name}!A:B",
                           headers={'Authorization': f'Bearer {token}'}, timeout=10)
     rows = v_resp.json().get('values', [])
-    tong_index = next((i for i, r in enumerate(rows) if is_total_label(r[0] if r else '') or (len(r) > 1 and is_total_label(r[1]))), -1)
+    
+    # Tìm dòng TỔNG (bắt đầu tìm từ dòng 7 trở đi)
+    tong_index = -1
+    for i in range(6, len(rows)):
+        r = rows[i]
+        cA = r[0] if len(r) > 0 else ''
+        cB = r[1] if len(r) > 1 else ''
+        if is_total_label(cA) or is_total_label(cB):
+            tong_index = i
+            break
+            
     if tong_index == -1:
         tong_index = len(rows)
 
-    last_filled = tong_index - 1
-    while last_filled >= 0:
-        cA = (rows[last_filled][0] if len(rows[last_filled]) > 0 else '').strip()
-        cB = (rows[last_filled][1] if len(rows[last_filled]) > 1 else '').strip()
+    # Quét tìm dòng giao dịch cuối cùng đã điền trong khoảng từ dòng 7 (index 6) đến trước TỔNG
+    last_tx_index = -1
+    search_limit = min(tong_index, len(rows))
+    for i in range(6, search_limit):
+        r = rows[i]
+        cA = (r[0] if len(r) > 0 else '').strip()
+        cB = (r[1] if len(r) > 1 else '').strip()
         if cA != '' or cB != '':
-            break
-        last_filled -= 1
-    insert_index = last_filled + 1
+            last_tx_index = i
 
+    if last_tx_index == -1:
+        # Chưa có giao dịch nào trong tháng: Dòng ghi đầu tiên luôn là Dòng 7 (index 6)
+        target_index = 6
+    else:
+        target_index = last_tx_index + 1
+
+    # Nếu target_index < tong_index: Dòng này đã có sẵn trong bảng và đang trống -> Ghi trực tiếp
+    if target_index < tong_index:
+        return target_index + 1
+
+    # Nếu target_index chạm vào dòng TỔNG: Cần chèn thêm 1 dòng trống ngay trước dòng TỔNG
     batch_url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate"
     body = {
         "requests": [{
@@ -379,15 +439,15 @@ def _insert_row_before_total(token, spreadsheet_id, sheet_name):
                 "range": {
                     "sheetId": target['sheetId'],
                     "dimension": "ROWS",
-                    "startIndex": insert_index,
-                    "endIndex": insert_index + 1
+                    "startIndex": tong_index,
+                    "endIndex": tong_index + 1
                 },
                 "inheritFromBefore": True
             }
         }]
     }
     requests.post(batch_url, json=body, headers={'Authorization': f'Bearer {token}'}, timeout=10)
-    return insert_index + 1
+    return tong_index + 1
 
 def append_transaction_to_sheet(data, public_img_url):
     """Chèn dòng mới vào Google Sheet và cập nhật giá trị"""
@@ -427,16 +487,28 @@ def append_transaction_to_sheet(data, public_img_url):
         elif nguon_thu == 'HẢI BÂN' and 'thu_hb' in cols: row_data[cols['thu_hb']] = so_tien
         elif 'thu_khac' in cols: row_data[cols['thu_khac']] = so_tien
         
-        if nhan_vien == 'LƯƠNG' and 'luong_thu' in cols: row_data[cols['luong_thu']] = -so_tien
-        elif nhan_vien == 'XUYÊN' and 'xuyen' in cols: row_data[cols['xuyen']] = -so_tien
-        elif nhan_vien == 'TRƯỜNG' and 'truong' in cols: row_data[cols['truong']] = -so_tien
-        elif nhan_vien == 'ĐỐI TÁC KHÁC' and 'doi_tac' in cols: row_data[cols['doi_tac']] = -so_tien
-    else:
-        if 'tuan_chi' in cols: row_data[cols['tuan_chi']] = -so_tien
-        if nhan_vien == 'LƯƠNG' and 'luong_thu' in cols: row_data[cols['luong_thu']] = so_tien
-        elif nhan_vien == 'XUYÊN' and 'xuyen' in cols: row_data[cols['xuyen']] = so_tien
-        elif nhan_vien == 'TRƯỜNG' and 'truong' in cols: row_data[cols['truong']] = so_tien
-        elif nhan_vien == 'ĐỐI TÁC KHÁC' and 'doi_tac' in cols: row_data[cols['doi_tac']] = so_tien
+        nv_norm = normalize_string(str(nhan_vien or ''))
+        if 'luong' in nv_norm and 'luong_thu' in cols: row_data[cols['luong_thu']] = -so_tien
+        elif 'xuyen' in nv_norm and 'xuyen' in cols: row_data[cols['xuyen']] = -so_tien
+        elif 'truong' in nv_norm and 'truong' in cols: row_data[cols['truong']] = -so_tien
+        elif 'doi_tac' in cols: row_data[cols['doi_tac']] = -so_tien
+    else: # loai == 'CHI'
+        # 1. Tuấn Chi: Luôn ghi số âm (-so_tien) vào cột tuan_chi (cột H)
+        tuan_chi_idx = cols.get('tuan_chi', 7)
+        row_data[tuan_chi_idx] = -so_tien
+
+        # 2. Phân bổ người nhận / đối tượng chi:
+        nv_norm = normalize_string(str(nhan_vien or ''))
+        if 'luong' in nv_norm and 'luong_thu' in cols:
+            row_data[cols['luong_thu']] = so_tien
+        elif 'xuyen' in nv_norm and 'xuyen' in cols:
+            row_data[cols['xuyen']] = so_tien
+        elif 'truong' in nv_norm and 'truong' in cols:
+            row_data[cols['truong']] = so_tien
+        else:
+            # Mọi khoản chi khác ngoài Lương, Xuyên, Trường đều ghi vào cột Đối tác
+            doi_tac_idx = cols.get('doi_tac', 12)
+            row_data[doi_tac_idx] = so_tien
 
     idx_bill = cols.get('link_bill', 14)
     if idx_bill < len(row_data):

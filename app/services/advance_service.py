@@ -445,6 +445,15 @@ def sync_month_from_google(month, year):
             if prev_record and prev_record.closing_balance:
                 opening_bal = prev_record.closing_balance
 
+            # Tính toán số dư cuối kỳ thực tế nếu sheet chưa có công thức hoặc chỉ tính tổng phát sinh
+            calculated_closing = opening_bal + tot_cty + tot_haiban + tot_khac - abs(tot_spent) - abs(tot_hb_cty)
+            if closing_bal == 0.0:
+                closing_bal = calculated_closing
+            else:
+                net_change = tot_cty + tot_haiban + tot_khac - abs(tot_spent) - abs(tot_hb_cty)
+                if opening_bal > 0 and abs(closing_bal - net_change) < 1.0 and abs(closing_bal - calculated_closing) > 1.0:
+                    closing_bal = calculated_closing
+
             # Upsert CashAdvanceMonthly
             monthly = CashAdvanceMonthly.query.filter_by(month=month, year=year).first()
             if not monthly:
@@ -458,7 +467,7 @@ def sync_month_from_google(month, year):
             monthly.total_haiban_receipts = tot_haiban
             monthly.total_other_receipts = tot_khac
             monthly.total_haiban_to_company = tot_hb_cty
-            monthly.total_advances_spent = tot_spent
+            monthly.total_advances_spent = -abs(tot_spent) if tot_spent else 0.0
             monthly.total_xuyen = tot_xuyen
             monthly.total_luong_thu = tot_luong_thu
             monthly.total_luong_chi = tot_luong_chi
@@ -612,20 +621,36 @@ def get_monthly_advances_data(month, year):
             is_deleted=False
         ).order_by(CashAdvanceTransaction.row_index.asc(), CashAdvanceTransaction.id.asc()).all()
 
+    # Tính toán tồn quỹ luỹ kế (running balance) cho từng dòng giao dịch
+    running_bal = monthly.opening_balance if monthly else 0.0
+    for t in transactions:
+        running_bal += (t.tuan_thu_cty or 0.0) + (t.tuan_thu_haiban or 0.0) + (t.tuan_thu_khac or 0.0)
+        running_bal -= abs(t.tuan_chi or 0.0) + abs(t.tuan_chi_haiban_cty or 0.0)
+        t.running_ton = running_bal
+
     # Tính toán các chỉ số tóm tắt (KPIs)
-    total_in = (monthly.total_company_receipts if monthly else 0.0) + \
-               (monthly.total_haiban_receipts if monthly else 0.0) + \
-               (monthly.total_other_receipts if monthly else 0.0)
+    trans_total_in = sum((t.tuan_thu_cty or 0.0) + (t.tuan_thu_haiban or 0.0) + (t.tuan_thu_khac or 0.0) for t in transactions)
+    trans_total_out = sum(abs(t.tuan_chi or 0.0) for t in transactions if (t.tuan_chi or 0.0) < 0) or sum(t.tuan_chi or 0.0 for t in transactions)
     
-    total_out = abs(monthly.total_advances_spent if monthly else 0.0)
+    m_in = (monthly.total_company_receipts if monthly else 0.0) + \
+           (monthly.total_haiban_receipts if monthly else 0.0) + \
+           (monthly.total_other_receipts if monthly else 0.0)
+    total_in = m_in if (m_in > 0 or not transactions) else trans_total_in
+    
+    m_out = abs(monthly.total_advances_spent if monthly else 0.0)
+    total_out = m_out if (m_out > 0 or not transactions) else trans_total_out
     
     # Dư nợ/tạm ứng các bộ phận
+    m_partner = monthly.total_partner if monthly else 0.0
+    trans_partner = sum(t.partner_amount or 0.0 for t in transactions)
+    final_partner = m_partner if (m_partner > 0 or not transactions) else trans_partner
+
     personnel_summary = {
-        'tuan_chi': abs(monthly.total_advances_spent if monthly else 0.0),
+        'tuan_chi': total_out,
         'xuyen': monthly.total_xuyen if monthly else 0.0,
         'luong': (monthly.total_luong_thu if monthly else 0.0) - (monthly.total_luong_chi if monthly else 0.0),
         'truong': monthly.total_truong if monthly else 0.0,
-        'partner': monthly.total_partner if monthly else 0.0
+        'partner': final_partner
     }
 
     # Thống kê chứng từ
@@ -633,11 +658,14 @@ def get_monthly_advances_data(month, year):
     no_invoice_count = sum(1 for t in transactions if 'không có' in (t.partner_invoice or '').lower() or 'không hđ' in (t.partner_invoice or '').lower())
     has_bill_count = sum(1 for t in transactions if t.bill_link and t.bill_link.strip())
 
+    calculated_closing = (monthly.opening_balance if monthly else 0.0) + total_in - total_out
+    final_closing = monthly.closing_balance if (monthly and monthly.closing_balance != 0.0) else calculated_closing
+
     metrics = {
         'month': month,
         'year': year,
         'opening_balance': monthly.opening_balance if monthly else 0.0,
-        'closing_balance': monthly.closing_balance if monthly else 0.0,
+        'closing_balance': final_closing,
         'total_company_receipts': monthly.total_company_receipts if monthly else 0.0,
         'total_haiban_receipts': monthly.total_haiban_receipts if monthly else 0.0,
         'total_other_receipts': monthly.total_other_receipts if monthly else 0.0,

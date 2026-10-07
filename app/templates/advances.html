@@ -382,7 +382,7 @@
 
                         <!-- Tuấn: Tồn -->
                         <td class="text-end font-mono text-muted">
-                            {% if t.tuan_ton %}{{ t.tuan_ton|format_money }}{% else %}-{% endif %}
+                            {% if t.tuan_ton %}{{ t.tuan_ton|format_money }}{% elif t.running_ton is defined and t.running_ton is not none %}{{ t.running_ton|format_money }}{% else %}-{% endif %}
                         </td>
 
                         <!-- Tuấn: Thu từ Cty -->
